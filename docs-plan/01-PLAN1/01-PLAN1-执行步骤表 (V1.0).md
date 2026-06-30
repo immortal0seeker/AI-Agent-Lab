@@ -47,20 +47,20 @@ blocked
 
 ## 2. 执行节奏表
 
-| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 |
-|---|---|---|---|
-| Batch 1 | P1-M1-S1～S3 | 建立仓库和后端最小可运行骨架 | 启动后端，提交基础骨架 |
-| Batch 2 | P1-M1-S4～S6 | 建立前端和环境变量规范 | 启动前端，验证 health 调用 |
-| Batch 3 | P1-M1-S7～S8 | 打通前后端基础联通和文档 | Codex review M1 |
-| Batch 4 | P1-M2-S1～S3 | 建立数据库、ORM、迁移基础 | 跑数据库测试 |
-| Batch 5 | P1-M2-S4～S6 | 建立 LLM Provider 抽象和 OpenAI-compatible Provider | mock provider 测试 |
-| Batch 6 | P1-M2-S7～S8 | 建立 Model Registry 和 provider 配置 | Codex + Claude review M2 |
-| Batch 7 | P1-M3-S1～S3 | 实现非流式 Chat API | 后端 chat 测试 |
-| Batch 8 | P1-M3-S4～S6 | 实现 Streaming Chat 和前端基础 Chat UI | 浏览器手测流式输出 |
-| Batch 9 | P1-M3-S7～S9 | 实现会话历史和刷新恢复 | Codex + Claude review M3 |
-| Batch 10 | P1-M4-S1～S3 | 实现 token / cost / latency 和错误处理 | 后端测试 |
-| Batch 11 | P1-M4-S4～S6 | 实现日志、基础测试、文档 | 全量测试 |
-| Batch 12 | P1-M4-S7～S8 | 封版、截图、CHANGELOG、tag | Codex + Claude final review |
+| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 | 状态 |
+|---|---|---|---|---|
+| Batch 1 | P1-M1-S1～S3 | 建立仓库和后端最小可运行骨架 | 启动后端，提交基础骨架 | 未完成 |
+| Batch 2 | P1-M1-S4～S6 | 建立前端和环境变量规范 | 启动前端，验证 health 调用 | 未完成 |
+| Batch 3 | P1-M1-S7～S8 | 打通前后端基础联通和文档 | Codex review M1 | 未完成 |
+| Batch 4 | P1-M2-S1～S3 | 建立数据库、ORM、迁移基础 | 跑数据库测试 | 未完成 |
+| Batch 5 | P1-M2-S4～S6 | 建立 LLM Provider 抽象和 OpenAI-compatible Provider | mock provider 测试 | 未完成 |
+| Batch 6 | P1-M2-S7～S8 | 建立 Model Registry 和 provider 配置 | Codex + Claude review M2 | 未完成 |
+| Batch 7 | P1-M3-S1～S3 | 实现非流式 Chat API | 后端 chat 测试 | 未完成 |
+| Batch 8 | P1-M3-S4～S6 | 实现 Streaming Chat 和前端基础 Chat UI | 浏览器手测流式输出 | 未完成 |
+| Batch 9 | P1-M3-S7～S9 | 实现会话历史和刷新恢复 | Codex + Claude review M3 | 未完成 |
+| Batch 10 | P1-M4-S1～S3 | 实现 token / cost / latency 和错误处理 | 后端测试 | 未完成 |
+| Batch 11 | P1-M4-S4～S6 | 实现日志、基础测试、文档 | 全量测试 | 未完成 |
+| Batch 12 | P1-M4-S7～S8 | 封版、截图、CHANGELOG、tag | Codex + Claude final review | 未完成 |
 
 ---
 

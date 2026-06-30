@@ -50,28 +50,28 @@ blocked
 
 ## 2. 执行节奏表
 
-| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 |
-|---|---|---|---|
-| Batch 1 | P4-M1-S1～S3 | 确认 Plan3 地基，建立 Trace 数据模型 | 迁移和模型测试 |
-| Batch 2 | P4-M1-S4～S6 | 实现 Trace Service / Context / Step writer | Trace 单元测试 |
-| Batch 3 | P4-M1-S7 | 完成 Trace 基础文档和 M1 review | Codex + Claude review M1 |
-| Batch 4 | P4-M2-S1～S3 | 接入 LLM 调用 Trace 和成本记录 | LLM Trace 测试 |
-| Batch 5 | P4-M2-S4～S6 | 接入 RAG 检索 Trace 和候选记录 | RAG Trace 测试 |
-| Batch 6 | P4-M2-S7～S9 | 实现 Trace API 和前端 Timeline | API 测试 + 浏览器手测 |
-| Batch 7 | P4-M2-S10 | 完成 Timeline review | Codex + Claude review M2 |
-| Batch 8 | P4-M3-S1～S3 | 实现 metadata filter 和策略接口基础 | Retriever 测试 |
-| Batch 9 | P4-M3-S4～S6 | 实现 BM25 / keyword search | 搜索测试 |
-| Batch 10 | P4-M3-S7～S9 | 实现 Hybrid Search 和 RRF 融合 | Hybrid 测试，Codex + Claude review M3 |
-| Batch 11 | P4-M4-S1～S3 | 实现 Parent-Child Retrieval | 检索测试 |
-| Batch 12 | P4-M4-S4～S6 | 实现 Query Rewrite 和 fallback | rewrite 测试，Codex review M4 |
-| Batch 13 | P4-M5-S1～S3 | 设计并实现 Rerank Provider 抽象 | provider mock 测试 |
-| Batch 14 | P4-M5-S4～S6 | 实现 API Rerank Provider 和 Strategy Registry | rerank / strategy 测试 |
-| Batch 15 | P4-M5-S7～S9 | 实现 Advanced RAG Query / Chat API | API 测试 |
-| Batch 16 | P4-M5-S10～S12 | 实现 Strategy Compare API 和前端策略页 | 浏览器手测，Codex + Claude review M5 |
-| Batch 17 | P4-M6-S1～S3 | 实现 Evaluation 数据模型和 Dataset API | eval model / API 测试 |
-| Batch 18 | P4-M6-S4～S6 | 实现 Evaluation Runner 和基础指标 | runner / metrics 测试 |
-| Batch 19 | P4-M6-S7～S9 | 实现 Evaluation API、可选 LLM-as-Judge、前端 Eval 页面 | API + 页面验证，Codex + Claude review M6 |
-| Batch 20 | P4-M7-S1～S6 | 补测试、文档、截图、封版 | Codex + Claude final review |
+| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 | 状态 |
+|---|---|---|---|---|
+| Batch 1 | P4-M1-S1～S3 | 确认 Plan3 地基，建立 Trace 数据模型 | 迁移和模型测试 | 未完成 |
+| Batch 2 | P4-M1-S4～S6 | 实现 Trace Service / Context / Step writer | Trace 单元测试 | 未完成 |
+| Batch 3 | P4-M1-S7 | 完成 Trace 基础文档和 M1 review | Codex + Claude review M1 | 未完成 |
+| Batch 4 | P4-M2-S1～S3 | 接入 LLM 调用 Trace 和成本记录 | LLM Trace 测试 | 未完成 |
+| Batch 5 | P4-M2-S4～S6 | 接入 RAG 检索 Trace 和候选记录 | RAG Trace 测试 | 未完成 |
+| Batch 6 | P4-M2-S7～S9 | 实现 Trace API 和前端 Timeline | API 测试 + 浏览器手测 | 未完成 |
+| Batch 7 | P4-M2-S10 | 完成 Timeline review | Codex + Claude review M2 | 未完成 |
+| Batch 8 | P4-M3-S1～S3 | 实现 metadata filter 和策略接口基础 | Retriever 测试 | 未完成 |
+| Batch 9 | P4-M3-S4～S6 | 实现 BM25 / keyword search | 搜索测试 | 未完成 |
+| Batch 10 | P4-M3-S7～S9 | 实现 Hybrid Search 和 RRF 融合 | Hybrid 测试，Codex + Claude review M3 | 未完成 |
+| Batch 11 | P4-M4-S1～S3 | 实现 Parent-Child Retrieval | 检索测试 | 未完成 |
+| Batch 12 | P4-M4-S4～S6 | 实现 Query Rewrite 和 fallback | rewrite 测试，Codex review M4 | 未完成 |
+| Batch 13 | P4-M5-S1～S3 | 设计并实现 Rerank Provider 抽象 | provider mock 测试 | 未完成 |
+| Batch 14 | P4-M5-S4～S6 | 实现 API Rerank Provider 和 Strategy Registry | rerank / strategy 测试 | 未完成 |
+| Batch 15 | P4-M5-S7～S9 | 实现 Advanced RAG Query / Chat API | API 测试 | 未完成 |
+| Batch 16 | P4-M5-S10～S12 | 实现 Strategy Compare API 和前端策略页 | 浏览器手测，Codex + Claude review M5 | 未完成 |
+| Batch 17 | P4-M6-S1～S3 | 实现 Evaluation 数据模型和 Dataset API | eval model / API 测试 | 未完成 |
+| Batch 18 | P4-M6-S4～S6 | 实现 Evaluation Runner 和基础指标 | runner / metrics 测试 | 未完成 |
+| Batch 19 | P4-M6-S7～S9 | 实现 Evaluation API、可选 LLM-as-Judge、前端 Eval 页面 | API + 页面验证，Codex + Claude review M6 | 未完成 |
+| Batch 20 | P4-M7-S1～S6 | 补测试、文档、截图、封版 | Codex + Claude final review | 未完成 |
 
 ---
 

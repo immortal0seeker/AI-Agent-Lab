@@ -54,38 +54,38 @@ blocked
 
 ## 2. 执行节奏表
 
-| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 |
-|---|---|---|---|
-| Batch 1 | P6-M1-S1～P6-M1-S3 | 确认 Plan5 交接，建立 MCP 数据模型 | 迁移和模型测试 |
-| Batch 2 | P6-M1-S4～P6-M1-S6 | 实现 Server Registry、stdio Client、Tool Discovery | MCP mock 连接测试 |
-| Batch 3 | P6-M1-S7 | 完成 MCP Client 文档和 M1 review | Codex + Claude review M1 |
-| Batch 4 | P6-M2-S1～P6-M2-S3 | 实现 Tool Adapter、Permission Policy、Tool Call Service | adapter / permission 测试 |
-| Batch 5 | P6-M2-S4～P6-M2-S5 | 接入 Agent Runtime 和 Human Approval | Runtime 集成测试 |
-| Batch 6 | P6-M2-S6～P6-M2-S8 | 实现 MCP API、Local Permission 基础与 M2 review | API / 权限测试，Claude review |
-| Batch 7 | P6-M3-S1～P6-M3-S2 | 实现前端 MCP API 封装和管理页基础 | TypeScript 检查 + 页面手测 |
-| Batch 8 | P6-M3-S3～P6-M3-S5 | 接入 Filesystem / GitHub / SQLite MCP 配置 | 工具发现测试 |
-| Batch 9 | P6-M3-S6～P6-M3-S7 | 实现 Custom MCP Server 与 MCP 文档 | Codex + Claude review M3 |
-| Batch 10 | P6-M4-S1～P6-M4-S3 | 建立 Audio 数据模型、Storage、STT Provider | 音频和转写 mock 测试 |
-| Batch 11 | P6-M4-S4～P6-M4-S5 | 实现 TTS Provider 与 Voice API | API 测试 |
-| Batch 12 | P6-M4-S6 | 完成 Voice Provider 文档和 M4 review | Codex + Claude review M4 |
-| Batch 13 | P6-M5-S1～P6-M5-S2 | 实现前端录音和基础 VAD / 停止逻辑 | 浏览器手测 |
-| Batch 14 | P6-M5-S3～P6-M5-S5 | 实现 Voice Pipeline、TTS 播放、Audio Trace | 端到端语音回合测试 |
-| Batch 15 | P6-M5-S6 | 完成 Voice 页面和 M5 review | Codex + Claude review M5 |
-| Batch 16 | P6-M6-S1～P6-M6-S2 | 建立 Media Asset 模型和上传服务 | 上传测试 |
-| Batch 17 | P6-M6-S3～P6-M6-S4 | 实现 OCR Provider 和 Vision Provider | provider mock 测试 |
-| Batch 18 | P6-M6-S5～P6-M6-S6 | 实现 Multimodal API 与 M6 review | API 测试，Claude review |
-| Batch 19 | P6-M7-S1～P6-M7-S2 | 实现 Multimodal Prompt / 图文问答 | 图文问答 mock 测试 |
-| Batch 20 | P6-M7-S3～P6-M7-S4 | 实现 OCR 入库和多模态页面 | 页面手测 |
-| Batch 21 | P6-M7-S5 | 完成多模态文档和 M7 review | Codex + Claude review M7 |
-| Batch 22 | P6-M8-S1～P6-M8-S2 | 完成桌面端方案并创建 Tauri 壳 | 本地启动测试 |
-| Batch 23 | P6-M8-S3～P6-M8-S4 | 实现 Desktop API、本地配置并接入既有 Trusted Paths | API 测试 |
-| Batch 24 | P6-M8-S5～P6-M8-S6 | 实现 Desktop Settings 页面和 M8 review | 页面手测，Codex review |
-| Batch 25 | P6-M9-S1～P6-M9-S2 | 实现系统托盘、快捷键、本地权限校验 | 桌面手测 |
-| Batch 26 | P6-M9-S3～P6-M9-S4 | 接入 Filesystem MCP 权限和 Windows 打包 | 权限测试 + 构建测试 |
-| Batch 27 | P6-M9-S5 | 完成 Desktop 安全 review | Codex + Claude review M9 |
-| Batch 28 | P6-M10-S1～P6-M10-S3 | 补齐 MCP / Voice / Multimodal / Desktop 测试 | 测试输出 |
-| Batch 29 | P6-M10-S4～P6-M10-S5 | 更新 README、docs、CHANGELOG、截图 | 文档 review |
-| Batch 30 | P6-M10-S6～P6-M10-S7 | 全量 review、修复、v0.6.0 封版 | Codex + Claude final review |
+| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 | 状态 |
+|---|---|---|---|---|
+| Batch 1 | P6-M1-S1～P6-M1-S3 | 确认 Plan5 交接，建立 MCP 数据模型 | 迁移和模型测试 | 未完成 |
+| Batch 2 | P6-M1-S4～P6-M1-S6 | 实现 Server Registry、stdio Client、Tool Discovery | MCP mock 连接测试 | 未完成 |
+| Batch 3 | P6-M1-S7 | 完成 MCP Client 文档和 M1 review | Codex + Claude review M1 | 未完成 |
+| Batch 4 | P6-M2-S1～P6-M2-S3 | 实现 Tool Adapter、Permission Policy、Tool Call Service | adapter / permission 测试 | 未完成 |
+| Batch 5 | P6-M2-S4～P6-M2-S5 | 接入 Agent Runtime 和 Human Approval | Runtime 集成测试 | 未完成 |
+| Batch 6 | P6-M2-S6～P6-M2-S8 | 实现 MCP API、Local Permission 基础与 M2 review | API / 权限测试，Claude review | 未完成 |
+| Batch 7 | P6-M3-S1～P6-M3-S2 | 实现前端 MCP API 封装和管理页基础 | TypeScript 检查 + 页面手测 | 未完成 |
+| Batch 8 | P6-M3-S3～P6-M3-S5 | 接入 Filesystem / GitHub / SQLite MCP 配置 | 工具发现测试 | 未完成 |
+| Batch 9 | P6-M3-S6～P6-M3-S7 | 实现 Custom MCP Server 与 MCP 文档 | Codex + Claude review M3 | 未完成 |
+| Batch 10 | P6-M4-S1～P6-M4-S3 | 建立 Audio 数据模型、Storage、STT Provider | 音频和转写 mock 测试 | 未完成 |
+| Batch 11 | P6-M4-S4～P6-M4-S5 | 实现 TTS Provider 与 Voice API | API 测试 | 未完成 |
+| Batch 12 | P6-M4-S6 | 完成 Voice Provider 文档和 M4 review | Codex + Claude review M4 | 未完成 |
+| Batch 13 | P6-M5-S1～P6-M5-S2 | 实现前端录音和基础 VAD / 停止逻辑 | 浏览器手测 | 未完成 |
+| Batch 14 | P6-M5-S3～P6-M5-S5 | 实现 Voice Pipeline、TTS 播放、Audio Trace | 端到端语音回合测试 | 未完成 |
+| Batch 15 | P6-M5-S6 | 完成 Voice 页面和 M5 review | Codex + Claude review M5 | 未完成 |
+| Batch 16 | P6-M6-S1～P6-M6-S2 | 建立 Media Asset 模型和上传服务 | 上传测试 | 未完成 |
+| Batch 17 | P6-M6-S3～P6-M6-S4 | 实现 OCR Provider 和 Vision Provider | provider mock 测试 | 未完成 |
+| Batch 18 | P6-M6-S5～P6-M6-S6 | 实现 Multimodal API 与 M6 review | API 测试，Claude review | 未完成 |
+| Batch 19 | P6-M7-S1～P6-M7-S2 | 实现 Multimodal Prompt / 图文问答 | 图文问答 mock 测试 | 未完成 |
+| Batch 20 | P6-M7-S3～P6-M7-S4 | 实现 OCR 入库和多模态页面 | 页面手测 | 未完成 |
+| Batch 21 | P6-M7-S5 | 完成多模态文档和 M7 review | Codex + Claude review M7 | 未完成 |
+| Batch 22 | P6-M8-S1～P6-M8-S2 | 完成桌面端方案并创建 Tauri 壳 | 本地启动测试 | 未完成 |
+| Batch 23 | P6-M8-S3～P6-M8-S4 | 实现 Desktop API、本地配置并接入既有 Trusted Paths | API 测试 | 未完成 |
+| Batch 24 | P6-M8-S5～P6-M8-S6 | 实现 Desktop Settings 页面和 M8 review | 页面手测，Codex review | 未完成 |
+| Batch 25 | P6-M9-S1～P6-M9-S2 | 实现系统托盘、快捷键、本地权限校验 | 桌面手测 | 未完成 |
+| Batch 26 | P6-M9-S3～P6-M9-S4 | 接入 Filesystem MCP 权限和 Windows 打包 | 权限测试 + 构建测试 | 未完成 |
+| Batch 27 | P6-M9-S5 | 完成 Desktop 安全 review | Codex + Claude review M9 | 未完成 |
+| Batch 28 | P6-M10-S1～P6-M10-S3 | 补齐 MCP / Voice / Multimodal / Desktop 测试 | 测试输出 | 未完成 |
+| Batch 29 | P6-M10-S4～P6-M10-S5 | 更新 README、docs、CHANGELOG、截图 | 文档 review | 未完成 |
+| Batch 30 | P6-M10-S6～P6-M10-S7 | 全量 review、修复、v0.6.0 封版 | Codex + Claude final review | 未完成 |
 
 ---
 

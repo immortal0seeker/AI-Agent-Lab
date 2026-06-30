@@ -49,24 +49,24 @@ blocked
 
 ## 2. 执行节奏表
 
-| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 |
-|---|---|---|---|
-| Batch 1 | P3-M1-S1～S3 | 确认 Plan2 地基，接入 Qdrant 配置 | 跑现有测试和 Qdrant health |
-| Batch 2 | P3-M1-S4～S6 | 建立知识库核心数据模型 | 数据库迁移和模型测试 |
-| Batch 3 | P3-M1-S7～S9 | 实现 Knowledge Base API | API 测试，Codex + Claude review M1 |
-| Batch 4 | P3-M2-S1～S3 | 实现文件上传和存储 | 上传 API 测试 |
-| Batch 5 | P3-M2-S4～S6 | 实现 Markdown / TXT / PDF 文本解析 | Parser 测试 |
-| Batch 6 | P3-M2-S7～S9 | 实现文本清洗和 Chunking | Chunking 测试，Codex review M2 |
-| Batch 7 | P3-M3-S1～S3 | 实现 Embedding Provider 抽象 | mock embedding 测试 |
-| Batch 8 | P3-M3-S4～S6 | 实现 OpenAI-compatible Embedding 和配置 | provider 测试 |
-| Batch 9 | P3-M3-S7～S9 | 实现 Qdrant Vector Store | vector store 测试 |
-| Batch 10 | P3-M3-S10～S12 | 实现文档入库 Pipeline | 端到端入库测试，Codex + Claude review M3 |
-| Batch 11 | P3-M4-S1～S3 | 实现 Retriever 和 RAG Prompt | 检索 + prompt 测试 |
-| Batch 12 | P3-M4-S4～S6 | 实现 RAG Query / Chat API | API 测试 |
-| Batch 13 | P3-M4-S7～S8 | 注册 search_knowledge_base 工具 | Agent 工具调用测试，Codex + Claude review M4 |
-| Batch 14 | P3-M5-S1～S3 | 实现知识库页面和上传 UI | 浏览器手测 |
-| Batch 15 | P3-M5-S4～S6 | 实现 RAG Chat 和来源展示 | 浏览器手测，Codex review M5 |
-| Batch 16 | P3-M6-S1～S6 | 测试、文档、截图、封版 | Codex + Claude final review |
+| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 | 状态 |
+|---|---|---|---|---|
+| Batch 1 | P3-M1-S1～S3 | 确认 Plan2 地基，接入 Qdrant 配置 | 跑现有测试和 Qdrant health | 未完成 |
+| Batch 2 | P3-M1-S4～S6 | 建立知识库核心数据模型 | 数据库迁移和模型测试 | 未完成 |
+| Batch 3 | P3-M1-S7～S9 | 实现 Knowledge Base API | API 测试，Codex + Claude review M1 | 未完成 |
+| Batch 4 | P3-M2-S1～S3 | 实现文件上传和存储 | 上传 API 测试 | 未完成 |
+| Batch 5 | P3-M2-S4～S6 | 实现 Markdown / TXT / PDF 文本解析 | Parser 测试 | 未完成 |
+| Batch 6 | P3-M2-S7～S9 | 实现文本清洗和 Chunking | Chunking 测试，Codex review M2 | 未完成 |
+| Batch 7 | P3-M3-S1～S3 | 实现 Embedding Provider 抽象 | mock embedding 测试 | 未完成 |
+| Batch 8 | P3-M3-S4～S6 | 实现 OpenAI-compatible Embedding 和配置 | provider 测试 | 未完成 |
+| Batch 9 | P3-M3-S7～S9 | 实现 Qdrant Vector Store | vector store 测试 | 未完成 |
+| Batch 10 | P3-M3-S10～S12 | 实现文档入库 Pipeline | 端到端入库测试，Codex + Claude review M3 | 未完成 |
+| Batch 11 | P3-M4-S1～S3 | 实现 Retriever 和 RAG Prompt | 检索 + prompt 测试 | 未完成 |
+| Batch 12 | P3-M4-S4～S6 | 实现 RAG Query / Chat API | API 测试 | 未完成 |
+| Batch 13 | P3-M4-S7～S8 | 注册 search_knowledge_base 工具 | Agent 工具调用测试，Codex + Claude review M4 | 未完成 |
+| Batch 14 | P3-M5-S1～S3 | 实现知识库页面和上传 UI | 浏览器手测 | 未完成 |
+| Batch 15 | P3-M5-S4～S6 | 实现 RAG Chat 和来源展示 | 浏览器手测，Codex review M5 | 未完成 |
+| Batch 16 | P3-M6-S1～S6 | 测试、文档、截图、封版 | Codex + Claude final review | 未完成 |
 
 ---
 

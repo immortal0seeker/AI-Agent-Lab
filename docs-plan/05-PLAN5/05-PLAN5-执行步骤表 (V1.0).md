@@ -52,36 +52,36 @@ blocked
 
 ## 2. 执行节奏表
 
-| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 |
-|---|---|---|---|
-| Batch 1 | P5-M1-S1～P5-M1-S3 | 确认 Plan4 交接，建立 Memory 数据模型 | 迁移和模型测试 |
-| Batch 2 | P5-M1-S4～P5-M1-S6 | 实现 Memory Service / API / Conversation Summary | CRUD 与 summary 测试 |
-| Batch 3 | P5-M1-S7～P5-M1-S8 | 实现 Classifier 与 Memory 类型策略 | mock 分类测试 |
-| Batch 4 | P5-M1-S9～P5-M1-S10 | 实现 dedupe、sensitivity 与 M1 review | Codex + Claude review M1 |
-| Batch 5 | P5-M2-S1～P5-M2-S3 | 实现 Memory Retrieval 与 Retrieval Trace | 检索测试 |
-| Batch 6 | P5-M2-S4～P5-M2-S5 | 实现 Memory Injection 与写入决策查询 | 注入测试 |
-| Batch 7 | P5-M2-S6～P5-M2-S7 | 实现 Memory 管理页面与 M2 review | 浏览器手测 + Codex review |
-| Batch 8 | P5-M3-S1～P5-M3-S3 | 建立 Context Engine 类型、Source Selector、Token Budget | 单元测试 |
-| Batch 9 | P5-M3-S4～P5-M3-S6 | 实现 Context Builder、Prompt Sections、Preview API | API 测试 |
-| Batch 10 | P5-M3-S7 | 完成 Context Engine 文档与 M3 review | Codex + Claude review M3 |
-| Batch 11 | P5-M4-S1～P5-M4-S3 | 设计 Agent Runtime 数据模型与状态枚举 | 迁移和状态测试 |
-| Batch 12 | P5-M4-S4～P5-M4-S6 | 实现 Runtime Policy、Event、Step writer | Runtime 单元测试 |
-| Batch 13 | P5-M4-S7～P5-M4-S8 | 实现 Agent Runtime Service 与 M4 review | Codex + Claude review M4 |
-| Batch 14 | P5-M5-S1～P5-M5-S3 | 实现 ReAct parser、loop、tool observation | ReAct mock 测试 |
-| Batch 15 | P5-M5-S4～P5-M5-S5 | 实现 Tool Risk Policy 与 Approval Service | 风险策略测试 |
-| Batch 16 | P5-M5-S6～P5-M5-S8 | 实现 Approval API、前端卡片与 M5 review | API + 页面测试，Claude review |
-| Batch 17 | P5-M6-S1～P5-M6-S3 | 实现 Retry / Error Recovery | recovery 测试 |
-| Batch 18 | P5-M6-S4～P5-M6-S5 | 实现 Checkpoint / Pause / Resume | 恢复测试 |
-| Batch 19 | P5-M6-S6～P5-M6-S8 | 实现 Planner-Executor、Reflection 与 M6 review | Codex + Claude review M6 |
-| Batch 20 | P5-M7-S1～P5-M7-S3 | 实现 Agent Runtime API | API 测试 |
-| Batch 21 | P5-M7-S4～P5-M7-S6 | 实现 Agent Runtime 前端工作台和详情页 | 浏览器手测 |
-| Batch 22 | P5-M7-S7～P5-M7-S8 | 接入 Trace Timeline 与 M7 review | Trace 复盘测试，Claude review |
-| Batch 23 | P5-M8-S1～P5-M8-S3 | 实现 Memory 自动写入闭环 | 写入决策测试 |
-| Batch 24 | P5-M8-S4～P5-M8-S5 | 实现 Context Preview 页面 | 页面手测 |
-| Batch 25 | P5-M8-S6～P5-M8-S7 | 实现 Agent Evaluation 初版与 M8 review | Eval 测试，Claude review |
-| Batch 26 | P5-M9-S1～P5-M9-S3 | 补齐 Memory / Context / Runtime 测试 | 后端测试 |
-| Batch 27 | P5-M9-S4～P5-M9-S5 | 补齐前端验证、README、docs | 页面截图与文档 review |
-| Batch 28 | P5-M9-S6～P5-M9-S7 | 全量 review、修复、封版 v0.5.0 | Codex + Claude final review |
+| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 | 状态 |
+|---|---|---|---|---|
+| Batch 1 | P5-M1-S1～P5-M1-S3 | 确认 Plan4 交接，建立 Memory 数据模型 | 迁移和模型测试 | 未完成 |
+| Batch 2 | P5-M1-S4～P5-M1-S6 | 实现 Memory Service / API / Conversation Summary | CRUD 与 summary 测试 | 未完成 |
+| Batch 3 | P5-M1-S7～P5-M1-S8 | 实现 Classifier 与 Memory 类型策略 | mock 分类测试 | 未完成 |
+| Batch 4 | P5-M1-S9～P5-M1-S10 | 实现 dedupe、sensitivity 与 M1 review | Codex + Claude review M1 | 未完成 |
+| Batch 5 | P5-M2-S1～P5-M2-S3 | 实现 Memory Retrieval 与 Retrieval Trace | 检索测试 | 未完成 |
+| Batch 6 | P5-M2-S4～P5-M2-S5 | 实现 Memory Injection 与写入决策查询 | 注入测试 | 未完成 |
+| Batch 7 | P5-M2-S6～P5-M2-S7 | 实现 Memory 管理页面与 M2 review | 浏览器手测 + Codex review | 未完成 |
+| Batch 8 | P5-M3-S1～P5-M3-S3 | 建立 Context Engine 类型、Source Selector、Token Budget | 单元测试 | 未完成 |
+| Batch 9 | P5-M3-S4～P5-M3-S6 | 实现 Context Builder、Prompt Sections、Preview API | API 测试 | 未完成 |
+| Batch 10 | P5-M3-S7 | 完成 Context Engine 文档与 M3 review | Codex + Claude review M3 | 未完成 |
+| Batch 11 | P5-M4-S1～P5-M4-S3 | 设计 Agent Runtime 数据模型与状态枚举 | 迁移和状态测试 | 未完成 |
+| Batch 12 | P5-M4-S4～P5-M4-S6 | 实现 Runtime Policy、Event、Step writer | Runtime 单元测试 | 未完成 |
+| Batch 13 | P5-M4-S7～P5-M4-S8 | 实现 Agent Runtime Service 与 M4 review | Codex + Claude review M4 | 未完成 |
+| Batch 14 | P5-M5-S1～P5-M5-S3 | 实现 ReAct parser、loop、tool observation | ReAct mock 测试 | 未完成 |
+| Batch 15 | P5-M5-S4～P5-M5-S5 | 实现 Tool Risk Policy 与 Approval Service | 风险策略测试 | 未完成 |
+| Batch 16 | P5-M5-S6～P5-M5-S8 | 实现 Approval API、前端卡片与 M5 review | API + 页面测试，Claude review | 未完成 |
+| Batch 17 | P5-M6-S1～P5-M6-S3 | 实现 Retry / Error Recovery | recovery 测试 | 未完成 |
+| Batch 18 | P5-M6-S4～P5-M6-S5 | 实现 Checkpoint / Pause / Resume | 恢复测试 | 未完成 |
+| Batch 19 | P5-M6-S6～P5-M6-S8 | 实现 Planner-Executor、Reflection 与 M6 review | Codex + Claude review M6 | 未完成 |
+| Batch 20 | P5-M7-S1～P5-M7-S3 | 实现 Agent Runtime API | API 测试 | 未完成 |
+| Batch 21 | P5-M7-S4～P5-M7-S6 | 实现 Agent Runtime 前端工作台和详情页 | 浏览器手测 | 未完成 |
+| Batch 22 | P5-M7-S7～P5-M7-S8 | 接入 Trace Timeline 与 M7 review | Trace 复盘测试，Claude review | 未完成 |
+| Batch 23 | P5-M8-S1～P5-M8-S3 | 实现 Memory 自动写入闭环 | 写入决策测试 | 未完成 |
+| Batch 24 | P5-M8-S4～P5-M8-S5 | 实现 Context Preview 页面 | 页面手测 | 未完成 |
+| Batch 25 | P5-M8-S6～P5-M8-S7 | 实现 Agent Evaluation 初版与 M8 review | Eval 测试，Claude review | 未完成 |
+| Batch 26 | P5-M9-S1～P5-M9-S3 | 补齐 Memory / Context / Runtime 测试 | 后端测试 | 未完成 |
+| Batch 27 | P5-M9-S4～P5-M9-S5 | 补齐前端验证、README、docs | 页面截图与文档 review | 未完成 |
+| Batch 28 | P5-M9-S6～P5-M9-S7 | 全量 review、修复、封版 v0.5.0 | Codex + Claude final review | 未完成 |
 
 ---
 

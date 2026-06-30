@@ -48,22 +48,22 @@ blocked
 
 ## 2. 执行节奏表
 
-| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 |
-|---|---|---|---|
-| Batch 1 | P2-M1-S1～S3 | 确认 Plan1 地基，建立 Tool 核心结构 | 跑现有测试，提交 Tool 抽象 |
-| Batch 2 | P2-M1-S4～S6 | 实现 Registry、参数校验和安全策略雏形 | Tool 单元测试 |
-| Batch 3 | P2-M1-S7～S8 | 持久化 AgentRun / ToolCall，完成 M1 review | Codex + Claude review M1 |
-| Batch 4 | P2-M2-S1～S3 | 实现 read_file 并覆盖路径安全测试 | 工具测试 |
-| Batch 5 | P2-M2-S4～S6 | 实现 list_dir 和工具注册 | 工具集成测试 |
-| Batch 6 | P2-M2-S7 | 可选实现 web_fetch 或明确延期记录 | Codex review M2 |
-| Batch 7 | P2-M3-S1～S3 | 扩展 LLM Provider 支持 tools | Provider mock 测试 |
-| Batch 8 | P2-M3-S4～S6 | 实现 Simple Agent Loop | Agent mock 测试 |
-| Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex + Claude review M3 |
-| Batch 10 | P2-M4-S1～S3 | 实现 Agent API 和 Tool Call 查询 | API 测试 |
-| Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 |
-| Batch 12 | P2-M5-S1～S3 | 补 Tool / Agent 测试 | 后端测试 |
-| Batch 13 | P2-M5-S4～S6 | 补文档、README、截图和限制说明 | 文档 review |
-| Batch 14 | P2-M5-S7～S8 | 最终 review、修复、v0.2.0 封版 | Codex + Claude final review |
+| 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 | 状态 |
+|---|---|---|---|---|
+| Batch 1 | P2-M1-S1～S3 | 确认 Plan1 地基，建立 Tool 核心结构 | 跑现有测试，提交 Tool 抽象 | 未完成 |
+| Batch 2 | P2-M1-S4～S6 | 实现 Registry、参数校验和安全策略雏形 | Tool 单元测试 | 未完成 |
+| Batch 3 | P2-M1-S7～S8 | 持久化 AgentRun / ToolCall，完成 M1 review | Codex + Claude review M1 | 未完成 |
+| Batch 4 | P2-M2-S1～S3 | 实现 read_file 并覆盖路径安全测试 | 工具测试 | 未完成 |
+| Batch 5 | P2-M2-S4～S6 | 实现 list_dir 和工具注册 | 工具集成测试 | 未完成 |
+| Batch 6 | P2-M2-S7 | 可选实现 web_fetch 或明确延期记录 | Codex review M2 | 未完成 |
+| Batch 7 | P2-M3-S1～S3 | 扩展 LLM Provider 支持 tools | Provider mock 测试 | 未完成 |
+| Batch 8 | P2-M3-S4～S6 | 实现 Simple Agent Loop | Agent mock 测试 | 未完成 |
+| Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex + Claude review M3 | 未完成 |
+| Batch 10 | P2-M4-S1～S3 | 实现 Agent API 和 Tool Call 查询 | API 测试 | 未完成 |
+| Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 | 未完成 |
+| Batch 12 | P2-M5-S1～S3 | 补 Tool / Agent 测试 | 后端测试 | 未完成 |
+| Batch 13 | P2-M5-S4～S6 | 补文档、README、截图和限制说明 | 文档 review | 未完成 |
+| Batch 14 | P2-M5-S7～S8 | 最终 review、修复、v0.2.0 封版 | Codex + Claude final review | 未完成 |
 
 ---
 
