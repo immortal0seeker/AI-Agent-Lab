@@ -23,7 +23,9 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-第一批实现范围限制为 `P1-M1-S1` 到 `P1-M1-S3`。
+已完成的基础范围：`P1-M1-S1` 到 `P1-M1-S6`。
+
+下一批范围：`P1-M1-S7` 到 `P1-M1-S8`。
 
 ## Plan 1 非目标
 
@@ -75,6 +77,7 @@ AI-Agent-Lab/
 ### 后端
 
 ```bash
+py -3.11 -m venv .venv
 cd backend
 ..\.venv\Scripts\python.exe -m pip install -e .[dev] --no-build-isolation
 ..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload

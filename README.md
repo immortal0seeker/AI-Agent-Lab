@@ -23,7 +23,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-The first implementation batch is limited to `P1-M1-S1` through `P1-M1-S3`.
+Completed foundation scope: `P1-M1-S1` through `P1-M1-S6`.
+
+Next scope: `P1-M1-S7` through `P1-M1-S8`.
 
 ## Non-Goals For Plan 1
 
@@ -57,6 +59,7 @@ AI-Agent-Lab/
 ├── docs-plan/     # Tracked source planning documents and execution tables
 ├── docs-local/    # Ignored local drafts, private notes, and sensitive materials
 ├── AGENTS.md      # Root collaboration rules
+├── AGENTS_CN.md   # Root Chinese collaboration rules
 ├── .env.example   # Root environment variable example
 └── .gitignore
 ```
@@ -74,6 +77,7 @@ The backend and frontend are scaffolded in stages.
 ### Backend
 
 ```bash
+py -3.11 -m venv .venv
 cd backend
 ..\.venv\Scripts\python.exe -m pip install -e .[dev] --no-build-isolation
 ..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload

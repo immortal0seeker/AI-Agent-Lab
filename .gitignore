@@ -120,3 +120,5 @@ docs/**/*.private.md
 
 # Keep placeholders
 !.gitkeep
+
+.codegraph/

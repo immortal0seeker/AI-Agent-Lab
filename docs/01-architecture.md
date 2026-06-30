@@ -2,7 +2,7 @@
 
 ## Current Architecture Stage
 
-This document describes the Plan 1 architecture target. The repository is currently at the beginning of Plan 1 Milestone 1, so some modules are documented as intended structure and will be implemented in later Plan 1 batches.
+This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M1-S6`, so the backend health endpoint, base configuration, frontend skeleton, and frontend API client exist. Later Plan 1 batches will add the database, provider layer, chat flow, streaming, persistence, logging, and error handling.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -55,7 +55,7 @@ Expected Plan 1 backend layers:
 | `models/` | ORM models |
 | `core/` | Config, logging, and error handling |
 
-The first backend endpoint will be:
+The first backend endpoint is implemented:
 
 ```text
 GET /api/v1/health
@@ -84,6 +84,8 @@ Expected Plan 1 frontend areas:
 | `src/components/` | Feature and layout components |
 
 The UI should feel like an engineering workspace: quiet, dense, readable, and practical. It should not become a marketing landing page.
+
+Current Milestone 1 frontend code includes the base React app and `src/api/client.ts`. Page, component, and shared type directories will be added when the active step needs them.
 
 ## Plan 1 Data Flow
 

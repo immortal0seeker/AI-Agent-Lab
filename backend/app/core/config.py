@@ -19,6 +19,14 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @property
+    def backend_cors_origin_list(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.backend_cors_origins.split(",")
+            if origin.strip()
+        ]
+
 
 @lru_cache
 def get_settings() -> Settings:
