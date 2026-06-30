@@ -48,4 +48,56 @@ code {
   border: 1px solid #d8dee4;
   border-radius: 6px;
   background: #f5f7f8;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.health-card {
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid #d8dee4;
+  border-left: 4px solid #64748b;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.health-card--healthy {
+  border-left-color: #16834a;
+}
+
+.health-card--error {
+  border-left-color: #c2410c;
+}
+
+.health-label {
+  margin: 0;
+  color: #53616d;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.health-status {
+  margin: 0;
+  color: #172026;
+  font-weight: 700;
+}
+
+.health-result p {
+  margin: 8px 0 0;
+}
+
+@media (max-width: 560px) {
+  .workspace-shell {
+    padding: 18px;
+  }
+
+  .workspace-panel {
+    padding: 22px;
+  }
+
+  h1 {
+    font-size: 28px;
+  }
 }

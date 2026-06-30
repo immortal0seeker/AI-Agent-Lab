@@ -32,9 +32,9 @@ The project emphasizes:
 
 ## Current Stage
 
-Current stage: Plan 1, Milestone 1.
+Current stage: Plan 1, Milestone 1 completed.
 
-The repository has completed `P1-M1-S1` through `P1-M1-S6`. The first milestone is assembling the engineering foundation:
+The repository has completed `P1-M1-S1` through `P1-M1-S8`. The first milestone assembled the engineering foundation:
 
 - Repository structure
 - Root documentation
@@ -42,10 +42,11 @@ The repository has completed `P1-M1-S1` through `P1-M1-S6`. The first milestone 
 - FastAPI health check
 - Backend and frontend environment examples
 - Frontend API client
+- Frontend health status display with loading, healthy, and error states
 - Local environment examples
 - Clear documentation boundaries
 
-The next scope is `P1-M1-S7` through `P1-M1-S8`, which should connect the frontend health status display and finish the M1 startup documentation.
+The next scope is `P1-M2-S1` through `P1-M2-S3`, which should start the database layer without implementing later Plan capabilities early.
 
 ## Plan 1 Scope
 

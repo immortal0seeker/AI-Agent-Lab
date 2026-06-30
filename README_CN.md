@@ -23,9 +23,9 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成的基础范围：`P1-M1-S1` 到 `P1-M1-S6`。
+已完成的基础范围：`P1-M1-S1` 到 `P1-M1-S8`。
 
-下一批范围：`P1-M1-S7` 到 `P1-M1-S8`。
+下一批范围：`P1-M2-S1` 到 `P1-M2-S3`。
 
 ## Plan 1 非目标
 
@@ -72,7 +72,7 @@ AI-Agent-Lab/
 
 ## 本地开发
 
-后端和前端会按阶段逐步搭建。
+后端和前端会按阶段逐步搭建。Milestone 1 现在支持本地启动前后端，并能从前端首页验证后端健康检查接口。
 
 ### 后端
 
@@ -98,6 +98,13 @@ GET http://localhost:8000/api/v1/health
 }
 ```
 
+后端验证：
+
+```bash
+cd backend
+..\.venv\Scripts\python.exe -m pytest -q
+```
+
 ### 前端
 
 ```bash
@@ -106,12 +113,25 @@ npm install
 npm run dev
 ```
 
+打开 `npm run dev` 输出的 Vite 地址。首页会显示当前配置的
+`VITE_API_BASE_URL`，并展示以下健康状态之一：
+
+- `Checking health...`：前端正在调用后端健康检查。
+- `Backend healthy`：`GET /api/v1/health` 调用成功。
+- `Backend error`：后端不可达或返回错误状态。
+
 前端检查：
 
 ```bash
 npm run typecheck
 npm run test
 npm run build
+```
+
+Batch 3 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
+
+```text
+feat(frontend): show backend health status
 ```
 
 当前请以计划文档作为执行依据：

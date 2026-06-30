@@ -23,9 +23,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed foundation scope: `P1-M1-S1` through `P1-M1-S6`.
+Completed foundation scope: `P1-M1-S1` through `P1-M1-S8`.
 
-Next scope: `P1-M1-S7` through `P1-M1-S8`.
+Next scope: `P1-M2-S1` through `P1-M2-S3`.
 
 ## Non-Goals For Plan 1
 
@@ -72,7 +72,9 @@ AI-Agent-Lab/
 
 ## Local Development
 
-The backend and frontend are scaffolded in stages.
+The backend and frontend are scaffolded in stages. Milestone 1 now supports
+starting both apps locally and verifying the backend health endpoint from the
+frontend home page.
 
 ### Backend
 
@@ -98,6 +100,13 @@ Expected response:
 }
 ```
 
+Backend verification:
+
+```bash
+cd backend
+..\.venv\Scripts\python.exe -m pytest -q
+```
+
 ### Frontend
 
 ```bash
@@ -106,12 +115,26 @@ npm install
 npm run dev
 ```
 
+Open the Vite URL printed by `npm run dev`. The home page shows the configured
+`VITE_API_BASE_URL` and one of these health states:
+
+- `Checking health...` while the frontend is calling the backend.
+- `Backend healthy` when `GET /api/v1/health` returns successfully.
+- `Backend error` when the backend is not reachable or returns an error status.
+
 Frontend checks:
 
 ```bash
 npm run typecheck
 npm run test
 npm run build
+```
+
+Batch 3 commit note: the user creates the actual Git commit manually after
+reviewing the verified diff. Suggested commit message:
+
+```text
+feat(frontend): show backend health status
 ```
 
 For now, use the plan documents as the source of truth:

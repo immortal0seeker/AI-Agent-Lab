@@ -51,7 +51,7 @@ blocked
 |---|---|---|---|---|
 | Batch 1 | P1-M1-S1～S3 | 建立仓库和后端最小可运行骨架 | 启动后端，提交基础骨架 | 已完成 |
 | Batch 2 | P1-M1-S4～S6 | 建立前端和环境变量规范 | 启动前端，验证 health 调用 | 已完成 |
-| Batch 3 | P1-M1-S7～S8 | 打通前后端基础联通和文档 | Codex review M1 | 未完成 |
+| Batch 3 | P1-M1-S7～S8 | 打通前后端基础联通和文档 | Codex review M1 | 已完成 |
 | Batch 4 | P1-M2-S1～S3 | 建立数据库、ORM、迁移基础 | 跑数据库测试 | 未完成 |
 | Batch 5 | P1-M2-S4～S6 | 建立 LLM Provider 抽象和 OpenAI-compatible Provider | mock provider 测试 | 未完成 |
 | Batch 6 | P1-M2-S7～S8 | 建立 Model Registry 和 provider 配置 | Codex + Claude review M2 | 未完成 |
