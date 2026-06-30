@@ -1,0 +1,122 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment / secrets
+.venv/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+local.secrets.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+dist/
+build/
+*.egg-info/
+.tox/
+.nox/
+
+# Node / frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.turbo/
+.vite/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/coverage/
+
+# Desktop / Tauri / Rust
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/dist/
+desktop/build/
+target/
+Cargo.lock
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Databases / local runtime state
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+local_data/
+runtime_data/
+storage/
+uploads/
+media/
+audio/
+tmp/
+temp/
+
+# Vector stores / model caches / AI artifacts
+qdrant_storage/
+chroma/
+faiss/
+embeddings_cache/
+model_cache/
+.cache/
+*.onnx
+*.gguf
+*.safetensors
+
+# Test / coverage outputs
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.nyc_output/
+
+# Generated reports / screenshots
+screenshots/
+docs/assets/generated/
+*.tmp
+*.bak
+
+# Documentation boundaries
+# Keep docs/ and docs-plan/ tracked.
+# Keep local/private/unsanitized documentation out of Git.
+docs-local/
+docs-private/
+docs/tmp/
+docs/**/*.local.md
+docs/**/*.private.md
+
+# Keep placeholders
+!.gitkeep
