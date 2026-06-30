@@ -70,7 +70,46 @@ AI-Agent-Lab/
 
 ## 本地开发
 
-后端和前端会按阶段逐步搭建。具体启动命令会在对应的 Plan 1 Step 创建可运行服务后补充。
+后端和前端会按阶段逐步搭建。
+
+### 后端
+
+```bash
+cd backend
+..\.venv\Scripts\python.exe -m pip install -e .[dev] --no-build-isolation
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+健康检查：
+
+```text
+GET http://localhost:8000/api/v1/health
+```
+
+预期响应：
+
+```json
+{
+  "status": "ok",
+  "service": "ai-agent-lab-backend"
+}
+```
+
+### 前端
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+前端检查：
+
+```bash
+npm run typecheck
+npm run test
+npm run build
+```
 
 当前请以计划文档作为执行依据：
 

@@ -69,7 +69,46 @@ AI-Agent-Lab/
 
 ## Local Development
 
-The backend and frontend are scaffolded in stages. Detailed startup commands will be added as the corresponding Plan 1 steps create runnable services.
+The backend and frontend are scaffolded in stages.
+
+### Backend
+
+```bash
+cd backend
+..\.venv\Scripts\python.exe -m pip install -e .[dev] --no-build-isolation
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+Health check:
+
+```text
+GET http://localhost:8000/api/v1/health
+```
+
+Expected response:
+
+```json
+{
+  "status": "ok",
+  "service": "ai-agent-lab-backend"
+}
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend checks:
+
+```bash
+npm run typecheck
+npm run test
+npm run build
+```
 
 For now, use the plan documents as the source of truth:
 
