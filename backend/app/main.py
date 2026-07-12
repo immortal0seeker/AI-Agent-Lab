@@ -5,6 +5,7 @@ from app.api.errors import register_exception_handlers
 from app.api.v1.chat import router as chat_router
 from app.api.v1.conversations import router as conversations_router
 from app.api.v1.health import router as health_router
+from app.api.v1.models import router as models_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -24,5 +25,6 @@ app.add_middleware(
 
 register_exception_handlers(app)
 app.include_router(health_router, prefix=settings.api_v1_prefix)
+app.include_router(models_router, prefix=settings.api_v1_prefix)
 app.include_router(conversations_router, prefix=settings.api_v1_prefix)
 app.include_router(chat_router, prefix=settings.api_v1_prefix)

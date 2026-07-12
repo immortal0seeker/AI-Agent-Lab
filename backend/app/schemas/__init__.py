@@ -7,6 +7,7 @@ from app.schemas.chat import (
 from app.schemas.conversation import ConversationCreate, ConversationRead
 from app.schemas.llm_call import LLMCallCreate, LLMCallRead
 from app.schemas.message import MessageCreate, MessageRead
+from app.schemas.model import ModelRead
 
 __all__ = [
     "ChatCompletionRequest",
@@ -19,4 +20,5 @@ __all__ = [
     "LLMCallRead",
     "MessageCreate",
     "MessageRead",
+    "ModelRead",
 ]

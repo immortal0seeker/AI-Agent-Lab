@@ -176,6 +176,9 @@ def test_chat_service_creates_conversation_messages_and_llm_call(
     assert result.llm_call.status == "completed"
     assert result.llm_call.input_tokens is None
     assert result.llm_call.output_tokens is None
+    assert result.conversation.title == "Hello"
+    assert result.conversation.default_provider == "openai_compatible"
+    assert result.conversation.default_model == "example-model"
     assert result.llm_call.total_tokens is None
 
     session.close()
@@ -226,6 +229,8 @@ def test_chat_service_sends_existing_history_with_new_user_message(
         "Earlier answer",
         "Follow-up question",
     ]
+    assert conversation.default_provider == "openai_compatible"
+    assert conversation.default_model == "example-model"
 
     session.close()
     engine.dispose()
@@ -329,6 +334,51 @@ def test_chat_service_rolls_back_new_records_when_provider_fails(
     engine.dispose()
 
 
+def test_chat_service_rolls_back_existing_conversation_metadata_on_failure(
+    tmp_path: Path,
+) -> None:
+    session, engine = create_test_session(tmp_path)
+    conversations = ConversationService(session)
+    conversation = conversations.create_conversation(
+        ConversationCreate(
+            title="Existing title",
+            default_provider="provider-before",
+            default_model="model-before",
+        )
+    )
+    session.commit()
+    conversation_id = conversation.id
+    previous_updated_at = conversation.updated_at
+    service = ChatService(
+        session,
+        registry=create_registry(),
+        providers={"openai_compatible": FailingProvider()},
+    )
+
+    with pytest.raises(ProviderRequestError, match="mock provider failed"):
+        asyncio.run(
+            service.complete(
+                ChatCompletionRequest(
+                    conversation_id=conversation_id,
+                    provider="openai_compatible",
+                    model="example-model",
+                    content="Failed follow-up",
+                )
+            )
+        )
+
+    session.expire_all()
+    persisted = session.get(Conversation, conversation_id)
+    assert persisted is not None
+    assert persisted.title == "Existing title"
+    assert persisted.default_provider == "provider-before"
+    assert persisted.default_model == "model-before"
+    assert persisted.updated_at == previous_updated_at
+
+    session.close()
+    engine.dispose()
+
+
 def test_stream_chat_yields_deltas_and_commits_completed_result(
     tmp_path: Path,
 ) -> None:
@@ -367,6 +417,9 @@ def test_stream_chat_yields_deltas_and_commits_completed_result(
         output_tokens=2,
         total_tokens=9,
     )
+    assert completed.result.conversation.title == "Stream this"
+    assert completed.result.conversation.default_provider == "openai_compatible"
+    assert completed.result.conversation.default_model == "example-model"
 
     with Session(engine) as verification_session:
         assert len(verification_session.scalars(select(Message)).all()) == 2

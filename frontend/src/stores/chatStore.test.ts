@@ -1,7 +1,76 @@
 import { describe, expect, it } from "vitest";
 
-import { createChatStore, type StreamChatFunction } from "./chatStore";
-import type { ChatCompletionResponse } from "../types/chat";
+import {
+  createChatStore,
+  type ChatStoreDependencies,
+  type StreamChatFunction,
+} from "./chatStore";
+import type { ApiMessage, ChatCompletionResponse } from "../types/chat";
+import type { ConversationSummary } from "../types/conversations";
+import type { ModelOption } from "../types/models";
+
+const models: ModelOption[] = [
+  {
+    provider: "provider-a",
+    model: "model-a",
+    display_name: "Model A",
+    supports_streaming: true,
+    supports_tools: false,
+    supports_json: false,
+    input_price_per_1m: null,
+    output_price_per_1m: null,
+  },
+  {
+    provider: "provider-b",
+    model: "model-b",
+    display_name: "Model B",
+    supports_streaming: true,
+    supports_tools: false,
+    supports_json: false,
+    input_price_per_1m: null,
+    output_price_per_1m: null,
+  },
+];
+
+const conversations: ConversationSummary[] = [
+  {
+    id: "conversation-2",
+    title: "Recent conversation",
+    default_provider: "provider-b",
+    default_model: "model-b",
+    created_at: "2026-07-12T12:00:00",
+    updated_at: "2026-07-12T12:02:00",
+  },
+  {
+    id: "conversation-1",
+    title: "Older conversation",
+    default_provider: "provider-a",
+    default_model: "model-a",
+    created_at: "2026-07-12T11:00:00",
+    updated_at: "2026-07-12T12:01:00",
+  },
+];
+
+const persistedMessages: ApiMessage[] = [
+  {
+    id: "persisted-user",
+    conversation_id: "conversation-2",
+    role: "user",
+    content: "Persisted question",
+    model: null,
+    provider: null,
+    created_at: "2026-07-12T12:00:00",
+  },
+  {
+    id: "persisted-assistant",
+    conversation_id: "conversation-2",
+    role: "assistant",
+    content: "Persisted answer",
+    model: "model-b",
+    provider: "provider-b",
+    created_at: "2026-07-12T12:00:01",
+  },
+];
 
 function createDoneResponse(content = "Complete answer"): ChatCompletionResponse {
   return {
@@ -31,6 +100,20 @@ function createDoneResponse(content = "Complete answer"): ChatCompletionResponse
   };
 }
 
+function createWorkspaceDependencies(
+  overrides: Partial<ChatStoreDependencies> = {},
+): ChatStoreDependencies {
+  return {
+    streamChat: async () => createDoneResponse(),
+    fetchModels: async () => models,
+    fetchConversations: async () => conversations,
+    fetchConversationMessages: async () => persistedMessages,
+    defaultProvider: "provider-a",
+    defaultModel: "model-a",
+    ...overrides,
+  };
+}
+
 describe("chat store", () => {
   it("streams deltas and replaces temporary messages with persisted messages", async () => {
     const streamer: StreamChatFunction = async (_request, options) => {
@@ -38,7 +121,9 @@ describe("chat store", () => {
       options.onDelta("answer");
       return createDoneResponse();
     };
-    const store = createChatStore(streamer);
+    const store = createChatStore(
+      createWorkspaceDependencies({ streamChat: streamer }),
+    );
 
     await store.getState().sendMessage("Hello");
 
@@ -60,7 +145,9 @@ describe("chat store", () => {
       options.onDelta("Partial answer");
       throw new Error("Provider unavailable");
     };
-    const store = createChatStore(streamer);
+    const store = createChatStore(
+      createWorkspaceDependencies({ streamChat: streamer }),
+    );
 
     await store.getState().sendMessage("Hello");
 
@@ -81,7 +168,9 @@ describe("chat store", () => {
           reject(new DOMException("Aborted", "AbortError"));
         });
       });
-    const store = createChatStore(streamer);
+    const store = createChatStore(
+      createWorkspaceDependencies({ streamChat: streamer }),
+    );
 
     const pending = store.getState().sendMessage("Hello");
     await Promise.resolve();
@@ -104,7 +193,9 @@ describe("chat store", () => {
         finish = resolve;
       });
     };
-    const store = createChatStore(streamer);
+    const store = createChatStore(
+      createWorkspaceDependencies({ streamChat: streamer }),
+    );
 
     const pending = store.getState().sendMessage("Hello");
     await Promise.resolve();
@@ -116,5 +207,177 @@ describe("chat store", () => {
     expect(store.getState().conversationId).toBeNull();
     expect(store.getState().messages).toEqual([]);
     expect(store.getState().status).toBe("idle");
+  });
+
+  it("initializes models and conversations with the configured default", async () => {
+    const store = createChatStore(createWorkspaceDependencies());
+
+    await store.getState().initialize(null);
+
+    expect(store.getState()).toMatchObject({
+      models,
+      conversations,
+      selectedProvider: "provider-a",
+      selectedModel: "model-a",
+      workspaceStatus: "ready",
+    });
+  });
+
+  it("falls back to the first Registry model", async () => {
+    const store = createChatStore(
+      createWorkspaceDependencies({
+        defaultProvider: "missing-provider",
+        defaultModel: "missing-model",
+      }),
+    );
+
+    await store.getState().initialize(null);
+
+    expect(store.getState().selectedProvider).toBe("provider-a");
+    expect(store.getState().selectedModel).toBe("model-a");
+  });
+
+  it("restores URL conversation messages and its saved model", async () => {
+    const store = createChatStore(createWorkspaceDependencies());
+
+    await store.getState().initialize("conversation-2");
+
+    expect(store.getState().conversationId).toBe("conversation-2");
+    expect(store.getState().selectedProvider).toBe("provider-b");
+    expect(store.getState().selectedModel).toBe("model-b");
+    expect(store.getState().messages).toEqual([
+      {
+        id: "persisted-user",
+        role: "user",
+        content: "Persisted question",
+        status: "complete",
+      },
+      {
+        id: "persisted-assistant",
+        role: "assistant",
+        content: "Persisted answer",
+        status: "complete",
+      },
+    ]);
+  });
+
+  it("stays initializing until URL conversation messages are restored", async () => {
+    let finishMessages: ((messages: ApiMessage[]) => void) | undefined;
+    const store = createChatStore(
+      createWorkspaceDependencies({
+        fetchConversationMessages: () =>
+          new Promise((resolve) => {
+            finishMessages = resolve;
+          }),
+      }),
+    );
+
+    const initialization = store.getState().initialize("conversation-2");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(store.getState().workspaceStatus).toBe("loading");
+    finishMessages?.(persistedMessages);
+    await initialization;
+    expect(store.getState().workspaceStatus).toBe("ready");
+  });
+
+  it("does not restore the URL conversation after New Chat during initialization", async () => {
+    let finishModels: ((models: ModelOption[]) => void) | undefined;
+    const store = createChatStore(
+      createWorkspaceDependencies({
+        fetchModels: () =>
+          new Promise((resolve) => {
+            finishModels = resolve;
+          }),
+      }),
+    );
+
+    const initialization = store.getState().initialize("conversation-2");
+    await Promise.resolve();
+    store.getState().newChat();
+    finishModels?.(models);
+    await initialization;
+
+    expect(store.getState().workspaceStatus).toBe("ready");
+    expect(store.getState().conversationId).toBeNull();
+    expect(store.getState().messages).toEqual([]);
+  });
+
+  it("uses a newly selected model for the next Chat request", async () => {
+    let receivedProvider = "";
+    let receivedModel = "";
+    const store = createChatStore(
+      createWorkspaceDependencies({
+        streamChat: async (request) => {
+          receivedProvider = request.provider;
+          receivedModel = request.model;
+          return createDoneResponse();
+        },
+      }),
+    );
+    await store.getState().initialize(null);
+
+    store.getState().selectModel("provider-b", "model-b");
+    await store.getState().sendMessage("Hello");
+
+    expect(receivedProvider).toBe("provider-b");
+    expect(receivedModel).toBe("model-b");
+  });
+
+  it("ignores a stale history response after a newer selection", async () => {
+    const resolvers = new Map<string, (messages: ApiMessage[]) => void>();
+    const store = createChatStore(
+      createWorkspaceDependencies({
+        fetchConversationMessages: (conversationId) =>
+          new Promise((resolve) => resolvers.set(conversationId, resolve)),
+      }),
+    );
+    await store.getState().initialize(null);
+
+    const olderSelection = store.getState().selectConversation("conversation-1");
+    const newerSelection = store.getState().selectConversation("conversation-2");
+    resolvers.get("conversation-2")?.(persistedMessages);
+    await newerSelection;
+    resolvers.get("conversation-1")?.([
+      { ...persistedMessages[0], content: "Stale question" },
+    ]);
+    await olderSelection;
+
+    expect(store.getState().conversationId).toBe("conversation-2");
+    expect(store.getState().messages[0].content).toBe("Persisted question");
+  });
+
+  it("starts a new Chat without resetting the selected model", async () => {
+    const store = createChatStore(createWorkspaceDependencies());
+    await store.getState().initialize("conversation-2");
+
+    store.getState().newChat();
+
+    expect(store.getState().conversationId).toBeNull();
+    expect(store.getState().messages).toEqual([]);
+    expect(store.getState().selectedProvider).toBe("provider-b");
+    expect(store.getState().selectedModel).toBe("model-b");
+  });
+
+  it("refreshes conversation summaries after a successful stream", async () => {
+    let listCalls = 0;
+    const refreshed = [
+      { ...conversations[0], title: "Hello", id: "conversation-1" },
+    ];
+    const store = createChatStore(
+      createWorkspaceDependencies({
+        fetchConversations: async () => {
+          listCalls += 1;
+          return listCalls === 1 ? conversations : refreshed;
+        },
+      }),
+    );
+    await store.getState().initialize(null);
+
+    await store.getState().sendMessage("Hello");
+
+    expect(listCalls).toBe(2);
+    expect(store.getState().conversations).toEqual(refreshed);
   });
 });

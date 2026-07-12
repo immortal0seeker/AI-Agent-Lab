@@ -1,6 +1,9 @@
-import { Activity, MessageSquarePlus } from "lucide-react";
+import { Activity, History, MessageSquarePlus, X } from "lucide-react";
+import { useState } from "react";
 
 import { API_BASE_URL } from "../api/client";
+import type { ConversationSummary } from "../types/conversations";
+import ConversationList from "./ConversationList";
 
 export type ApiHealth =
   | { status: "checking" }
@@ -9,19 +12,38 @@ export type ApiHealth =
 
 type WorkspaceSidebarProps = {
   health: ApiHealth;
+  conversations: ConversationSummary[];
+  selectedConversationId: string | null;
+  conversationsLoading: boolean;
+  navigationDisabled: boolean;
   onNewChat: () => void;
+  onSelectConversation: (conversationId: string) => void;
 };
 
 export default function WorkspaceSidebar({
   health,
+  conversations,
+  selectedConversationId,
+  conversationsLoading,
+  navigationDisabled,
   onNewChat,
+  onSelectConversation,
 }: WorkspaceSidebarProps) {
+  const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const healthLabel =
     health.status === "checking"
       ? "Checking API"
       : health.status === "healthy"
         ? "API connected"
         : "API unavailable";
+  const selectConversation = (conversationId: string) => {
+    setMobileHistoryOpen(false);
+    onSelectConversation(conversationId);
+  };
+  const startNewChat = () => {
+    setMobileHistoryOpen(false);
+    onNewChat();
+  };
 
   return (
     <aside className="workspace-sidebar">
@@ -35,12 +57,66 @@ export default function WorkspaceSidebar({
         </div>
       </div>
 
-      <button className="new-chat-button" type="button" onClick={onNewChat}>
+      <button
+        className="new-chat-button"
+        type="button"
+        title="New chat"
+        aria-label="New chat"
+        onClick={startNewChat}
+      >
         <MessageSquarePlus size={17} aria-hidden="true" />
         <span>New chat</span>
       </button>
 
-      <div className="sidebar-spacer" />
+      <button
+        className="mobile-history-button"
+        type="button"
+        title="Conversation history"
+        aria-label="Conversation history"
+        aria-expanded={mobileHistoryOpen}
+        aria-controls="mobile-conversation-history"
+        onClick={() => setMobileHistoryOpen((open) => !open)}
+      >
+        <History size={17} aria-hidden="true" />
+      </button>
+
+      <section className="conversation-region" aria-labelledby="history-heading">
+        <h2 id="history-heading">Recent</h2>
+        <ConversationList
+          conversations={conversations}
+          selectedId={selectedConversationId}
+          isLoading={conversationsLoading}
+          disabled={navigationDisabled}
+          onSelect={selectConversation}
+        />
+      </section>
+
+      {mobileHistoryOpen ? (
+        <section
+          id="mobile-conversation-history"
+          className="mobile-history-panel"
+          aria-label="Conversation history"
+        >
+          <header>
+            <strong>Recent conversations</strong>
+            <button
+              type="button"
+              title="Close conversation history"
+              aria-label="Close conversation history"
+              onClick={() => setMobileHistoryOpen(false)}
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+          </header>
+          <ConversationList
+            conversations={conversations}
+            selectedId={selectedConversationId}
+            isLoading={conversationsLoading}
+            disabled={navigationDisabled}
+            onSelect={selectConversation}
+          />
+        </section>
+      ) : null}
 
       <section className="api-status" aria-label="Backend API status">
         <div className="api-status-heading">

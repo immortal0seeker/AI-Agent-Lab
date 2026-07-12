@@ -27,6 +27,33 @@ class ConversationService:
             raise ConversationNotFoundError(conversation_id)
         return conversation
 
+    def list_conversations(self) -> list[Conversation]:
+        statement = select(Conversation).order_by(
+            Conversation.updated_at.desc(),
+            Conversation.id,
+        )
+        return list(self._session.scalars(statement))
+
+    def record_successful_turn(
+        self,
+        conversation: Conversation,
+        *,
+        provider: str,
+        model: str,
+        title_source: str | None = None,
+    ) -> None:
+        if title_source is not None:
+            normalized_title = " ".join(title_source.split())
+            conversation.title = normalized_title[:50] or "New conversation"
+
+        conversation.default_provider = provider
+        conversation.default_model = model
+        next_updated_at = utc_now()
+        if next_updated_at <= conversation.updated_at:
+            next_updated_at = conversation.updated_at + timedelta(microseconds=1)
+        conversation.updated_at = next_updated_at
+        self._session.flush()
+
     def append_message(self, data: MessageCreate) -> Message:
         self.get_conversation(data.conversation_id)
         created_at = utc_now()

@@ -23,9 +23,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P1-M3-S6`.
+Completed scope: `P1-M1-S1` through `P1-M3-S9`.
 
-Next scope: `P1-M3-S7` through `P1-M3-S9`.
+Next scope: `P1-M4-S1` through `P1-M4-S3`.
 
 ## Non-Goals For Plan 1
 
@@ -123,7 +123,10 @@ The non-streaming and SSE Chat backend flows are available:
 
 ```text
 POST /api/v1/conversations
+GET  /api/v1/conversations
 GET  /api/v1/conversations/{conversation_id}
+GET  /api/v1/conversations/{conversation_id}/messages
+GET  /api/v1/models
 POST /api/v1/chat/completions
 POST /api/v1/chat/stream
 ```
@@ -135,6 +138,12 @@ assistant message, and successful `LLMCall`. The SSE endpoint emits `delta`
 events followed by one `done` event. A successful stream is committed before
 `done`; Provider failure or client cancellation rolls back the entire turn.
 Tests use mock Providers only.
+
+The first successful user turn becomes the conversation title after whitespace
+normalization and a 50-character limit. Successful turns also remember the
+selected Registry model and advance conversation activity time. Conversation
+and message list APIs support recent-history navigation; failed or cancelled
+turns do not update this metadata.
 
 Health check:
 
@@ -177,9 +186,12 @@ VITE_DEFAULT_MODEL=example-model
 ```
 
 The API health area shows checking, connected, or unavailable state. Chat has
-empty, streaming, completed, stopped, and error states. Stopping preserves
-partial text locally, but the interrupted turn is not persisted. Dynamic model
-selection and conversation history recovery are scheduled for the next batch.
+empty, streaming, completed, stopped, and error states. The model selector is
+populated from `GET /api/v1/models`; the sidebar loads recent conversations and
+their persisted messages. The selected conversation is stored in
+`?conversation=<uuid>`, so refreshing restores its messages and last successful
+model. Stopping preserves partial text locally, but the interrupted turn is not
+persisted.
 
 - `Checking health...` while the frontend is calling the backend.
 - `Backend healthy` when `GET /api/v1/health` returns successfully.
@@ -193,11 +205,11 @@ npm run test
 npm run build
 ```
 
-Batch 8 commit note: the user creates the actual Git commit manually after
+Batch 9 commit note: the user creates the actual Git commit manually after
 reviewing the verified diff. Suggested commit message:
 
 ```text
-feat(chat): add streaming chat workspace
+feat(chat): add model selection and conversation recovery
 ```
 
 For now, use the plan documents as the source of truth:

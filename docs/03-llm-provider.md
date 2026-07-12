@@ -12,9 +12,10 @@ Plan 1 Milestone 2 provides the backend foundation for model access:
 - a strict JSON Model Registry
 - mock HTTP and Registry unit tests
 
-The Provider layer is now consumed by both `POST /api/v1/chat/completions` and
-`POST /api/v1/chat/stream`. A Models API and dynamic frontend model selection
-remain deferred to the next Plan 1 batch.
+The Provider layer is consumed by both `POST /api/v1/chat/completions` and
+`POST /api/v1/chat/stream`. `GET /api/v1/models` exposes read-only Registry
+metadata, and the frontend selector uses its exact provider/model identities.
+Listing models does not initialize a Provider or expose credentials.
 
 ## Provider Contract
 
@@ -119,7 +120,7 @@ not require a real API key.
 
 ## Deferred Work
 
-- Models API and dynamic frontend model selection
-- conversation list, message-history API, and refresh recovery
+- conversation rename/delete, search, and pagination
+- Markdown rendering
 - detailed Provider error taxonomy, retries, logging, cost, and latency
 - Tool Calling and all later-plan capabilities

@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { fetchHealth } from "../api/health";
@@ -8,20 +8,43 @@ import MessageList from "../components/MessageList";
 import WorkspaceSidebar, {
   type ApiHealth,
 } from "../components/WorkspaceSidebar";
+import { useChatStore } from "../stores/chatStore";
 import {
-  DEFAULT_MODEL,
-  DEFAULT_PROVIDER,
-  useChatStore,
-} from "../stores/chatStore";
+  buildConversationUrl,
+  readConversationId,
+} from "../utils/conversationUrl";
 
 export default function ChatPage() {
   const [health, setHealth] = useState<ApiHealth>({ status: "checking" });
   const messages = useChatStore((state) => state.messages);
+  const models = useChatStore((state) => state.models);
+  const conversations = useChatStore((state) => state.conversations);
+  const conversationId = useChatStore((state) => state.conversationId);
+  const selectedProvider = useChatStore((state) => state.selectedProvider);
+  const selectedModel = useChatStore((state) => state.selectedModel);
   const status = useChatStore((state) => state.status);
+  const workspaceStatus = useChatStore((state) => state.workspaceStatus);
+  const conversationStatus = useChatStore((state) => state.conversationStatus);
   const error = useChatStore((state) => state.error);
+  const workspaceError = useChatStore((state) => state.workspaceError);
+  const initialize = useChatStore((state) => state.initialize);
+  const selectModel = useChatStore((state) => state.selectModel);
+  const selectConversation = useChatStore((state) => state.selectConversation);
   const sendMessage = useChatStore((state) => state.sendMessage);
   const stopGeneration = useChatStore((state) => state.stopGeneration);
   const newChat = useChatStore((state) => state.newChat);
+
+  useEffect(() => {
+    void initialize(readConversationId(window.location.search));
+  }, [initialize]);
+
+  useEffect(() => {
+    if (workspaceStatus !== "ready") {
+      return;
+    }
+    const nextUrl = buildConversationUrl(window.location.href, conversationId);
+    window.history.replaceState(null, "", nextUrl);
+  }, [conversationId, workspaceStatus]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -48,27 +71,56 @@ export default function ChatPage() {
     };
   }, []);
 
+  const isStreaming = status === "streaming";
+  const isConversationLoading = conversationStatus === "loading";
+  const composerDisabled =
+    workspaceStatus !== "ready" ||
+    isConversationLoading ||
+    selectedProvider === null ||
+    selectedModel === null;
+  const visibleError = error ?? workspaceError;
+
   return (
     <main className="workspace-shell">
-      <WorkspaceSidebar health={health} onNewChat={newChat} />
+      <WorkspaceSidebar
+        health={health}
+        conversations={conversations}
+        selectedConversationId={conversationId}
+        conversationsLoading={workspaceStatus === "loading"}
+        navigationDisabled={isStreaming || isConversationLoading}
+        onNewChat={newChat}
+        onSelectConversation={(id) => void selectConversation(id)}
+      />
       <section className="chat-workspace">
         <ChatHeader
-          provider={DEFAULT_PROVIDER}
-          model={DEFAULT_MODEL}
-          isStreaming={status === "streaming"}
+          models={models}
+          provider={selectedProvider}
+          model={selectedModel}
+          isStreaming={isStreaming}
+          modelSelectionDisabled={
+            workspaceStatus !== "ready" || isStreaming || isConversationLoading
+          }
+          onSelectModel={selectModel}
         />
-        {error ? (
+        {visibleError ? (
           <div className="error-banner" role="alert">
             <AlertCircle size={17} aria-hidden="true" />
-            <span>{error}</span>
+            <span>{visibleError}</span>
           </div>
         ) : null}
         <div className="chat-content">
+          {isConversationLoading ? (
+            <div className="conversation-loading" role="status">
+              <LoaderCircle size={15} aria-hidden="true" />
+              Loading conversation...
+            </div>
+          ) : null}
           <MessageList messages={messages} />
         </div>
         <footer className="composer-region">
           <MessageComposer
-            isStreaming={status === "streaming"}
+            isStreaming={isStreaming}
+            disabled={composerDisabled}
             onSend={sendMessage}
             onStop={stopGeneration}
           />

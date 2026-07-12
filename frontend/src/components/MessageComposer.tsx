@@ -3,22 +3,24 @@ import { type FormEvent, type KeyboardEvent, useState } from "react";
 
 type MessageComposerProps = {
   isStreaming: boolean;
+  disabled: boolean;
   onSend: (content: string) => Promise<void>;
   onStop: () => void;
 };
 
 export default function MessageComposer({
   isStreaming,
+  disabled,
   onSend,
   onStop,
 }: MessageComposerProps) {
   const [content, setContent] = useState("");
-  const canSend = content.trim().length > 0 && !isStreaming;
+  const canSend = content.trim().length > 0 && !isStreaming && !disabled;
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
     const nextContent = content.trim();
-    if (!nextContent || isStreaming) {
+    if (!nextContent || isStreaming || disabled) {
       return;
     }
     setContent("");
@@ -39,7 +41,7 @@ export default function MessageComposer({
         placeholder="Message the configured model"
         rows={2}
         value={content}
-        disabled={isStreaming}
+        disabled={isStreaming || disabled}
         onChange={(event) => setContent(event.target.value)}
         onKeyDown={handleKeyDown}
       />

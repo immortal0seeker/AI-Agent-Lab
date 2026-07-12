@@ -8,11 +8,21 @@ export function createApiUrl(baseUrl: string, path: string): string {
   return `${normalizedBaseUrl}${normalizedPath}`;
 }
 
+async function readResponseError(response: Response): Promise<string> {
+  const fallback = `Request failed with status ${response.status}`;
+  try {
+    const payload = (await response.json()) as { detail?: unknown };
+    return typeof payload.detail === "string" ? payload.detail : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(createApiUrl(API_BASE_URL, path));
 
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+    throw new Error(await readResponseError(response));
   }
 
   return response.json() as Promise<T>;

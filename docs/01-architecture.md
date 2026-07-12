@@ -2,7 +2,7 @@
 
 ## Current Architecture Stage
 
-This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M3-S6`, so the health flow, database and Provider foundations, transactional Conversation and Chat services, non-streaming and SSE Chat routes, and first frontend Chat workspace exist. Later Plan 1 batches will add model selection, history recovery, logging, and detailed error handling.
+This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M3-S9`, so the health flow, database and Provider foundations, transactional Conversation and Chat services, non-streaming and SSE Chat routes, Registry model selection, conversation navigation, and refresh recovery exist. Later Plan 1 batches will add usage/cost/latency persistence, logging, and detailed error handling.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -120,12 +120,13 @@ Expected Plan 1 frontend areas:
 
 The UI should feel like an engineering workspace: quiet, dense, readable, and practical. It should not become a marketing landing page.
 
-The frontend now includes typed health and Chat API wrappers, an SSE parser,
-Zustand Chat state, page and component boundaries, and a responsive Chat
-workspace. The store guards stale callbacks, preserves partial output after
-Stop, and replaces temporary messages with canonical backend data after a
-successful `done` event. Dynamic models and persisted conversation navigation
-remain deferred to the next M3 batch.
+The frontend includes typed health, Models, Conversations, Messages, and Chat
+API wrappers, an SSE parser, Zustand workspace state, page/component
+boundaries, and a responsive Chat workspace. The store guards stale stream and
+history callbacks, preserves partial output after Stop, and replaces temporary
+messages with canonical backend data after a successful `done` event. It loads
+Registry models and recent conversations independently, while
+`?conversation=<uuid>` preserves the selected conversation across refreshes.
 
 ## Plan 1 Data Flow
 
@@ -196,8 +197,21 @@ the protocol adapter at `POST /api/v1/chat/stream`. The service emits
 protocol-neutral domain events; the route owns SSE framing and stream-scoped
 Session cleanup.
 
-The tracked Registry entry is example configuration. A Models API and dynamic
-frontend selector remain deferred to `P1-M3-S7`.
+The tracked Registry entry is example configuration. `GET /api/v1/models`
+exposes non-secret Registry metadata in configuration order, and the frontend
+uses exact `(provider, model)` identities. Conversation defaults remember the
+last successfully used registered identity.
+
+Conversation reads remain independent resources:
+
+```text
+GET /api/v1/conversations
+GET /api/v1/conversations/{conversation_id}/messages
+```
+
+The list is ordered by recent successful activity. Messages retain deterministic
+creation order. No composite workspace bootstrap endpoint, pagination, rename,
+or delete behavior is introduced in M3.
 
 ## Security Boundaries
 

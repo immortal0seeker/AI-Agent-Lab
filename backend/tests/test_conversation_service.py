@@ -141,3 +141,67 @@ def test_service_keeps_message_order_when_clock_values_are_equal(
 
     session.close()
     engine.dispose()
+
+
+def test_service_lists_conversations_by_recent_activity(tmp_path: Path) -> None:
+    session, engine = create_test_session(tmp_path)
+    service = ConversationService(session)
+    older = service.create_conversation(ConversationCreate(title="Older"))
+    tied_a = service.create_conversation(ConversationCreate(title="Tied A"))
+    tied_b = service.create_conversation(ConversationCreate(title="Tied B"))
+    older.updated_at = datetime(2026, 1, 1, 12, 0, 0)
+    tied_at = datetime(2026, 1, 2, 12, 0, 0)
+    tied_a.updated_at = tied_at
+    tied_b.updated_at = tied_at
+    session.flush()
+
+    conversations = service.list_conversations()
+
+    expected_tied = sorted([tied_a, tied_b], key=lambda item: item.id)
+    assert conversations == [*expected_tied, older]
+
+    session.close()
+    engine.dispose()
+
+
+def test_service_records_successful_turn_metadata(tmp_path: Path) -> None:
+    session, engine = create_test_session(tmp_path)
+    service = ConversationService(session)
+    conversation = service.create_conversation(ConversationCreate())
+    previous_updated_at = conversation.updated_at
+
+    service.record_successful_turn(
+        conversation,
+        provider="provider-b",
+        model="model-b",
+        title_source="  First   prompt with spacing  ",
+    )
+
+    assert conversation.title == "First prompt with spacing"
+    assert conversation.default_provider == "provider-b"
+    assert conversation.default_model == "model-b"
+    assert conversation.updated_at > previous_updated_at
+
+    session.close()
+    engine.dispose()
+
+
+def test_service_limits_generated_title_to_fifty_characters(
+    tmp_path: Path,
+) -> None:
+    session, engine = create_test_session(tmp_path)
+    service = ConversationService(session)
+    conversation = service.create_conversation(ConversationCreate())
+    normalized = "A long first prompt " + "x" * 80
+
+    service.record_successful_turn(
+        conversation,
+        provider="provider-a",
+        model="model-a",
+        title_source=f"  A long   first prompt {('x' * 80)}  ",
+    )
+
+    assert conversation.title == normalized[:50]
+
+    session.close()
+    engine.dispose()

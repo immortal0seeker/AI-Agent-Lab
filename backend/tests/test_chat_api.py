@@ -1,5 +1,6 @@
 import json
 from collections.abc import AsyncIterator
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -135,7 +136,7 @@ def api_context(
     engine.dispose()
 
 
-def test_openapi_exposes_conversation_and_non_streaming_chat_routes(
+def test_openapi_exposes_chat_catalog_and_conversation_routes(
     api_context: Any,
 ) -> None:
     client, _, _, _ = api_context
@@ -144,8 +145,30 @@ def test_openapi_exposes_conversation_and_non_streaming_chat_routes(
 
     assert "/api/v1/conversations" in paths
     assert "/api/v1/conversations/{conversation_id}" in paths
+    assert "/api/v1/conversations/{conversation_id}/messages" in paths
+    assert "/api/v1/models" in paths
     assert "/api/v1/chat/completions" in paths
     assert "/api/v1/chat/stream" in paths
+
+
+def test_models_api_returns_registry_order(api_context: Any) -> None:
+    client, _, _, _ = api_context
+
+    response = client.get("/api/v1/models")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "provider": "openai_compatible",
+            "model": "example-model",
+            "display_name": "Example Model",
+            "supports_streaming": True,
+            "supports_tools": False,
+            "supports_json": False,
+            "input_price_per_1m": None,
+            "output_price_per_1m": None,
+        }
+    ]
 
 
 def test_conversation_api_creates_and_gets_conversation(api_context: Any) -> None:
@@ -178,6 +201,70 @@ def test_conversation_api_returns_404_for_unknown_conversation(
 
     assert response.status_code == 404
     assert response.json() == {"detail": f"Conversation not found: {missing_id}"}
+
+
+def test_conversation_api_lists_recent_conversations_and_messages(
+    api_context: Any,
+) -> None:
+    client, session_factory, _, _ = api_context
+    with session_factory() as session:
+        older = Conversation(
+            title="Older",
+            updated_at=datetime(2026, 1, 1, 12, 0, 0),
+        )
+        newer = Conversation(
+            title="Newer",
+            updated_at=datetime(2026, 1, 2, 12, 0, 0),
+        )
+        session.add_all([older, newer])
+        session.flush()
+        session.add_all(
+            [
+                Message(
+                    conversation_id=newer.id,
+                    role="assistant",
+                    content="Second",
+                    created_at=datetime(2026, 1, 2, 12, 0, 2),
+                ),
+                Message(
+                    conversation_id=newer.id,
+                    role="user",
+                    content="First",
+                    created_at=datetime(2026, 1, 2, 12, 0, 1),
+                ),
+            ]
+        )
+        session.commit()
+        older_id = str(older.id)
+        newer_id = str(newer.id)
+
+    conversations = client.get("/api/v1/conversations")
+    messages = client.get(f"/api/v1/conversations/{newer_id}/messages")
+
+    assert conversations.status_code == 200
+    assert [item["id"] for item in conversations.json()] == [
+        newer_id,
+        older_id,
+    ]
+    assert messages.status_code == 200
+    assert [item["content"] for item in messages.json()] == [
+        "First",
+        "Second",
+    ]
+
+
+def test_conversation_messages_api_returns_404_for_unknown_conversation(
+    api_context: Any,
+) -> None:
+    client, _, _, _ = api_context
+    missing_id = uuid4()
+
+    response = client.get(f"/api/v1/conversations/{missing_id}/messages")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": f"Conversation not found: {missing_id}"
+    }
 
 
 def test_chat_api_returns_messages_usage_and_persists_records(

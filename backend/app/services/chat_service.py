@@ -65,7 +65,8 @@ class ChatService:
         if provider is None:
             raise ChatProviderUnavailableError(request.provider)
 
-        if request.conversation_id is None:
+        is_new_conversation = request.conversation_id is None
+        if is_new_conversation:
             conversation = self._conversations.create_conversation(
                 ConversationCreate(
                     default_provider=request.provider,
@@ -119,6 +120,12 @@ class ChatService:
         )
         self._session.add(llm_call)
         self._session.flush()
+        self._conversations.record_successful_turn(
+            conversation,
+            provider=request.provider,
+            model=request.model,
+            title_source=request.content if is_new_conversation else None,
+        )
 
         return ChatCompletionResult(
             conversation=conversation,
@@ -143,7 +150,8 @@ class ChatService:
             if provider is None:
                 raise ChatProviderUnavailableError(request.provider)
 
-            if request.conversation_id is None:
+            is_new_conversation = request.conversation_id is None
+            if is_new_conversation:
                 conversation = self._conversations.create_conversation(
                     ConversationCreate(
                         default_provider=request.provider,
@@ -209,6 +217,12 @@ class ChatService:
             )
             self._session.add(llm_call)
             self._session.flush()
+            self._conversations.record_successful_turn(
+                conversation,
+                provider=request.provider,
+                model=request.model,
+                title_source=request.content if is_new_conversation else None,
+            )
             self._session.commit()
             committed = True
 

@@ -35,9 +35,9 @@ The project emphasizes:
 
 ## Current Stage
 
-Current stage: Plan 1, Milestone 3 in progress; its backend streaming and first frontend Chat flow are complete.
+Current stage: Plan 1, Milestone 3 complete; the persisted Chat loop now includes model selection and refresh recovery.
 
-The repository has completed `P1-M1-S1` through `P1-M3-S6`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, and M3 currently adds:
+The repository has completed `P1-M1-S1` through `P1-M3-S9`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, and Milestone 3 adds:
 
 - Repository structure
 - Root documentation
@@ -67,8 +67,13 @@ The repository has completed `P1-M1-S1` through `P1-M3-S6`. Milestone 1 assemble
 - Typed frontend SSE parsing and Zustand Chat state
 - Responsive Chat workspace with empty, streaming, success, stopped, and error states
 - Mocked browser verification on desktop and mobile
+- Read-only Models, recent Conversations, and ordered Messages APIs
+- Automatic first-message titles and last-successful model metadata
+- Registry-backed frontend model selection
+- Recent conversation navigation and `?conversation=<uuid>` refresh recovery
+- Stale history-response suppression and complete M3 regression coverage
 
-The next scope is `P1-M3-S7` through `P1-M3-S9`, which adds model selection, conversation navigation, refresh recovery, and M3 test completion.
+The next scope is `P1-M4-S1` through `P1-M4-S3`, which adds token/cost/latency persistence and strengthens error handling.
 
 ## Plan 1 Scope
 
