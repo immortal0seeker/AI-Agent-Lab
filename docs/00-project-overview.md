@@ -35,9 +35,9 @@ The project emphasizes:
 
 ## Current Stage
 
-Current stage: Plan 1, Milestone 2 in progress; its database and Provider foundations are complete.
+Current stage: Plan 1, Milestone 2 complete.
 
-The repository has completed `P1-M1-S1` through `P1-M2-S6`. Milestone 1 assembled the engineering foundation, and the first two M2 batches added the database and LLM Provider foundations:
+The repository has completed `P1-M1-S1` through `P1-M2-S8`. Milestone 1 assembled the engineering foundation, and Milestone 2 added the database, LLM Provider, and Model Registry foundations:
 
 - Repository structure
 - Root documentation
@@ -56,8 +56,10 @@ The repository has completed `P1-M1-S1` through `P1-M2-S6`. Milestone 1 assemble
 - OpenAI-compatible non-streaming and SSE streaming adapter
 - Environment-backed Provider initialization with masked API keys
 - Mock HTTP coverage for response, usage, stream, and error handling
+- Strict JSON Model Registry with immutable capability metadata
+- Provider and Registry documentation
 
-The next scope is `P1-M2-S7` through `P1-M2-S8`, which adds the Model Registry and completes the M2 Provider documentation/test review without starting Chat APIs early.
+The next scope is `P1-M3-S1` through `P1-M3-S3`, which adds Conversation Service, non-streaming Chat Service, and the first Chat/Conversations API routes.
 
 ## Plan 1 Scope
 

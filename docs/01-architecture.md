@@ -2,7 +2,7 @@
 
 ## Current Architecture Stage
 
-This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M2-S6`, so the health flow, frontend skeleton, database foundation, LLM Provider contract, and OpenAI-compatible adapter exist. Later Plan 1 batches will add the Model Registry, chat flow, API-level streaming, persistence services, logging, and detailed error handling.
+This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M2-S8`, so the health flow, frontend skeleton, database foundation, LLM Provider contract, OpenAI-compatible adapter, and JSON Model Registry exist. Later Plan 1 batches will add the chat flow, API-level streaming, persistence services, logging, and detailed error handling.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -151,11 +151,15 @@ Plan 1 provider target:
 - `create_openai_compatible_provider()` converts application settings into an adapter only when a call path needs one.
 - API keys use `SecretStr`, remain optional during health-only startup, and are required with a readable error at Provider initialization.
 - Mock transports verify Provider behavior without real credentials or paid API calls.
+- `ModelRegistry` loads strict JSON metadata, preserves configuration order, filters by provider, and resolves exact `(provider, model)` identities.
+- Registry capability labels describe behavior implemented by this workspace. Streaming is enabled for the example entry; Tool Calling and JSON mode remain disabled until their scheduled work.
+- Registry metadata is immutable. Unknown fields, blank names, negative prices, duplicate identities, unreadable files, and invalid JSON fail explicitly.
 
 The Provider stream contract does not expose an HTTP endpoint yet. Chat routes,
 service orchestration, persistence, and API-level SSE remain scheduled for M3.
-Model Registry and capability metadata remain scheduled for `P1-M2-S7` through
-`P1-M2-S8`.
+
+The tracked Registry entry is example configuration. A Models API and frontend
+selector remain deferred until the M3 application flow has services and routes.
 
 ## Security Boundaries
 

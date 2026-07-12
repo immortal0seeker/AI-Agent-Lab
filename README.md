@@ -23,9 +23,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P1-M2-S6`.
+Completed scope: `P1-M1-S1` through `P1-M2-S8`.
 
-Next scope: `P1-M2-S7` through `P1-M2-S8`.
+Next scope: `P1-M3-S1` through `P1-M3-S3`.
 
 ## Non-Goals For Plan 1
 
@@ -113,6 +113,12 @@ health flow; attempting to initialize the Provider without a key raises a
 readable configuration error. Batch 5 tests use mock HTTP and do not contact a
 real model service.
 
+The JSON Model Registry is stored at
+`backend/app/providers/llm/models.json`. Its tracked entry is example
+configuration only. Registry loading, filtering, lookup, duplicate detection,
+and strict metadata validation are covered by unit tests. See
+`docs/03-llm-provider.md` for Provider and Registry boundaries.
+
 Health check:
 
 ```text
@@ -158,11 +164,11 @@ npm run test
 npm run build
 ```
 
-Batch 5 commit note: the user creates the actual Git commit manually after
+Batch 6 commit note: the user creates the actual Git commit manually after
 reviewing the verified diff. Suggested commit message:
 
 ```text
-feat(llm): add openai-compatible provider foundation
+feat(llm): add model registry and provider docs
 ```
 
 For now, use the plan documents as the source of truth:

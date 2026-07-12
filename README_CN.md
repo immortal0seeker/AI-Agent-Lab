@@ -23,9 +23,9 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P1-M2-S6`。
+已完成范围：`P1-M1-S1` 到 `P1-M2-S8`。
 
-下一批范围：`P1-M2-S7` 到 `P1-M2-S8`。
+下一批范围：`P1-M3-S1` 到 `P1-M3-S3`。
 
 ## Plan 1 非目标
 
@@ -105,6 +105,10 @@ OPENAI_COMPATIBLE_TIMEOUT_SECONDS=30
 没有 API Key 也可以启动；真正初始化 Provider 时若缺少 Key，会返回可读配置错误。
 Batch 5 使用 mock HTTP 测试，没有连接真实模型服务。
 
+JSON Model Registry 位于 `backend/app/providers/llm/models.json`。其中的
+已跟踪条目只是示例配置。单元测试覆盖 Registry 加载、筛选、查询、重复项检测和
+严格元数据校验。Provider 与 Registry 边界见 `docs/03-llm-provider.md`。
+
 健康检查：
 
 ```text
@@ -150,10 +154,10 @@ npm run test
 npm run build
 ```
 
-Batch 5 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
+Batch 6 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
 
 ```text
-feat(llm): add openai-compatible provider foundation
+feat(llm): add model registry and provider docs
 ```
 
 当前请以计划文档作为执行依据：

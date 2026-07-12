@@ -1,0 +1,14 @@
+{
+  "models": [
+    {
+      "provider": "openai_compatible",
+      "model": "example-model",
+      "display_name": "Example OpenAI-Compatible Model",
+      "supports_streaming": true,
+      "supports_tools": false,
+      "supports_json": false,
+      "input_price_per_1m": null,
+      "output_price_per_1m": null
+    }
+  ]
+}

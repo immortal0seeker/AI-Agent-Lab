@@ -54,7 +54,7 @@ blocked
 | Batch 3 | P1-M1-S7～S8 | 打通前后端基础联通和文档 | Codex review M1 | 已完成 |
 | Batch 4 | P1-M2-S1～S3 | 建立数据库、ORM、迁移基础 | 跑数据库测试 | 已完成 |
 | Batch 5 | P1-M2-S4～S6 | 建立 LLM Provider 抽象和 OpenAI-compatible Provider | mock provider 测试 | 已完成 |
-| Batch 6 | P1-M2-S7～S8 | 建立 Model Registry 和 provider 配置 | Codex + Claude review M2 | 未完成 |
+| Batch 6 | P1-M2-S7～S8 | 建立 Model Registry 和 provider 配置 | Codex + Claude review M2 | 已完成 |
 | Batch 7 | P1-M3-S1～S3 | 实现非流式 Chat API | 后端 chat 测试 | 未完成 |
 | Batch 8 | P1-M3-S4～S6 | 实现 Streaming Chat 和前端基础 Chat UI | 浏览器手测流式输出 | 未完成 |
 | Batch 9 | P1-M3-S7～S9 | 实现会话历史和刷新恢复 | Codex + Claude review M3 | 未完成 |
