@@ -1,9 +1,11 @@
+from datetime import timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Conversation, Message
+from app.models.common import utc_now
 from app.schemas.conversation import ConversationCreate
 from app.schemas.message import MessageCreate
 from app.services.errors import ConversationNotFoundError
@@ -27,7 +29,16 @@ class ConversationService:
 
     def append_message(self, data: MessageCreate) -> Message:
         self.get_conversation(data.conversation_id)
-        message = Message(**data.model_dump())
+        created_at = utc_now()
+        latest_created_at = self._session.scalar(
+            select(func.max(Message.created_at)).where(
+                Message.conversation_id == data.conversation_id
+            )
+        )
+        if latest_created_at is not None and created_at <= latest_created_at:
+            created_at = latest_created_at + timedelta(microseconds=1)
+
+        message = Message(**data.model_dump(), created_at=created_at)
         self._session.add(message)
         self._session.flush()
         return message

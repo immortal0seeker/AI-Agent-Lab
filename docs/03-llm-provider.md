@@ -12,7 +12,9 @@ Plan 1 Milestone 2 provides the backend foundation for model access:
 - a strict JSON Model Registry
 - mock HTTP and Registry unit tests
 
-The Provider layer is now consumed by the non-streaming `POST /api/v1/chat/completions` flow. A Models API, API-level streaming, and frontend model selection remain deferred to later Plan 1 batches.
+The Provider layer is now consumed by both `POST /api/v1/chat/completions` and
+`POST /api/v1/chat/stream`. A Models API and dynamic frontend model selection
+remain deferred to the next Plan 1 batch.
 
 ## Provider Contract
 
@@ -105,6 +107,11 @@ Run from `backend`:
 
 Tests use `httpx.MockTransport`, temporary Registry files, and fake test credentials. They do not call a real Provider or paid API.
 
+Chat service and API tests additionally use mock Providers to verify SSE event
+framing, successful persistence, Provider failure rollback, and cancellation
+rollback. Browser verification intercepts health and stream requests; it does
+not require a real API key.
+
 ## Known Limitations
 
 - The current local workflow uses an editable backend install, where `models.json` is loaded directly from the source tree. `backend/pyproject.toml` does not yet declare the JSON file as setuptools package data, so a future wheel or sdist workflow must add and verify that packaging configuration.
@@ -112,9 +119,7 @@ Tests use `httpx.MockTransport`, temporary Registry files, and fake test credent
 
 ## Deferred Work
 
-- Models and Chat API routes
-- Conversation and Chat services
-- frontend model selection and Chat UI
-- persistence and API-level SSE
+- Models API and dynamic frontend model selection
+- conversation list, message-history API, and refresh recovery
 - detailed Provider error taxonomy, retries, logging, cost, and latency
 - Tool Calling and all later-plan capabilities

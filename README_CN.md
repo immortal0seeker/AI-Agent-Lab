@@ -23,9 +23,9 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P1-M3-S3`。
+已完成范围：`P1-M1-S1` 到 `P1-M3-S6`。
 
-下一批范围：`P1-M3-S4` 到 `P1-M3-S6`。
+下一批范围：`P1-M3-S7` 到 `P1-M3-S9`。
 
 ## Plan 1 非目标
 
@@ -109,17 +109,20 @@ JSON Model Registry 位于 `backend/app/providers/llm/models.json`。其中的
 已跟踪条目只是示例配置。单元测试覆盖 Registry 加载、筛选、查询、重复项检测和
 严格元数据校验。Provider 与 Registry 边界见 `docs/03-llm-provider.md`。
 
-首个非流式 Chat 后端流程已经建立：
+非流式和 SSE Chat 后端流程已经建立：
 
 ```text
 POST /api/v1/conversations
 GET  /api/v1/conversations/{conversation_id}
 POST /api/v1/chat/completions
+POST /api/v1/chat/stream
 ```
 
 Chat 接口只接收本轮新的用户 `content`。后端负责加载数据库会话历史、校验
 Registry 模型、调用已配置 Provider，并在一个事务中写入用户消息、assistant
-消息和成功的 `LLMCall`。测试只使用 mock Provider。
+消息和成功的 `LLMCall`。SSE 接口先发送 `delta` 事件，再发送一个 `done`
+事件；成功流在 `done` 前提交，Provider 失败或客户端取消会回滚本轮全部记录。
+测试只使用 mock Provider。
 
 健康检查：
 
@@ -151,12 +154,19 @@ npm install
 npm run dev
 ```
 
-打开 `npm run dev` 输出的 Vite 地址。首页会显示当前配置的
-`VITE_API_BASE_URL`，并展示以下健康状态之一：
+打开 `npm run dev` 输出的 Vite 地址。首屏是可用的 Chat 工作台，包含 API
+健康状态、当前模型信息、消息状态、流式输出、Stop 和 New Chat 控件。前端读取
+以下安全默认值：
 
-- `Checking health...`：前端正在调用后端健康检查。
-- `Backend healthy`：`GET /api/v1/health` 调用成功。
-- `Backend error`：后端不可达或返回错误状态。
+```text
+VITE_API_BASE_URL=http://localhost:8000/api/v1
+VITE_DEFAULT_PROVIDER=openai_compatible
+VITE_DEFAULT_MODEL=example-model
+```
+
+API 区域会显示检查中、已连接或不可用状态。Chat 覆盖空白、生成中、成功、
+已停止和错误状态。停止生成会在前端保留已有部分文本，但不会持久化被中断的
+本轮消息。动态模型选择和会话历史恢复安排在下一批。
 
 前端检查：
 
@@ -166,10 +176,10 @@ npm run test
 npm run build
 ```
 
-Batch 7 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
+Batch 8 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
 
 ```text
-feat(chat): add transactional non-streaming chat API
+feat(chat): add streaming chat workspace
 ```
 
 当前请以计划文档作为执行依据：

@@ -17,13 +17,18 @@ from app.providers.llm.base import (
     ChatRequest,
     LLMResponse,
     ProviderRequestError,
+    ProviderResponseError,
     TokenUsage,
 )
 from app.providers.llm.registry import ModelInfo, ModelRegistry
 from app.schemas.chat import ChatCompletionRequest
 from app.schemas.conversation import ConversationCreate
 from app.schemas.message import MessageCreate
-from app.services.chat_service import ChatService
+from app.services.chat_service import (
+    ChatService,
+    ChatStreamCompleted,
+    ChatStreamDelta,
+)
 from app.services.conversation_service import ConversationService
 from app.services.errors import (
     ChatModelNotFoundError,
@@ -58,6 +63,50 @@ class FailingProvider(MockProvider):
     async def chat(self, request: ChatRequest) -> LLMResponse:
         self.requests.append(request)
         raise ProviderRequestError("mock provider failed", status_code=503)
+
+
+class StreamingProvider(MockProvider):
+    async def stream_chat(
+        self,
+        request: ChatRequest,
+    ) -> AsyncIterator[ChatChunk]:
+        self.requests.append(request)
+        yield ChatChunk(
+            id="stream-1",
+            model="resolved-stream-model",
+            content="Streamed ",
+        )
+        yield ChatChunk(
+            id="stream-1",
+            model="resolved-stream-model",
+            content="answer",
+        )
+        yield ChatChunk(
+            id="stream-1",
+            model="resolved-stream-model",
+            finish_reason="stop",
+            usage=TokenUsage(input_tokens=7, output_tokens=2, total_tokens=9),
+        )
+
+
+class FailingStreamingProvider(MockProvider):
+    async def stream_chat(
+        self,
+        request: ChatRequest,
+    ) -> AsyncIterator[ChatChunk]:
+        self.requests.append(request)
+        yield ChatChunk(content="partial")
+        raise ProviderRequestError("mock stream failed", status_code=503)
+
+
+class EmptyStreamingProvider(MockProvider):
+    async def stream_chat(
+        self,
+        request: ChatRequest,
+    ) -> AsyncIterator[ChatChunk]:
+        self.requests.append(request)
+        if False:
+            yield ChatChunk()
 
 
 def create_test_session(tmp_path: Path) -> tuple[Session, Engine]:
@@ -275,6 +324,141 @@ def test_chat_service_rolls_back_new_records_when_provider_fails(
     assert session.scalars(select(Message)).all() == []
     assert session.scalars(select(LLMCall)).all() == []
     assert session.scalars(select(Conversation)).all() == []
+
+    session.close()
+    engine.dispose()
+
+
+def test_stream_chat_yields_deltas_and_commits_completed_result(
+    tmp_path: Path,
+) -> None:
+    session, engine = create_test_session(tmp_path)
+    provider = StreamingProvider()
+    service = ChatService(
+        session,
+        registry=create_registry(),
+        providers={"openai_compatible": provider},
+    )
+
+    async def collect_events() -> list[ChatStreamDelta | ChatStreamCompleted]:
+        return [
+            event
+            async for event in service.stream_complete(
+                ChatCompletionRequest(
+                    provider="openai_compatible",
+                    model="example-model",
+                    content="Stream this",
+                )
+            )
+        ]
+
+    events = asyncio.run(collect_events())
+
+    assert [event.content for event in events if isinstance(event, ChatStreamDelta)] == [
+        "Streamed ",
+        "answer",
+    ]
+    completed = events[-1]
+    assert isinstance(completed, ChatStreamCompleted)
+    assert completed.result.assistant_message.content == "Streamed answer"
+    assert completed.result.model == "resolved-stream-model"
+    assert completed.result.usage == TokenUsage(
+        input_tokens=7,
+        output_tokens=2,
+        total_tokens=9,
+    )
+
+    with Session(engine) as verification_session:
+        assert len(verification_session.scalars(select(Message)).all()) == 2
+        assert len(verification_session.scalars(select(LLMCall)).all()) == 1
+
+    session.close()
+    engine.dispose()
+
+
+def test_stream_chat_rolls_back_when_provider_fails(tmp_path: Path) -> None:
+    session, engine = create_test_session(tmp_path)
+    service = ChatService(
+        session,
+        registry=create_registry(),
+        providers={"openai_compatible": FailingStreamingProvider()},
+    )
+
+    async def collect_events() -> None:
+        async for _ in service.stream_complete(
+            ChatCompletionRequest(
+                provider="openai_compatible",
+                model="example-model",
+                content="Stream this",
+            )
+        ):
+            pass
+
+    with pytest.raises(ProviderRequestError, match="mock stream failed"):
+        asyncio.run(collect_events())
+
+    with Session(engine) as verification_session:
+        assert verification_session.scalars(select(Conversation)).all() == []
+        assert verification_session.scalars(select(Message)).all() == []
+        assert verification_session.scalars(select(LLMCall)).all() == []
+
+    session.close()
+    engine.dispose()
+
+
+def test_stream_chat_rejects_empty_provider_stream(tmp_path: Path) -> None:
+    session, engine = create_test_session(tmp_path)
+    service = ChatService(
+        session,
+        registry=create_registry(),
+        providers={"openai_compatible": EmptyStreamingProvider()},
+    )
+
+    async def collect_events() -> None:
+        async for _ in service.stream_complete(
+            ChatCompletionRequest(
+                provider="openai_compatible",
+                model="example-model",
+                content="Stream this",
+            )
+        ):
+            pass
+
+    with pytest.raises(ProviderResponseError, match="empty content"):
+        asyncio.run(collect_events())
+
+    session.close()
+    engine.dispose()
+
+
+def test_stream_chat_rolls_back_when_consumer_stops_early(tmp_path: Path) -> None:
+    session, engine = create_test_session(tmp_path)
+    service = ChatService(
+        session,
+        registry=create_registry(),
+        providers={"openai_compatible": StreamingProvider()},
+    )
+
+    async def receive_one_then_stop() -> ChatStreamDelta | ChatStreamCompleted:
+        stream = service.stream_complete(
+            ChatCompletionRequest(
+                provider="openai_compatible",
+                model="example-model",
+                content="Stream this",
+            )
+        )
+        first = await anext(stream)
+        await stream.aclose()
+        return first
+
+    first = asyncio.run(receive_one_then_stop())
+
+    assert isinstance(first, ChatStreamDelta)
+    assert first.content == "Streamed "
+    with Session(engine) as verification_session:
+        assert verification_session.scalars(select(Conversation)).all() == []
+        assert verification_session.scalars(select(Message)).all() == []
+        assert verification_session.scalars(select(LLMCall)).all() == []
 
     session.close()
     engine.dispose()

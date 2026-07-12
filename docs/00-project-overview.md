@@ -35,9 +35,9 @@ The project emphasizes:
 
 ## Current Stage
 
-Current stage: Plan 1, Milestone 3 in progress; its non-streaming backend flow is complete.
+Current stage: Plan 1, Milestone 3 in progress; its backend streaming and first frontend Chat flow are complete.
 
-The repository has completed `P1-M1-S1` through `P1-M3-S3`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, and the first M3 batch added:
+The repository has completed `P1-M1-S1` through `P1-M3-S6`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, and M3 currently adds:
 
 - Repository structure
 - Root documentation
@@ -62,8 +62,13 @@ The repository has completed `P1-M1-S1` through `P1-M3-S3`. Milestone 1 assemble
 - Non-streaming Chat Service with server-owned history
 - Conversation and Chat API routes
 - Mock Provider API and rollback coverage
+- Transactional SSE Chat with `delta`, `done`, and readable `error` events
+- Successful-completion-only stream persistence and cancellation rollback
+- Typed frontend SSE parsing and Zustand Chat state
+- Responsive Chat workspace with empty, streaming, success, stopped, and error states
+- Mocked browser verification on desktop and mobile
 
-The next scope is `P1-M3-S4` through `P1-M3-S6`, which adds API-level SSE plus the first frontend Chat data flow and UI.
+The next scope is `P1-M3-S7` through `P1-M3-S9`, which adds model selection, conversation navigation, refresh recovery, and M3 test completion.
 
 ## Plan 1 Scope
 

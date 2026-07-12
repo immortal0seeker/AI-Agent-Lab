@@ -14,7 +14,7 @@
 | 执行顺序 | 必须按 `P1-Mx-Sy` 顺序推进，除非 Codex 明确调整 |
 | 每步完成定义 | 代码可运行、局部测试通过、相关文档或配置同步 |
 | 每个阶段完成定义 | 阶段验收项全部通过，Codex review 后进入下一阶段 |
-| Claude Code 使用时机 | 每个里程碑结束、Provider / Streaming / 数据模型等关键抽象完成后 |
+| Claude Code 使用时机 | M2 已完成二审；下一次集中二审放在 M4 结束后 |
 | 提交节奏 | 每 1～3 个 Step 一次 commit；每个里程碑结束一次 review commit |
 | 文档同步 | 接口、环境变量、启动方式、目录结构变化必须同步 README 或 docs |
 | 禁止提前做 | Tool Calling、RAG、Memory、MCP、语音、多模态、桌面端 |
@@ -56,7 +56,7 @@ blocked
 | Batch 5 | P1-M2-S4～S6 | 建立 LLM Provider 抽象和 OpenAI-compatible Provider | mock provider 测试 | 已完成 |
 | Batch 6 | P1-M2-S7～S8 | 建立 Model Registry 和 provider 配置 | Codex + Claude review M2 | 已完成 |
 | Batch 7 | P1-M3-S1～S3 | 实现非流式 Chat API | 后端 chat 测试 | 已完成 |
-| Batch 8 | P1-M3-S4～S6 | 实现 Streaming Chat 和前端基础 Chat UI | 浏览器手测流式输出 | 未完成 |
+| Batch 8 | P1-M3-S4～S6 | 实现 Streaming Chat 和前端基础 Chat UI | 浏览器手测流式输出 | 已完成 |
 | Batch 9 | P1-M3-S7～S9 | 实现会话历史和刷新恢复 | Codex review M3 | 未完成 |
 | Batch 10 | P1-M4-S1～S3 | 实现 token / cost / latency 和错误处理 | 后端测试 | 未完成 |
 | Batch 11 | P1-M4-S4～S6 | 实现日志、基础测试、文档 | 全量测试 | 未完成 |
@@ -341,7 +341,7 @@ Plan 1 的重点不是做复杂功能，而是建立一个稳的底座。
 每天只推进 1～2 个 Batch
 每个 Batch 完成后马上 commit
 每个 Milestone 完成后 Codex review
-M2、M3、M4 结束时请 Claude Code 做二审
+M2 已完成二审；下一次集中二审放在 M4 结束后
 v0.1.0 tag 创建后再进入 Plan 2
 ```
 

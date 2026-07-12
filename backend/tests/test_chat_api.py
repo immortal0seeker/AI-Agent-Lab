@@ -1,3 +1,4 @@
+import json
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from app.api.dependencies import (
     get_db_session,
     get_llm_providers,
     get_model_registry,
+    get_session_factory,
 )
 from app.db.base import Base
 from app.db.session import create_db_engine
@@ -47,15 +49,39 @@ class MockProvider(BaseLLMProvider):
         self,
         request: ChatRequest,
     ) -> AsyncIterator[ChatChunk]:
-        if False:
-            yield ChatChunk()
-        raise NotImplementedError
+        self.requests.append(request)
+        yield ChatChunk(
+            id="api-stream",
+            model="resolved-stream-model",
+            content="API streamed ",
+        )
+        yield ChatChunk(
+            id="api-stream",
+            model="resolved-stream-model",
+            content="answer",
+        )
+        yield ChatChunk(
+            id="api-stream",
+            model="resolved-stream-model",
+            finish_reason="stop",
+            usage=TokenUsage(input_tokens=6, output_tokens=2, total_tokens=8),
+        )
 
 
 class FailingProvider(MockProvider):
     async def chat(self, request: ChatRequest) -> LLMResponse:
         self.requests.append(request)
         raise ProviderRequestError("mock upstream failed", status_code=503)
+
+
+class FailingStreamingProvider(MockProvider):
+    async def stream_chat(
+        self,
+        request: ChatRequest,
+    ) -> AsyncIterator[ChatChunk]:
+        self.requests.append(request)
+        yield ChatChunk(content="partial")
+        raise ProviderRequestError("mock stream failed", status_code=503)
 
 
 def create_registry() -> ModelRegistry:
@@ -98,6 +124,7 @@ def api_context(
             session.close()
 
     app.dependency_overrides[get_db_session] = override_db_session
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
     app.dependency_overrides[get_llm_providers] = lambda: providers
     app.dependency_overrides[get_model_registry] = lambda: registry
 
@@ -118,7 +145,7 @@ def test_openapi_exposes_conversation_and_non_streaming_chat_routes(
     assert "/api/v1/conversations" in paths
     assert "/api/v1/conversations/{conversation_id}" in paths
     assert "/api/v1/chat/completions" in paths
-    assert "/api/v1/chat/stream" not in paths
+    assert "/api/v1/chat/stream" in paths
 
 
 def test_conversation_api_creates_and_gets_conversation(api_context: Any) -> None:
@@ -287,3 +314,74 @@ def test_transaction_finalization_failure_does_not_return_success(
         engine.dispose()
 
     assert response.status_code == 500
+
+
+def parse_sse_events(body: str) -> list[tuple[str, dict[str, Any]]]:
+    events: list[tuple[str, dict[str, Any]]] = []
+    for frame in body.strip().split("\n\n"):
+        lines = frame.splitlines()
+        event_name = next(line[7:] for line in lines if line.startswith("event: "))
+        data = next(line[6:] for line in lines if line.startswith("data: "))
+        events.append((event_name, json.loads(data)))
+    return events
+
+
+def test_stream_chat_api_emits_deltas_done_and_persists(api_context: Any) -> None:
+    client, session_factory, provider, _ = api_context
+
+    response = client.post(
+        "/api/v1/chat/stream",
+        json={
+            "provider": "openai_compatible",
+            "model": "example-model",
+            "content": "Hello stream",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    events = parse_sse_events(response.text)
+    assert [name for name, _ in events] == ["delta", "delta", "done"]
+    assert [data["content"] for name, data in events if name == "delta"] == [
+        "API streamed ",
+        "answer",
+    ]
+    done = events[-1][1]
+    assert done["assistant_message"]["content"] == "API streamed answer"
+    assert done["model"] == "resolved-stream-model"
+    assert done["usage"] == {
+        "input_tokens": 6,
+        "output_tokens": 2,
+        "total_tokens": 8,
+    }
+    assert provider.requests[-1].messages[-1].content == "Hello stream"
+
+    with session_factory() as session:
+        assert session.scalar(select(func.count()).select_from(Conversation)) == 1
+        assert session.scalar(select(func.count()).select_from(Message)) == 2
+        assert session.scalar(select(func.count()).select_from(LLMCall)) == 1
+
+
+def test_stream_chat_api_emits_error_and_rolls_back(api_context: Any) -> None:
+    client, session_factory, _, providers = api_context
+    providers["openai_compatible"] = FailingStreamingProvider()
+
+    response = client.post(
+        "/api/v1/chat/stream",
+        json={
+            "provider": "openai_compatible",
+            "model": "example-model",
+            "content": "Hello stream",
+        },
+    )
+
+    assert response.status_code == 200
+    events = parse_sse_events(response.text)
+    assert events == [
+        ("delta", {"content": "partial"}),
+        ("error", {"message": "mock stream failed"}),
+    ]
+    with session_factory() as session:
+        assert session.scalar(select(func.count()).select_from(Conversation)) == 0
+        assert session.scalar(select(func.count()).select_from(Message)) == 0
+        assert session.scalar(select(func.count()).select_from(LLMCall)) == 0

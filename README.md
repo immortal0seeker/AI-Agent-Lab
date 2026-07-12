@@ -23,9 +23,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P1-M3-S3`.
+Completed scope: `P1-M1-S1` through `P1-M3-S6`.
 
-Next scope: `P1-M3-S4` through `P1-M3-S6`.
+Next scope: `P1-M3-S7` through `P1-M3-S9`.
 
 ## Non-Goals For Plan 1
 
@@ -119,18 +119,22 @@ configuration only. Registry loading, filtering, lookup, duplicate detection,
 and strict metadata validation are covered by unit tests. See
 `docs/03-llm-provider.md` for Provider and Registry boundaries.
 
-The first non-streaming Chat backend flow is available:
+The non-streaming and SSE Chat backend flows are available:
 
 ```text
 POST /api/v1/conversations
 GET  /api/v1/conversations/{conversation_id}
 POST /api/v1/chat/completions
+POST /api/v1/chat/stream
 ```
 
 The Chat endpoint accepts one new user `content` value. The backend owns and
 loads persisted conversation history, validates the selected Registry model,
 calls the configured Provider, and atomically stores the user message,
-assistant message, and successful `LLMCall`. Tests use mock Providers only.
+assistant message, and successful `LLMCall`. The SSE endpoint emits `delta`
+events followed by one `done` event. A successful stream is committed before
+`done`; Provider failure or client cancellation rolls back the entire turn.
+Tests use mock Providers only.
 
 Health check:
 
@@ -162,8 +166,20 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL printed by `npm run dev`. The home page shows the configured
-`VITE_API_BASE_URL` and one of these health states:
+Open the Vite URL printed by `npm run dev`. The first screen is the Chat
+workspace with API health, configured model identity, message states, streaming
+output, Stop, and New Chat controls. The frontend reads these safe defaults:
+
+```text
+VITE_API_BASE_URL=http://localhost:8000/api/v1
+VITE_DEFAULT_PROVIDER=openai_compatible
+VITE_DEFAULT_MODEL=example-model
+```
+
+The API health area shows checking, connected, or unavailable state. Chat has
+empty, streaming, completed, stopped, and error states. Stopping preserves
+partial text locally, but the interrupted turn is not persisted. Dynamic model
+selection and conversation history recovery are scheduled for the next batch.
 
 - `Checking health...` while the frontend is calling the backend.
 - `Backend healthy` when `GET /api/v1/health` returns successfully.
@@ -177,11 +193,11 @@ npm run test
 npm run build
 ```
 
-Batch 7 commit note: the user creates the actual Git commit manually after
+Batch 8 commit note: the user creates the actual Git commit manually after
 reviewing the verified diff. Suggested commit message:
 
 ```text
-feat(chat): add transactional non-streaming chat API
+feat(chat): add streaming chat workspace
 ```
 
 For now, use the plan documents as the source of truth:

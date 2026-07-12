@@ -2,7 +2,7 @@
 
 ## Current Architecture Stage
 
-This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M3-S3`, so the health flow, frontend skeleton, database and Provider foundations, transactional Conversation Service, non-streaming Chat Service, and first Chat/Conversations routes exist. Later Plan 1 batches will add API-level streaming, frontend Chat, history recovery, logging, and detailed error handling.
+This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M3-S6`, so the health flow, database and Provider foundations, transactional Conversation and Chat services, non-streaming and SSE Chat routes, and first frontend Chat workspace exist. Later Plan 1 batches will add model selection, history recovery, logging, and detailed error handling.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -101,9 +101,9 @@ SQLAlchemy metadata uses a stable naming convention for primary keys, foreign
 keys, indexes, unique constraints, and check constraints so future Alembic
 migrations can reference schema objects predictably on SQLite.
 
-The current schemas expose create and read contracts only. Service behavior,
-HTTP routes, and conversation persistence workflows remain deferred to their
-scheduled Plan 1 batches.
+The create and read schemas feed thin HTTP routes and service-owned persistence
+workflows. Update schemas remain deferred until an implemented behavior needs
+them.
 
 ## Frontend Boundaries
 
@@ -120,7 +120,12 @@ Expected Plan 1 frontend areas:
 
 The UI should feel like an engineering workspace: quiet, dense, readable, and practical. It should not become a marketing landing page.
 
-Current Milestone 1 frontend code includes the base React app, `src/api/client.ts`, and `src/api/health.ts`. The home page calls `GET /api/v1/health` on load and renders loading, healthy, and error states. Page, component, and broader shared type directories will be added when the active step needs them.
+The frontend now includes typed health and Chat API wrappers, an SSE parser,
+Zustand Chat state, page and component boundaries, and a responsive Chat
+workspace. The store guards stale callbacks, preserves partial output after
+Stop, and replaces temporary messages with canonical backend data after a
+successful `done` event. Dynamic models and persisted conversation navigation
+remain deferred to the next M3 batch.
 
 ## Plan 1 Data Flow
 
@@ -152,7 +157,23 @@ Chat request with one new user turn
 
 Provider failures roll back all records created by that Chat request. Token
 usage can be returned to the client, but token/cost/latency persistence remains
-deferred to M4. API-level streaming remains scheduled for the next M3 batch.
+deferred to M4.
+
+The streaming flow owns a SQLAlchemy Session inside the response generator:
+
+```text
+POST /api/v1/chat/stream
+-> validate model and resolve Provider
+-> append the pending user turn and load ordered history
+-> BaseLLMProvider.stream_chat()
+-> emit SSE delta events while accumulating assistant text
+-> append assistant Message and completed LLMCall
+-> commit, then emit one SSE done event
+```
+
+If the Provider fails, the completion is empty, or the client cancels before
+completion, the uncommitted turn is rolled back. The frontend retains stopped
+partial text only in local state.
 
 ## Provider Principle
 
@@ -170,11 +191,13 @@ Plan 1 provider target:
 - Registry capability labels describe behavior implemented by this workspace. Streaming is enabled for the example entry; Tool Calling and JSON mode remain disabled until their scheduled work.
 - Registry metadata is immutable. Unknown fields, blank names, negative prices, duplicate identities, unreadable files, and invalid JSON fail explicitly.
 
-The Provider stream contract does not expose an HTTP endpoint yet. Chat routes,
-service orchestration, persistence, and API-level SSE remain scheduled for M3.
+The Provider stream contract is consumed by `ChatService.stream_complete()` and
+the protocol adapter at `POST /api/v1/chat/stream`. The service emits
+protocol-neutral domain events; the route owns SSE framing and stream-scoped
+Session cleanup.
 
-The tracked Registry entry is example configuration. A Models API and frontend
-selector remain deferred until the M3 application flow has services and routes.
+The tracked Registry entry is example configuration. A Models API and dynamic
+frontend selector remain deferred to `P1-M3-S7`.
 
 ## Security Boundaries
 

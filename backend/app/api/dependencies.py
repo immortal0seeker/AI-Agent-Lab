@@ -3,6 +3,7 @@ from functools import lru_cache
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.session import sessionmaker
 
 from app.core.config import Settings, get_settings
 from app.db.session import SessionLocal
@@ -23,6 +24,10 @@ async def get_db_session() -> AsyncIterator[Session]:
         raise
     finally:
         session.close()
+
+
+def get_session_factory() -> sessionmaker[Session]:
+    return SessionLocal
 
 
 @lru_cache

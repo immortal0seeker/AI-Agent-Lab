@@ -106,3 +106,38 @@ def test_service_rejects_message_for_unknown_conversation(tmp_path: Path) -> Non
 
     session.close()
     engine.dispose()
+
+
+def test_service_keeps_message_order_when_clock_values_are_equal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed_time = datetime(2026, 1, 1, 12, 0, 0)
+    monkeypatch.setattr(
+        "app.services.conversation_service.utc_now",
+        lambda: fixed_time,
+    )
+    session, engine = create_test_session(tmp_path)
+    service = ConversationService(session)
+    conversation = service.create_conversation(ConversationCreate())
+
+    first = service.append_message(
+        MessageCreate(
+            conversation_id=conversation.id,
+            role="user",
+            content="First",
+        )
+    )
+    second = service.append_message(
+        MessageCreate(
+            conversation_id=conversation.id,
+            role="assistant",
+            content="Second",
+        )
+    )
+
+    assert second.created_at == first.created_at + timedelta(microseconds=1)
+    assert service.list_messages(conversation.id) == [first, second]
+
+    session.close()
+    engine.dispose()

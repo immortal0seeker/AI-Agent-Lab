@@ -37,3 +37,11 @@ class ChatCompletionResponse(BaseModel):
     model: str
     usage: TokenUsage | None = None
     llm_call_id: UUID
+
+
+class ChatStreamDeltaResponse(BaseModel):
+    content: str
+
+
+class ChatStreamErrorResponse(BaseModel):
+    message: str
