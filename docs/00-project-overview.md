@@ -35,9 +35,9 @@ The project emphasizes:
 
 ## Current Stage
 
-Current stage: Plan 1, Milestone 2 in progress; its database foundation is complete.
+Current stage: Plan 1, Milestone 2 in progress; its database and Provider foundations are complete.
 
-The repository has completed `P1-M1-S1` through `P1-M2-S3`. Milestone 1 assembled the engineering foundation, and the first M2 batch added the database foundation:
+The repository has completed `P1-M1-S1` through `P1-M2-S6`. Milestone 1 assembled the engineering foundation, and the first two M2 batches added the database and LLM Provider foundations:
 
 - Repository structure
 - Root documentation
@@ -52,8 +52,12 @@ The repository has completed `P1-M1-S1` through `P1-M2-S3`. Milestone 1 assemble
 - Alembic-managed initial migration
 - UUID-based Conversation, Message, and LLMCall models
 - Pydantic create and read schemas for the three models
+- Vendor-neutral asynchronous LLM Provider contracts
+- OpenAI-compatible non-streaming and SSE streaming adapter
+- Environment-backed Provider initialization with masked API keys
+- Mock HTTP coverage for response, usage, stream, and error handling
 
-The next scope is `P1-M2-S4` through `P1-M2-S6`, which adds the LLM Provider abstraction and OpenAI-compatible adapter without starting Chat APIs early.
+The next scope is `P1-M2-S7` through `P1-M2-S8`, which adds the Model Registry and completes the M2 Provider documentation/test review without starting Chat APIs early.
 
 ## Plan 1 Scope
 

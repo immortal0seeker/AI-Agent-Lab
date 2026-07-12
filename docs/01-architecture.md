@@ -2,7 +2,7 @@
 
 ## Current Architecture Stage
 
-This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M2-S3`, so the health flow, frontend skeleton, SQLAlchemy session, Alembic migration, initial ORM models, and matching Pydantic schemas exist. Later Plan 1 batches will add the provider layer, chat flow, streaming, persistence services, logging, and error handling.
+This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M2-S6`, so the health flow, frontend skeleton, database foundation, LLM Provider contract, and OpenAI-compatible adapter exist. Later Plan 1 batches will add the Model Registry, chat flow, API-level streaming, persistence services, logging, and detailed error handling.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -145,9 +145,17 @@ External AI capabilities should be provider-based. Plan 1 starts with LLM provid
 
 Plan 1 provider target:
 
-- Define a stable LLM provider interface.
-- Implement an OpenAI-compatible adapter.
-- Support configured providers such as DeepSeek or OpenRouter without hard-coding secrets.
+- `BaseLLMProvider` defines vendor-neutral asynchronous `chat` and `stream_chat` contracts.
+- Typed request, response, chunk, and token usage models isolate future services from vendor payloads.
+- `OpenAICompatibleProvider` maps non-streaming JSON and streaming SSE responses through `httpx`.
+- `create_openai_compatible_provider()` converts application settings into an adapter only when a call path needs one.
+- API keys use `SecretStr`, remain optional during health-only startup, and are required with a readable error at Provider initialization.
+- Mock transports verify Provider behavior without real credentials or paid API calls.
+
+The Provider stream contract does not expose an HTTP endpoint yet. Chat routes,
+service orchestration, persistence, and API-level SSE remain scheduled for M3.
+Model Registry and capability metadata remain scheduled for `P1-M2-S7` through
+`P1-M2-S8`.
 
 ## Security Boundaries
 

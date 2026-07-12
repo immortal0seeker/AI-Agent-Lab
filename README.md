@@ -23,9 +23,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P1-M2-S3`.
+Completed scope: `P1-M1-S1` through `P1-M2-S6`.
 
-Next scope: `P1-M2-S4` through `P1-M2-S6`.
+Next scope: `P1-M2-S7` through `P1-M2-S8`.
 
 ## Non-Goals For Plan 1
 
@@ -97,6 +97,22 @@ The backend defaults to `sqlite:///./ai_agent_lab.db`. Override it with
 schema creation and currently creates `conversations`, `messages`, and
 `llm_calls`; the application does not create tables during startup.
 
+The OpenAI-compatible Provider reads these optional environment settings when
+it is initialized:
+
+```text
+OPENAI_COMPATIBLE_BASE_URL=https://api.example.com/v1
+OPENAI_COMPATIBLE_API_KEY=
+OPENAI_COMPATIBLE_MODEL=example-model
+OPENAI_COMPATIBLE_TIMEOUT_SECONDS=30
+```
+
+Keep real values only in a local untracked `.env` file or environment
+variables. The application can start without a key while it only serves the
+health flow; attempting to initialize the Provider without a key raises a
+readable configuration error. Batch 5 tests use mock HTTP and do not contact a
+real model service.
+
 Health check:
 
 ```text
@@ -142,11 +158,11 @@ npm run test
 npm run build
 ```
 
-Batch 4 commit note: the user creates the actual Git commit manually after
+Batch 5 commit note: the user creates the actual Git commit manually after
 reviewing the verified diff. Suggested commit message:
 
 ```text
-feat(db): add sqlite models migrations and schemas
+feat(llm): add openai-compatible provider foundation
 ```
 
 For now, use the plan documents as the source of truth:

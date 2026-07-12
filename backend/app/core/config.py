@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +15,23 @@ class Settings(BaseSettings):
     backend_cors_origins: str = Field(
         default="http://localhost:5173",
         alias="BACKEND_CORS_ORIGINS",
+    )
+    openai_compatible_base_url: str = Field(
+        default="",
+        alias="OPENAI_COMPATIBLE_BASE_URL",
+    )
+    openai_compatible_api_key: SecretStr | None = Field(
+        default=None,
+        alias="OPENAI_COMPATIBLE_API_KEY",
+    )
+    openai_compatible_model: str = Field(
+        default="",
+        alias="OPENAI_COMPATIBLE_MODEL",
+    )
+    openai_compatible_timeout_seconds: float = Field(
+        default=30.0,
+        gt=0,
+        alias="OPENAI_COMPATIBLE_TIMEOUT_SECONDS",
     )
 
     model_config = SettingsConfigDict(

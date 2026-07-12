@@ -23,9 +23,9 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P1-M2-S3`。
+已完成范围：`P1-M1-S1` 到 `P1-M2-S6`。
 
-下一批范围：`P1-M2-S4` 到 `P1-M2-S6`。
+下一批范围：`P1-M2-S7` 到 `P1-M2-S8`。
 
 ## Plan 1 非目标
 
@@ -92,6 +92,19 @@ cd backend
 环境变量设置 `DATABASE_URL`。数据库结构由 Alembic 管理，目前会创建
 `conversations`、`messages` 和 `llm_calls`；应用启动时不会自动建表。
 
+OpenAI-compatible Provider 在初始化时读取以下可选环境变量：
+
+```text
+OPENAI_COMPATIBLE_BASE_URL=https://api.example.com/v1
+OPENAI_COMPATIBLE_API_KEY=
+OPENAI_COMPATIBLE_MODEL=example-model
+OPENAI_COMPATIBLE_TIMEOUT_SECONDS=30
+```
+
+真实值只能放在本地未跟踪的 `.env` 或环境变量中。应用仅提供 health 流程时，
+没有 API Key 也可以启动；真正初始化 Provider 时若缺少 Key，会返回可读配置错误。
+Batch 5 使用 mock HTTP 测试，没有连接真实模型服务。
+
 健康检查：
 
 ```text
@@ -137,10 +150,10 @@ npm run test
 npm run build
 ```
 
-Batch 4 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
+Batch 5 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
 
 ```text
-feat(db): add sqlite models migrations and schemas
+feat(llm): add openai-compatible provider foundation
 ```
 
 当前请以计划文档作为执行依据：
