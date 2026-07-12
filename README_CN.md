@@ -23,9 +23,9 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成的基础范围：`P1-M1-S1` 到 `P1-M1-S8`。
+已完成范围：`P1-M1-S1` 到 `P1-M2-S3`。
 
-下一批范围：`P1-M2-S1` 到 `P1-M2-S3`。
+下一批范围：`P1-M2-S4` 到 `P1-M2-S6`。
 
 ## Plan 1 非目标
 
@@ -48,6 +48,10 @@ Plan 1 不实现：
 - 前端：React、Vite、TypeScript
 - LLM 接入：OpenAI-compatible providers，例如 DeepSeek 或 OpenRouter
 - 测试：后端使用 pytest，前端使用 TypeScript/build 检查
+
+本工作台以本地优先、单用户使用为主要定位。SQLite 是默认且长期支持的主数据库，
+不是迁移到 PostgreSQL 之前的临时方案。SQLAlchemy 和 Alembic 用于保留合理的数据库
+可移植性；只有部署或并发需求发生实质变化时，才重新评估 PostgreSQL 兼容路径。
 
 ## 仓库结构
 
@@ -80,8 +84,13 @@ AI-Agent-Lab/
 py -3.11 -m venv .venv
 cd backend
 ..\.venv\Scripts\python.exe -m pip install -e .[dev] --no-build-isolation
+..\.venv\Scripts\python.exe -m alembic upgrade head
 ..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
+
+后端默认数据库为 `sqlite:///./ai_agent_lab.db`。如需调整，请通过本地未跟踪的
+环境变量设置 `DATABASE_URL`。数据库结构由 Alembic 管理，目前会创建
+`conversations`、`messages` 和 `llm_calls`；应用启动时不会自动建表。
 
 健康检查：
 
@@ -128,10 +137,10 @@ npm run test
 npm run build
 ```
 
-Batch 3 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
+Batch 4 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
 
 ```text
-feat(frontend): show backend health status
+feat(db): add sqlite models migrations and schemas
 ```
 
 当前请以计划文档作为执行依据：

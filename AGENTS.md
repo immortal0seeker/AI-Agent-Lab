@@ -93,6 +93,8 @@ Keep API routes thin: `Route -> schema validation -> service -> response schema`
 
 Business logic belongs in services, not routes. Provider details belong in provider adapters and must not leak into the business layer.
 
+SQLite is the default and long-term supported primary database because the workspace is local-first and primarily single-user. PostgreSQL is optional compatibility, not a required migration path. Do not introduce or migrate to PostgreSQL unless the user explicitly changes the deployment or concurrency requirements; preserve reasonable portability through SQLAlchemy and Alembic without designing around a hypothetical migration.
+
 Do not create future directories before the current plan reaches them.
 
 Code comments should be written in Chinese by default because this is a learning-oriented project. Add comments only when they clarify non-obvious intent, boundaries, trade-offs, or learning points; do not translate self-explanatory code into comments.

@@ -76,7 +76,7 @@ Plan 1 里建议实际使用：
 |包管理|uv|
 |版本管理|Git|
 
-暂时不用 PostgreSQL。SQLite 足够支撑 Plan 1。
+SQLite 是项目默认且长期支持的主数据库，不是 Plan 1 结束后必须替换的临时方案。项目通过 SQLAlchemy 和 Alembic 保留合理的数据库可移植性，但 PostgreSQL 仅作为技术兼容选项；只有部署或并发需求发生实质变化时才重新评估。
 
 ---
 

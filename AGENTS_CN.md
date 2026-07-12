@@ -93,6 +93,8 @@ API route 保持薄层：`Route -> schema validation -> service -> response sche
 
 业务逻辑放 service，不放 route。Provider 细节放 provider adapter，不泄漏到业务层。
 
+SQLite 是默认且长期支持的主数据库，因为本工作台以本地优先、单用户使用为主要定位。PostgreSQL 仅作为技术兼容选项，不是必然迁移路线。除非用户明确改变部署或并发需求，否则不得主动引入或迁移到 PostgreSQL；可以通过 SQLAlchemy 和 Alembic 保留合理可移植性，但不要围绕假设中的迁移过度设计。
+
 不要提前创建尚未进入当前计划的未来目录。
 
 代码注释默认使用中文，因为本项目主要用于学习。只有在说明非显而易见的意图、边界、取舍或学习点时才写注释，不要把自解释代码翻译成注释。

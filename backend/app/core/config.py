@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     app_name: str = Field(default="AI Agent Lab Backend", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
     api_v1_prefix: str = Field(default="/api/v1", alias="API_V1_PREFIX")
+    database_url: str = Field(
+        default="sqlite:///./ai_agent_lab.db",
+        alias="DATABASE_URL",
+    )
     backend_cors_origins: str = Field(
         default="http://localhost:5173",
         alias="BACKEND_CORS_ORIGINS",

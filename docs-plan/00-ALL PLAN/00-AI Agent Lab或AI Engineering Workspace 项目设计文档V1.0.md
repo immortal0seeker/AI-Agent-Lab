@@ -57,6 +57,10 @@
 
 > **业务只是载体，技术掌握才是目标。**
 
+部署与数据原则：
+
+> **项目以本地优先、单用户工作台为主要定位。SQLite 是默认且长期支持的主数据库，不是迁移到 PostgreSQL 之前的临时方案。PostgreSQL 仅保留技术兼容能力，只有部署或并发需求发生实质变化时才重新评估。**
+
 这个项目不追求一开始就做成 Codex、Claude Code、Cursor、OpenHands 那种成熟产品，而是做一个“可运行的 AI Agent 技术教材”和“个人高级作品集”。
 
 它最终应该像一个简化版的：
@@ -452,10 +456,12 @@ flowchart TD
     Obs --> Cost[Token Cost]
     Obs --> Replay[Replay]
 
-    Backend --> Storage[(PostgreSQL / SQLite)]
+    Backend --> Storage[(SQLite 主数据库)]
     Backend --> Redis[(Redis)]
     Backend --> Queue[Task Queue]
 ```
+
+这里的主业务数据默认保存在本地 SQLite。SQLAlchemy 和 Alembic 用于维护模型、迁移和合理可移植性；PostgreSQL 不属于必然演进路线。
 
 ---
 
@@ -558,9 +564,9 @@ flowchart TD
     
 - Alembic
     
-- PostgreSQL
+- SQLite（默认且长期支持的主数据库）
     
-- SQLite
+- PostgreSQL（可选兼容，仅在部署或并发需求变化时评估）
     
 - Redis
     
@@ -1590,6 +1596,8 @@ class EmbeddingProvider:
 
 适合和 PostgreSQL 合并。
 
+这是向量存储方向的可选实验，不代表主业务数据库必须从 SQLite 迁移到 PostgreSQL。
+
 学习：
 
 - SQL + Vector
@@ -1668,11 +1676,11 @@ Memory 应包括：
 
 实现：
 
-- Redis
-    
-- PostgreSQL
-    
 - 内存对象
+    
+- SQLite
+    
+- Redis（仅在多进程或 Worker 协调确有需要时）
     
 
 ---
@@ -1711,7 +1719,7 @@ Memory 应包括：
 
 - JSON
     
-- PostgreSQL
+- SQLite
     
 - 可人工编辑
     
@@ -1730,7 +1738,7 @@ Memory 应包括：
 
 实现：
 
-- PostgreSQL
+- SQLite
     
 - VectorDB
     
@@ -1779,9 +1787,9 @@ Hermes 是开源智能体，不是用户自己的项目。
 
 实现：
 
-- PostgreSQL
+- SQLite
     
-- Redis
+- Redis（可选，仅用于多进程协调）
     
 - State Machine
     
@@ -2613,9 +2621,9 @@ AI：
 
 ## 16.2 第二版技术栈
 
-增加：
+按实际需求可选增加，不作为默认演进路线：
 
-- PostgreSQL
+- PostgreSQL / pgvector（仅用于特定向量检索或服务器部署实验）
     
 - pgvector
     
@@ -2733,7 +2741,7 @@ ai-agent-lab/
     
 - 配置 Docker Compose
     
-- 配置 SQLite / PostgreSQL
+- 配置 SQLite；仅在部署定位变化时验证 PostgreSQL 兼容性
     
 - 配置环境变量
     
@@ -3443,7 +3451,7 @@ MVP 完成后，这已经是一个可以写进简历的 AI 应用项目。
 
 简历描述：
 
-> 设计并实现一个面向开发者的全栈 AI Agent 工程工作台，支持多模型 Provider、流式对话、Tool Calling、RAG 知识库、Embedding、向量数据库、文档解析、长期记忆、语音输入、多模态分析、Agent Workflow、MCP 工具接入、评测与可观测性。项目采用 FastAPI + React + PostgreSQL + Qdrant + Redis 架构，实现了可插拔的 LLM / Embedding / STT / TTS / VectorDB Provider 抽象，支持 DeepSeek、OpenAI-compatible、OpenRouter 等模型服务，并实现 Hybrid RAG、Parent-Child Retrieval、Rerank、Memory Injection、Agent Trace 等核心能力。
+> 设计并实现一个面向开发者的本地优先 AI Agent 工程工作台，支持多模型 Provider、流式对话、Tool Calling、RAG 知识库、Embedding、向量数据库、文档解析、长期记忆、语音输入、多模态分析、Agent Workflow、MCP 工具接入、评测与可观测性。项目采用 FastAPI + React + SQLite + Qdrant 架构，以低依赖的单用户本地运行为默认形态，并通过 SQLAlchemy / Alembic 保留合理的数据层可移植性；同时实现可插拔的 LLM / Embedding / STT / TTS / VectorDB Provider 抽象，支持 DeepSeek、OpenAI-compatible、OpenRouter 等模型服务，以及 Hybrid RAG、Parent-Child Retrieval、Rerank、Memory Injection、Agent Trace 等核心能力。
 
 项目亮点：
 
@@ -3738,7 +3746,9 @@ MVP 完成后，这已经是一个可以写进简历的 AI 应用项目。
     
 - React
     
-- PostgreSQL
+- SQLite（默认长期主数据库）
+
+- PostgreSQL（可选兼容）
     
 - Redis
     
@@ -3815,5 +3825,3 @@ Multi-Agent + GraphRAG + A2A + Browser Use / Computer Use
 ```
 
 做完这个项目，你不一定立刻成为真正意义上的 AI 架构师，但你会对 AI 应用工程的主流技术栈有非常系统的理解，并且拥有一个足够扎实、足够复杂、足够能展示工程能力的代表作品。
-
-

@@ -2,7 +2,7 @@
 
 ## Current Architecture Stage
 
-This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M1-S8`, so the backend health endpoint, base configuration, frontend skeleton, frontend API client, and frontend health status display exist. Later Plan 1 batches will add the database, provider layer, chat flow, streaming, persistence, logging, and error handling.
+This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M2-S3`, so the health flow, frontend skeleton, SQLAlchemy session, Alembic migration, initial ORM models, and matching Pydantic schemas exist. Later Plan 1 batches will add the provider layer, chat flow, streaming, persistence services, logging, and error handling.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -70,6 +70,41 @@ Expected response:
 }
 ```
 
+## Database Foundation
+
+The current backend database layer uses SQLite, SQLAlchemy 2, and Alembic.
+`DATABASE_URL` defaults to `sqlite:///./ai_agent_lab.db`, while schema creation
+is owned by migrations rather than application startup.
+
+SQLite is the default and long-term supported primary database for this
+local-first, primarily single-user workspace. It is not a temporary database
+that must be replaced after Plan 1. SQLAlchemy and Alembic should preserve
+reasonable portability, but PostgreSQL is only an optional compatibility path
+if the product later gains server deployment, multi-user access, or sustained
+concurrent writes. Future modules should optimize for reliable local SQLite
+operation without adding PostgreSQL-specific infrastructure preemptively.
+
+The initial migration creates:
+
+- `conversations`
+- `messages`
+- `llm_calls`
+
+All model IDs use UUID v4 values. Datetimes are stored as timezone-naive UTC
+values because SQLite does not preserve timezone information consistently.
+Deleting a conversation cascades to its messages and LLM calls. Deleting an
+individual message preserves its LLM call records and sets `message_id` to
+`NULL`.
+
+Foreign-key columns used by conversation and message lookups are indexed.
+SQLAlchemy metadata uses a stable naming convention for primary keys, foreign
+keys, indexes, unique constraints, and check constraints so future Alembic
+migrations can reference schema objects predictably on SQLite.
+
+The current schemas expose create and read contracts only. Service behavior,
+HTTP routes, and conversation persistence workflows remain deferred to their
+scheduled Plan 1 batches.
+
 ## Frontend Boundaries
 
 The frontend uses React + Vite + TypeScript.
@@ -102,7 +137,7 @@ User message
 -> Frontend message rendering
 ```
 
-Streaming and persistence are part of Plan 1, but they should be implemented in later Plan 1 batches after the skeleton and provider layer exist.
+Streaming and persistence workflows are part of Plan 1, but they should be implemented in later Plan 1 batches after the provider and service layers exist.
 
 ## Provider Principle
 

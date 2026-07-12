@@ -23,9 +23,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed foundation scope: `P1-M1-S1` through `P1-M1-S8`.
+Completed scope: `P1-M1-S1` through `P1-M2-S3`.
 
-Next scope: `P1-M2-S1` through `P1-M2-S3`.
+Next scope: `P1-M2-S4` through `P1-M2-S6`.
 
 ## Non-Goals For Plan 1
 
@@ -48,6 +48,12 @@ Those capabilities are intentionally deferred to later plans.
 - Frontend: React, Vite, TypeScript
 - LLM access: OpenAI-compatible providers, such as DeepSeek or OpenRouter
 - Testing: pytest for backend, TypeScript/build checks for frontend
+
+The workspace is local-first and primarily single-user. SQLite is the default
+and long-term supported primary database, not a temporary stop before
+PostgreSQL. SQLAlchemy and Alembic preserve reasonable database portability,
+but PostgreSQL remains an optional compatibility path only if deployment or
+concurrency requirements materially change.
 
 ## Repository Layout
 
@@ -82,8 +88,14 @@ frontend home page.
 py -3.11 -m venv .venv
 cd backend
 ..\.venv\Scripts\python.exe -m pip install -e .[dev] --no-build-isolation
+..\.venv\Scripts\python.exe -m alembic upgrade head
 ..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
+
+The backend defaults to `sqlite:///./ai_agent_lab.db`. Override it with
+`DATABASE_URL` in a local untracked environment file when needed. Alembic owns
+schema creation and currently creates `conversations`, `messages`, and
+`llm_calls`; the application does not create tables during startup.
 
 Health check:
 
@@ -130,11 +142,11 @@ npm run test
 npm run build
 ```
 
-Batch 3 commit note: the user creates the actual Git commit manually after
+Batch 4 commit note: the user creates the actual Git commit manually after
 reviewing the verified diff. Suggested commit message:
 
 ```text
-feat(frontend): show backend health status
+feat(db): add sqlite models migrations and schemas
 ```
 
 For now, use the plan documents as the source of truth:

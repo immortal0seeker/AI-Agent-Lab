@@ -6,6 +6,8 @@ AI Agent Lab is a staged AI Engineering Workspace for developers and AI applicat
 
 The project starts with a small web chat foundation and gradually expands into tool calling, RAG, traceability, memory, agent runtime, MCP, voice, vision, and desktop capabilities.
 
+The workspace is local-first and primarily single-user. SQLite is its default and long-term supported primary database. PostgreSQL compatibility may be retained where inexpensive, but migration to PostgreSQL is not a roadmap requirement and should be reconsidered only if deployment or concurrency requirements change.
+
 ## Goal
 
 The goal is to build a usable, observable, testable, and extensible AI engineering workspace. Each plan should leave the repository in a working state that can be reviewed, tested, documented, and extended by the next plan.
@@ -18,6 +20,7 @@ The project emphasizes:
 - Observable model and agent behavior
 - Reproducible evaluation and verification
 - Documentation that matches implemented behavior
+- Local-first operation with low setup and maintenance cost
 
 ## Plan Roadmap
 
@@ -32,9 +35,9 @@ The project emphasizes:
 
 ## Current Stage
 
-Current stage: Plan 1, Milestone 1 completed.
+Current stage: Plan 1, Milestone 2 in progress; its database foundation is complete.
 
-The repository has completed `P1-M1-S1` through `P1-M1-S8`. The first milestone assembled the engineering foundation:
+The repository has completed `P1-M1-S1` through `P1-M2-S3`. Milestone 1 assembled the engineering foundation, and the first M2 batch added the database foundation:
 
 - Repository structure
 - Root documentation
@@ -45,8 +48,12 @@ The repository has completed `P1-M1-S1` through `P1-M1-S8`. The first milestone 
 - Frontend health status display with loading, healthy, and error states
 - Local environment examples
 - Clear documentation boundaries
+- Configurable SQLite connection and SQLAlchemy session
+- Alembic-managed initial migration
+- UUID-based Conversation, Message, and LLMCall models
+- Pydantic create and read schemas for the three models
 
-The next scope is `P1-M2-S1` through `P1-M2-S3`, which should start the database layer without implementing later Plan capabilities early.
+The next scope is `P1-M2-S4` through `P1-M2-S6`, which adds the LLM Provider abstraction and OpenAI-compatible adapter without starting Chat APIs early.
 
 ## Plan 1 Scope
 

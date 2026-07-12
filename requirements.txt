@@ -1,6 +1,8 @@
 # Backend runtime dependencies
+alembic>=1.18.5,<1.19.0
 fastapi>=0.138.0,<0.139.0
 pydantic-settings>=2.13.0,<3.0.0
+sqlalchemy>=2.0.51,<2.1.0
 uvicorn>=0.49.0,<0.50.0
 
 # Backend test dependencies
