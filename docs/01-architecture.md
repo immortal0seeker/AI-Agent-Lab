@@ -2,7 +2,7 @@
 
 ## Current Architecture Stage
 
-This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M2-S8`, so the health flow, frontend skeleton, database foundation, LLM Provider contract, OpenAI-compatible adapter, and JSON Model Registry exist. Later Plan 1 batches will add the chat flow, API-level streaming, persistence services, logging, and detailed error handling.
+This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M3-S3`, so the health flow, frontend skeleton, database and Provider foundations, transactional Conversation Service, non-streaming Chat Service, and first Chat/Conversations routes exist. Later Plan 1 batches will add API-level streaming, frontend Chat, history recovery, logging, and detailed error handling.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -137,7 +137,22 @@ User message
 -> Frontend message rendering
 ```
 
-Streaming and persistence workflows are part of Plan 1, but they should be implemented in later Plan 1 batches after the provider and service layers exist.
+The current non-streaming flow uses server-owned history:
+
+```text
+Chat request with one new user turn
+-> request-scoped SQLAlchemy Session
+-> Registry model validation and Provider resolution
+-> load or create Conversation
+-> append user Message and load ordered history
+-> BaseLLMProvider.chat()
+-> append assistant Message and completed LLMCall
+-> commit before the HTTP response is sent
+```
+
+Provider failures roll back all records created by that Chat request. Token
+usage can be returned to the client, but token/cost/latency persistence remains
+deferred to M4. API-level streaming remains scheduled for the next M3 batch.
 
 ## Provider Principle
 

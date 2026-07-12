@@ -23,9 +23,9 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P1-M2-S8`。
+已完成范围：`P1-M1-S1` 到 `P1-M3-S3`。
 
-下一批范围：`P1-M3-S1` 到 `P1-M3-S3`。
+下一批范围：`P1-M3-S4` 到 `P1-M3-S6`。
 
 ## Plan 1 非目标
 
@@ -109,6 +109,18 @@ JSON Model Registry 位于 `backend/app/providers/llm/models.json`。其中的
 已跟踪条目只是示例配置。单元测试覆盖 Registry 加载、筛选、查询、重复项检测和
 严格元数据校验。Provider 与 Registry 边界见 `docs/03-llm-provider.md`。
 
+首个非流式 Chat 后端流程已经建立：
+
+```text
+POST /api/v1/conversations
+GET  /api/v1/conversations/{conversation_id}
+POST /api/v1/chat/completions
+```
+
+Chat 接口只接收本轮新的用户 `content`。后端负责加载数据库会话历史、校验
+Registry 模型、调用已配置 Provider，并在一个事务中写入用户消息、assistant
+消息和成功的 `LLMCall`。测试只使用 mock Provider。
+
 健康检查：
 
 ```text
@@ -154,10 +166,10 @@ npm run test
 npm run build
 ```
 
-Batch 6 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
+Batch 7 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
 
 ```text
-feat(llm): add model registry and provider docs
+feat(chat): add transactional non-streaming chat API
 ```
 
 当前请以计划文档作为执行依据：

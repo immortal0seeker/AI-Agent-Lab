@@ -12,7 +12,7 @@ Plan 1 Milestone 2 provides the backend foundation for model access:
 - a strict JSON Model Registry
 - mock HTTP and Registry unit tests
 
-This layer is not exposed through a Chat or Models API yet. Services, API routes, persistence, and frontend model selection start in later Plan 1 milestones.
+The Provider layer is now consumed by the non-streaming `POST /api/v1/chat/completions` flow. A Models API, API-level streaming, and frontend model selection remain deferred to later Plan 1 batches.
 
 ## Provider Contract
 

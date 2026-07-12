@@ -55,9 +55,9 @@ blocked
 | Batch 4 | P1-M2-S1～S3 | 建立数据库、ORM、迁移基础 | 跑数据库测试 | 已完成 |
 | Batch 5 | P1-M2-S4～S6 | 建立 LLM Provider 抽象和 OpenAI-compatible Provider | mock provider 测试 | 已完成 |
 | Batch 6 | P1-M2-S7～S8 | 建立 Model Registry 和 provider 配置 | Codex + Claude review M2 | 已完成 |
-| Batch 7 | P1-M3-S1～S3 | 实现非流式 Chat API | 后端 chat 测试 | 未完成 |
+| Batch 7 | P1-M3-S1～S3 | 实现非流式 Chat API | 后端 chat 测试 | 已完成 |
 | Batch 8 | P1-M3-S4～S6 | 实现 Streaming Chat 和前端基础 Chat UI | 浏览器手测流式输出 | 未完成 |
-| Batch 9 | P1-M3-S7～S9 | 实现会话历史和刷新恢复 | Codex + Claude review M3 | 未完成 |
+| Batch 9 | P1-M3-S7～S9 | 实现会话历史和刷新恢复 | Codex review M3 | 未完成 |
 | Batch 10 | P1-M4-S1～S3 | 实现 token / cost / latency 和错误处理 | 后端测试 | 未完成 |
 | Batch 11 | P1-M4-S4～S6 | 实现日志、基础测试、文档 | 全量测试 | 未完成 |
 | Batch 12 | P1-M4-S7～S8 | 封版、截图、CHANGELOG、tag | Codex + Claude final review | 未完成 |
@@ -173,12 +173,12 @@ feat: add database models and llm provider layer
 | P1-M3-S1 | 实现 Conversation Service | Codex | `services/conversation_service.py` | 创建、查询、追加消息测试通过 | Codex |
 | P1-M3-S2 | 实现非流式 Chat Service | Codex | `services/chat_service.py` | mock provider chat 测试通过 | Codex |
 | P1-M3-S3 | 实现 Chat API 和 Conversations API | Codex | `api/v1/chat.py`、`conversations.py` | OpenAPI 可见，接口测试通过 | Codex |
-| P1-M3-S4 | 实现 Streaming Chat SSE | Codex | streaming endpoint | curl 或浏览器能看到分段输出 | Claude Code 可审 |
+| P1-M3-S4 | 实现 Streaming Chat SSE | Codex | streaming endpoint | curl 或浏览器能看到分段输出 | Codex |
 | P1-M3-S5 | 创建前端 Chat 类型、API 封装和 Zustand store | Cursor | `types/chat.ts`、`api/chat.ts`、`stores/chatStore.ts` | TypeScript 检查通过 | Codex |
 | P1-M3-S6 | 实现基础 Chat UI | Cursor | `ChatPage.tsx`、消息列表、输入框、发送按钮 | 页面可发送消息并展示回答 | Codex |
 | P1-M3-S7 | 实现模型选择和会话列表 | Cursor | Model selector、Conversation sidebar | 能切换模型和选择历史会话 | Codex |
 | P1-M3-S8 | 实现会话刷新恢复 | Cursor + Codex | 前端加载历史会话，后端返回消息列表 | 刷新页面后消息仍在 | Codex |
-| P1-M3-S9 | 补充 Chat API、Streaming、Conversation 测试 | Codex | 后端测试、必要的前端 smoke 测试 | 测试通过 | Codex + Claude review |
+| P1-M3-S9 | 补充 Chat API、Streaming、Conversation 测试 | Codex | 后端测试、必要的前端 smoke 测试 | 测试通过 | Codex |
 
 M3 完成后建议 commit：
 

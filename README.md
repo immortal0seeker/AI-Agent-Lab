@@ -23,9 +23,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P1-M2-S8`.
+Completed scope: `P1-M1-S1` through `P1-M3-S3`.
 
-Next scope: `P1-M3-S1` through `P1-M3-S3`.
+Next scope: `P1-M3-S4` through `P1-M3-S6`.
 
 ## Non-Goals For Plan 1
 
@@ -119,6 +119,19 @@ configuration only. Registry loading, filtering, lookup, duplicate detection,
 and strict metadata validation are covered by unit tests. See
 `docs/03-llm-provider.md` for Provider and Registry boundaries.
 
+The first non-streaming Chat backend flow is available:
+
+```text
+POST /api/v1/conversations
+GET  /api/v1/conversations/{conversation_id}
+POST /api/v1/chat/completions
+```
+
+The Chat endpoint accepts one new user `content` value. The backend owns and
+loads persisted conversation history, validates the selected Registry model,
+calls the configured Provider, and atomically stores the user message,
+assistant message, and successful `LLMCall`. Tests use mock Providers only.
+
 Health check:
 
 ```text
@@ -164,11 +177,11 @@ npm run test
 npm run build
 ```
 
-Batch 6 commit note: the user creates the actual Git commit manually after
+Batch 7 commit note: the user creates the actual Git commit manually after
 reviewing the verified diff. Suggested commit message:
 
 ```text
-feat(llm): add model registry and provider docs
+feat(chat): add transactional non-streaming chat API
 ```
 
 For now, use the plan documents as the source of truth:
