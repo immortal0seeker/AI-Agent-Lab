@@ -5,6 +5,7 @@ import { fetchHealth } from "../api/health";
 import ChatHeader from "../components/ChatHeader";
 import MessageComposer from "../components/MessageComposer";
 import MessageList from "../components/MessageList";
+import WorkspaceStatusPanel from "../components/WorkspaceStatusPanel";
 import WorkspaceSidebar, {
   type ApiHealth,
 } from "../components/WorkspaceSidebar";
@@ -78,7 +79,11 @@ export default function ChatPage() {
     isConversationLoading ||
     selectedProvider === null ||
     selectedModel === null;
-  const visibleError = error ?? workspaceError;
+  const visibleError =
+    workspaceStatus === "ready" ? (error ?? workspaceError) : null;
+  const retryInitialization = () => {
+    void initialize(readConversationId(window.location.search));
+  };
 
   return (
     <main className="workspace-shell">
@@ -96,6 +101,7 @@ export default function ChatPage() {
           models={models}
           provider={selectedProvider}
           model={selectedModel}
+          workspaceStatus={workspaceStatus}
           isStreaming={isStreaming}
           modelSelectionDisabled={
             workspaceStatus !== "ready" || isStreaming || isConversationLoading
@@ -109,13 +115,27 @@ export default function ChatPage() {
           </div>
         ) : null}
         <div className="chat-content">
-          {isConversationLoading ? (
-            <div className="conversation-loading" role="status">
-              <LoaderCircle size={15} aria-hidden="true" />
-              Loading conversation...
-            </div>
-          ) : null}
-          <MessageList messages={messages} />
+          {workspaceStatus === "error" ? (
+            <WorkspaceStatusPanel
+              status="error"
+              message={
+                workspaceError ?? "Unable to initialize Chat workspace"
+              }
+              onRetry={retryInitialization}
+            />
+          ) : workspaceStatus !== "ready" ? (
+            <WorkspaceStatusPanel status="loading" />
+          ) : (
+            <>
+              {isConversationLoading ? (
+                <div className="conversation-loading" role="status">
+                  <LoaderCircle size={15} aria-hidden="true" />
+                  Loading conversation...
+                </div>
+              ) : null}
+              <MessageList messages={messages} />
+            </>
+          )}
         </div>
         <footer className="composer-region">
           <MessageComposer

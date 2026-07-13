@@ -30,7 +30,9 @@ from app.providers.llm.base import (
     ChatRequest,
     LLMResponse,
     ProviderConfigurationError,
+    ProviderRateLimitError,
     ProviderRequestError,
+    ProviderTimeoutError,
     TokenUsage,
 )
 from app.providers.llm.registry import ModelInfo, ModelRegistry
@@ -87,6 +89,29 @@ class FailingStreamingProvider(MockProvider):
         self.requests.append(request)
         yield ChatChunk(content="partial")
         raise ProviderRequestError("mock stream failed", status_code=503)
+
+
+class TimeoutProvider(MockProvider):
+    async def chat(self, request: ChatRequest) -> LLMResponse:
+        self.requests.append(request)
+        raise ProviderTimeoutError(
+            "private timeout diagnostic",
+            status_code=504,
+        )
+
+
+class RateLimitedStreamingProvider(MockProvider):
+    async def stream_chat(
+        self,
+        request: ChatRequest,
+    ) -> AsyncIterator[ChatChunk]:
+        self.requests.append(request)
+        if False:
+            yield ChatChunk()
+        raise ProviderRateLimitError(
+            "private rate-limit diagnostic",
+            status_code=429,
+        )
 
 
 def create_registry() -> ModelRegistry:
@@ -210,6 +235,34 @@ def test_conversation_api_creates_and_gets_conversation(api_context: Any) -> Non
     assert created.status_code == 201
     assert loaded.status_code == 200
     assert loaded.json() == created.json()
+
+
+def test_conversation_api_uses_default_title(api_context: Any) -> None:
+    client, _, _, _ = api_context
+
+    response = client.post("/api/v1/conversations", json={})
+
+    assert response.status_code == 201
+    assert response.json()["title"] == "New conversation"
+    assert response.json()["default_provider"] is None
+    assert response.json()["default_model"] is None
+
+
+def test_conversation_api_rejects_malformed_id_with_unified_error(
+    api_context: Any,
+) -> None:
+    client, _, _, _ = api_context
+
+    response = client.get("/api/v1/conversations/not-a-uuid")
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "validation_error",
+            "message": "Request validation failed",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
 
 
 def test_conversation_api_returns_404_for_unknown_conversation(
@@ -501,6 +554,34 @@ def test_chat_api_returns_502_and_rolls_back_provider_failure(
         assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
 
 
+def test_chat_api_maps_timeout_and_rolls_back(api_context: Any) -> None:
+    client, session_factory, _, providers = api_context
+    providers["openai_compatible"] = TimeoutProvider()
+
+    response = client.post(
+        "/api/v1/chat/completions",
+        json={
+            "provider": "openai_compatible",
+            "model": "example-model",
+            "content": "Hello",
+        },
+    )
+
+    assert response.status_code == 504
+    assert response.json() == {
+        "error": {
+            "code": "provider_timeout",
+            "message": "The model provider timed out",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
+    assert "private timeout diagnostic" not in response.text
+    with session_factory() as session:
+        assert session.scalar(select(func.count()).select_from(Conversation)) == 0
+        assert session.scalar(select(func.count()).select_from(Message)) == 0
+        assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
+
+
 def test_chat_api_rejects_blank_content(api_context: Any) -> None:
     client, _, _, _ = api_context
 
@@ -681,6 +762,41 @@ def test_stream_chat_api_emits_error_and_rolls_back(api_context: Any) -> None:
         ),
     ]
     assert "mock stream failed" not in response.text
+    with session_factory() as session:
+        assert session.scalar(select(func.count()).select_from(Conversation)) == 0
+        assert session.scalar(select(func.count()).select_from(Message)) == 0
+        assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
+
+
+def test_stream_chat_api_maps_rate_limit_and_rolls_back(
+    api_context: Any,
+) -> None:
+    client, session_factory, _, providers = api_context
+    providers["openai_compatible"] = RateLimitedStreamingProvider()
+
+    response = client.post(
+        "/api/v1/chat/stream",
+        json={
+            "provider": "openai_compatible",
+            "model": "example-model",
+            "content": "Hello stream",
+        },
+    )
+
+    assert response.status_code == 200
+    assert parse_sse_events(response.text) == [
+        (
+            "error",
+            {
+                "error": {
+                    "code": "provider_rate_limit",
+                    "message": "The model provider rate limit was exceeded",
+                    "request_id": response.headers["x-request-id"],
+                }
+            },
+        )
+    ]
+    assert "private rate-limit diagnostic" not in response.text
     with session_factory() as session:
         assert session.scalar(select(func.count()).select_from(Conversation)) == 0
         assert session.scalar(select(func.count()).select_from(Message)) == 0

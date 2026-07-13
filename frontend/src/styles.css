@@ -300,9 +300,21 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #16834a;
+  color: #68747d;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.model-status--ready {
+  color: #16834a;
+}
+
+.model-status--streaming {
+  color: #1677a6;
+}
+
+.model-status--unavailable {
+  color: #a33728;
 }
 
 .model-selector {
@@ -353,6 +365,48 @@ textarea:focus-visible {
   position: relative;
   min-height: 0;
   overflow-y: auto;
+}
+
+.workspace-state {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  min-height: 100%;
+  padding: 32px;
+  color: #6c7981;
+  text-align: center;
+}
+
+.workspace-state > svg {
+  animation: loading-spin 1s linear infinite;
+}
+
+.workspace-state strong {
+  color: #303941;
+  font-size: 15px;
+}
+
+.workspace-state span {
+  font-size: 12px;
+}
+
+.workspace-state--error > svg {
+  color: #b13d2e;
+  animation: none;
+}
+
+.workspace-state--error button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  padding: 7px 12px;
+  border: 1px solid #c9d1d6;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #344149;
+  font-weight: 650;
 }
 
 .conversation-loading {
@@ -717,7 +771,8 @@ textarea:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .typing-indicator i,
-  .conversation-loading svg {
+  .conversation-loading svg,
+  .workspace-state > svg {
     animation: none;
   }
 }

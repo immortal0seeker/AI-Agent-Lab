@@ -1,4 +1,5 @@
 import asyncio
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 
@@ -24,6 +25,19 @@ def test_health_endpoint_returns_ok() -> None:
         "status": "ok",
         "service": "ai-agent-lab-backend",
     }
+
+
+def test_health_endpoint_includes_server_request_id() -> None:
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/health",
+            headers={"X-Request-ID": "client-controlled"},
+        )
+
+    request_id = response.headers["x-request-id"]
+    assert response.status_code == 200
+    assert request_id != "client-controlled"
+    UUID(request_id)
 
 
 def test_health_endpoint_includes_cors_header_for_configured_origin() -> None:

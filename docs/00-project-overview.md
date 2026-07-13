@@ -35,9 +35,9 @@ The project emphasizes:
 
 ## Current Stage
 
-Current stage: Plan 1, Milestone 4 engineering reinforcement in progress; usage persistence, safe errors, and request-linked logging are implemented.
+Current stage: Plan 1, Milestone 4 engineering reinforcement is complete through the testing, frontend-state, and documentation pass; release preparation and final review remain.
 
-The repository has completed `P1-M1-S1` through `P1-M4-S3`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and the first Milestone 4 batch adds:
+The repository has completed `P1-M1-S1` through `P1-M4-S6`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 has added:
 
 - Repository structure
 - Root documentation
@@ -77,8 +77,12 @@ The repository has completed `P1-M1-S1` through `P1-M4-S3`. Milestone 1 assemble
 - Classified Provider errors without upstream body or credential leakage
 - Unified HTTP/SSE error envelopes with server-generated request IDs
 - Safe request and model-call logs containing request ID, model, outcome, and latency
+- Focused health, Provider stream, classified Chat rollback, Conversation, and safe-error regression coverage
+- Distinct frontend workspace initialization loading and error states
+- Manual Retry recovery after initialization failure without an automatic retry loop
+- Clean-start, service-specific environment, migration, and verification documentation
 
-The next scope is `P1-M4-S4` through `P1-M4-S6`, which broadens backend tests, performs the scheduled frontend UI checks, and completes the Plan 1 documentation pass.
+The next scope is `P1-M4-S7` through `P1-M4-S8`, which prepares sanitized release materials, runs the concentrated final review and fixes, and creates the `v0.1.0` tag only after acceptance succeeds.
 
 ## Plan 1 Scope
 

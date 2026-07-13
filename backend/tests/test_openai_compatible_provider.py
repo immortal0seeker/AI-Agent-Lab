@@ -298,6 +298,42 @@ def test_stream_chat_classifies_http_error_without_upstream_text() -> None:
     assert "test-secret-key" not in str(exc_info.value)
 
 
+@pytest.mark.parametrize(
+    ("error_type", "expected_error"),
+    [
+        (httpx.ReadTimeout, ProviderTimeoutError),
+        (httpx.ConnectError, ProviderUnknownError),
+    ],
+)
+def test_stream_chat_translates_transport_errors_without_private_text(
+    error_type: type[httpx.RequestError],
+    expected_error: type[ProviderRequestError],
+) -> None:
+    async def exercise() -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise error_type("private streaming diagnostic", request=request)
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ) as client:
+            provider = OpenAICompatibleProvider(
+                base_url="https://provider.example/v1",
+                api_key="test-secret-key",
+                default_model="default-model",
+                client=client,
+            )
+            async for _ in provider.stream_chat(
+                ChatRequest(messages=[ChatMessage(role="user", content="hi")])
+            ):
+                pass
+
+    with pytest.raises(expected_error) as exc_info:
+        asyncio.run(exercise())
+
+    assert "private streaming diagnostic" not in str(exc_info.value)
+    assert "test-secret-key" not in str(exc_info.value)
+
+
 def test_stream_chat_parses_sse_chunks_and_done_marker() -> None:
     async def exercise() -> tuple[dict[str, object], list[object]]:
         captured: dict[str, object] = {}

@@ -2,7 +2,7 @@
 
 ## Current Architecture Stage
 
-This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M4-S3`, so the health flow, database and Provider foundations, transactional Conversation and Chat services, non-streaming and SSE Chat routes, Registry model selection, conversation navigation, refresh recovery, successful-call usage persistence, structured errors, and request-linked logging exist. Later Plan 1 batches will broaden tests, complete the scheduled UI and documentation pass, and prepare the release materials.
+This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M4-S6`, so the health flow, database and Provider foundations, transactional Conversation and Chat services, non-streaming and SSE Chat routes, Registry model selection, conversation navigation, refresh recovery, successful-call usage persistence, structured errors, request-linked logging, focused regression coverage, recoverable frontend initialization states, and clean-start documentation exist. The remaining Plan 1 work prepares release materials and performs the concentrated final review.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -127,6 +127,27 @@ history callbacks, preserves partial output after Stop, and replaces temporary
 messages with canonical backend data after a successful `done` event. It loads
 Registry models and recent conversations independently, while
 `?conversation=<uuid>` preserves the selected conversation across refreshes.
+
+`ChatPage` separates workspace initialization from ready-state message
+rendering through `WorkspaceStatusPanel`:
+
+```text
+idle/loading -> initialization progress; composer and model selection disabled
+error        -> one safe error plus a manual Retry action
+Retry        -> initialize(valid conversation ID from the current URL)
+ready        -> empty, conversation loading, streaming, completed, stopped, or Chat error
+```
+
+The Retry action reuses the existing Zustand initializer. It does not add an
+automatic retry loop, delay, backoff, or new store state. Initialization errors
+are rendered in the status panel rather than duplicated in the ready-state
+error banner. Conversation-loading and Chat errors continue to use their
+existing ready-state presentation.
+
+Backend settings are loaded from `backend/.env` when backend commands run from
+the backend directory. Vite loads `frontend/.env` for frontend commands. The
+root `.env.example` is documentation-only in the current architecture and is
+not automatically consumed by either application.
 
 ## Plan 1 Data Flow
 

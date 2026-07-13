@@ -70,8 +70,9 @@ Authentication, rate limit, timeout, bad request, upstream server, invalid
 response, and unknown request failures have distinct classes. The adapter never
 propagates the upstream error body through its exception message.
 
-Retry and fallback policies remain deferred. The current Milestone 4 batch adds
-request-linked safe logs but does not create a persistent Trace system.
+Retry and fallback policies remain deferred. Milestone 4 provides
+request-linked safe logs and manual frontend initialization recovery, but it
+does not create Provider retry policy or a persistent Trace system.
 
 ## Usage, Cost, And Latency
 
@@ -148,10 +149,15 @@ Run from `backend`:
 
 Tests use `httpx.MockTransport`, temporary Registry files, and fake test credentials. They do not call a real Provider or paid API.
 
-Chat service and API tests additionally use mock Providers to verify SSE event
-framing, successful persistence, Provider failure rollback, and cancellation
-rollback. Browser verification intercepts health and stream requests; it does
-not require a real API key.
+Provider adapter tests cover non-streaming and streaming HTTP classification,
+timeout and transport failures, malformed responses, usage normalization, and
+safe exception text. Chat service and API tests additionally use mock Providers
+to verify SSE event framing, successful persistence, classified HTTP/SSE error
+envelopes, Provider failure rollback, cancellation rollback, and request-linked
+safe logs. Conversation and isolated error-handler tests cover default creation,
+malformed IDs, 405 responses, and unexpected 500 responses. Browser verification
+intercepts health, Registry, conversation, and stream requests; it does not
+require a real API key.
 
 ## Known Limitations
 

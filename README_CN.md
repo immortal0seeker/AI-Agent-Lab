@@ -23,9 +23,9 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P1-M4-S3`。
+已完成范围：`P1-M1-S1` 到 `P1-M4-S6`。
 
-下一批范围：`P1-M4-S4` 到 `P1-M4-S6`。
+下一批范围：`P1-M4-S7` 到 `P1-M4-S8`。
 
 ## Plan 1 非目标
 
@@ -76,7 +76,17 @@ AI-Agent-Lab/
 
 ## 本地开发
 
-后端和前端会按阶段逐步搭建。Milestone 1 现在支持本地启动前后端，并能从前端首页验证后端健康检查接口。
+Plan 1 后端和前端可以分别启动。根目录 `.env.example` 只是工作区级参考，
+当前后端和前端都不会自动加载它。如需本地覆盖配置，请复制各服务自己的示例：
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+Copy-Item frontend/.env.example frontend/.env
+```
+
+从 `backend/` 运行的后端命令读取 `backend/.env`；从 `frontend/` 运行的 Vite
+命令读取 `frontend/.env`。这些本地文件必须保持未跟踪。已跟踪示例不包含真实凭据；
+`VITE_*` 变量会暴露到浏览器，因此绝不能保存秘密。
 
 ### 后端
 
@@ -155,9 +165,10 @@ GET http://localhost:8000/api/v1/health
 
 后端验证：
 
-```bash
+```powershell
 cd backend
 ..\.venv\Scripts\python.exe -m pytest -q
+..\.venv\Scripts\python.exe -m pip check
 ```
 
 ### 前端
@@ -178,23 +189,27 @@ VITE_DEFAULT_PROVIDER=openai_compatible
 VITE_DEFAULT_MODEL=example-model
 ```
 
-API 区域会显示检查中、已连接或不可用状态。Chat 覆盖空白、生成中、成功、
-已停止和错误状态。模型选择器从 `GET /api/v1/models` 加载，侧栏显示最近会话并
-加载持久化消息。当前会话写入 `?conversation=<uuid>`，刷新后会恢复其消息和最后
-成功使用的模型。停止生成会在前端保留已有部分文本，但不会持久化被中断的本轮消息。
+API 区域显示 `Checking API`、`API connected` 或 `API unavailable`。
+模型和最近会话加载期间会显示独立的工作区初始化状态；初始化失败时只显示一条
+可读错误和 `Retry` 按钮，成功重试后恢复 ready 状态，不会启动自动重试循环。
+工作区 ready 后，Chat 覆盖空白、会话加载、生成中、成功、已停止和错误状态。
+模型选择器从 `GET /api/v1/models` 加载，侧栏显示最近会话并加载持久化消息。
+当前会话写入 `?conversation=<uuid>`，刷新后会恢复其消息和最后成功使用的模型。
+停止生成会在前端保留已有部分文本，但不会持久化被中断的本轮消息。
 
 前端检查：
 
-```bash
+```powershell
+cd frontend
 npm run typecheck
 npm run test
 npm run build
 ```
 
-Batch 10 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
+Batch 11 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
 
 ```text
-feat(observability): add llm usage errors and request logging
+test(plan1): harden chat workspace checks and docs
 ```
 
 当前请以计划文档作为执行依据：

@@ -59,7 +59,7 @@ blocked
 | Batch 8 | P1-M3-S4～S6 | 实现 Streaming Chat 和前端基础 Chat UI | 浏览器手测流式输出 | 已完成 |
 | Batch 9 | P1-M3-S7～S9 | 实现会话历史和刷新恢复 | Codex review M3 | 已完成 |
 | Batch 10 | P1-M4-S1～S3 | 实现 token / cost / latency、统一错误和基础日志 | 后端测试 | 已完成 |
-| Batch 11 | P1-M4-S4～S6 | 实现日志、基础测试、文档 | 全量测试 | 未完成 |
+| Batch 11 | P1-M4-S4～S6 | 补充后端测试、前端初始化状态和文档 | 全量测试 | 已完成 |
 | Batch 12 | P1-M4-S7～S8 | 封版、截图、CHANGELOG、tag | Codex + Claude final review | 未完成 |
 
 ---
@@ -218,6 +218,8 @@ feat: implement chat api streaming ui and conversation history
 | P1-M4-S6 | 更新 README、docs、`.env.example` | Codex | 启动说明、配置说明、Plan 1 设计文档 | 新读者能按文档启动项目 | Codex |
 | P1-M4-S7 | 准备封版材料：截图、CHANGELOG、当前限制 | Cursor + Codex | `CHANGELOG.md`、截图文件、限制说明 | v0.1.0 功能边界清晰 | Codex |
 | P1-M4-S8 | Plan 1 最终 review、修复、创建 tag | Codex + Claude Code | review 记录、修复 commit、`v0.1.0` tag | 全量测试通过，tag 存在 | Codex + Claude final review |
+
+Batch 11 完成记录：`P1-M4-S4`、`P1-M4-S5`、`P1-M4-S6` 已实现并通过全量验证；`P1-M4-S7`、`P1-M4-S8` 保持未开始。
 
 M4 完成后建议 commit：
 

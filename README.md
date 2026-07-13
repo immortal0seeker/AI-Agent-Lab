@@ -23,9 +23,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P1-M4-S3`.
+Completed scope: `P1-M1-S1` through `P1-M4-S6`.
 
-Next scope: `P1-M4-S4` through `P1-M4-S6`.
+Next scope: `P1-M4-S7` through `P1-M4-S8`.
 
 ## Non-Goals For Plan 1
 
@@ -78,9 +78,20 @@ AI-Agent-Lab/
 
 ## Local Development
 
-The backend and frontend are scaffolded in stages. Milestone 1 now supports
-starting both apps locally and verifying the backend health endpoint from the
-frontend home page.
+The Plan 1 backend and frontend can be started independently. The root
+`.env.example` is a workspace-level reference and is not loaded automatically
+by either application. Copy the service-specific examples when local overrides
+are needed:
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+Copy-Item frontend/.env.example frontend/.env
+```
+
+Backend commands run from `backend/` read `backend/.env`; Vite commands run
+from `frontend/` read `frontend/.env`. Keep those local files untracked. The
+tracked examples contain no real credentials, and the frontend `VITE_*`
+variables must never contain secrets because Vite exposes them to the browser.
 
 ### Backend
 
@@ -170,9 +181,10 @@ Expected response:
 
 Backend verification:
 
-```bash
+```powershell
 cd backend
 ..\.venv\Scripts\python.exe -m pytest -q
+..\.venv\Scripts\python.exe -m pip check
 ```
 
 ### Frontend
@@ -193,31 +205,32 @@ VITE_DEFAULT_PROVIDER=openai_compatible
 VITE_DEFAULT_MODEL=example-model
 ```
 
-The API health area shows checking, connected, or unavailable state. Chat has
-empty, streaming, completed, stopped, and error states. The model selector is
-populated from `GET /api/v1/models`; the sidebar loads recent conversations and
-their persisted messages. The selected conversation is stored in
+The API health area shows `Checking API`, `API connected`, or `API unavailable`.
+Workspace initialization has a distinct loading state while models and recent
+conversations load. If initialization fails, one readable error and a `Retry`
+button are shown; a successful retry returns to the ready workspace without an
+automatic retry loop. Once ready, Chat has empty, conversation-loading,
+streaming, completed, stopped, and error states. The model selector is populated
+from `GET /api/v1/models`; the sidebar loads recent conversations and their
+persisted messages. The selected conversation is stored in
 `?conversation=<uuid>`, so refreshing restores its messages and last successful
 model. Stopping preserves partial text locally, but the interrupted turn is not
 persisted.
 
-- `Checking health...` while the frontend is calling the backend.
-- `Backend healthy` when `GET /api/v1/health` returns successfully.
-- `Backend error` when the backend is not reachable or returns an error status.
-
 Frontend checks:
 
-```bash
+```powershell
+cd frontend
 npm run typecheck
 npm run test
 npm run build
 ```
 
-Batch 10 commit note: the user creates the actual Git commit manually after
+Batch 11 commit note: the user creates the actual Git commit manually after
 reviewing the verified diff. Suggested commit message:
 
 ```text
-feat(observability): add llm usage errors and request logging
+test(plan1): harden chat workspace checks and docs
 ```
 
 For now, use the plan documents as the source of truth:

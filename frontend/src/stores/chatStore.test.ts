@@ -223,6 +223,38 @@ describe("chat store", () => {
     });
   });
 
+  it("retries initialization after a failed attempt", async () => {
+    let modelCalls = 0;
+    const store = createChatStore(
+      createWorkspaceDependencies({
+        fetchModels: async () => {
+          modelCalls += 1;
+          if (modelCalls === 1) {
+            throw new Error("Registry temporarily unavailable");
+          }
+          return models;
+        },
+      }),
+    );
+
+    await store.getState().initialize(null);
+    expect(store.getState()).toMatchObject({
+      workspaceStatus: "error",
+      workspaceError: "Registry temporarily unavailable",
+    });
+
+    await store.getState().initialize(null);
+    expect(store.getState()).toMatchObject({
+      models,
+      conversations,
+      selectedProvider: "provider-a",
+      selectedModel: "model-a",
+      workspaceStatus: "ready",
+      workspaceError: null,
+    });
+    expect(modelCalls).toBe(2);
+  });
+
   it("falls back to the first Registry model", async () => {
     const store = createChatStore(
       createWorkspaceDependencies({
