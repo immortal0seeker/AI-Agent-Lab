@@ -8,7 +8,7 @@ This repository is not a collection of disconnected demos. The goal is to build 
 
 ## Current Stage
 
-Current plan: Plan 1, target `v0.1.0`.
+Current release: `v0.1.0` (Plan 1 foundation).
 
 Plan 1 covers:
 
@@ -23,9 +23,19 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P1-M4-S6`.
+Completed scope: `P1-M1-S1` through `P1-M4-S8`.
 
-Next scope: `P1-M4-S7` through `P1-M4-S8`.
+Next scope: `P2-M1-S1` Plan 1 handoff verification. No Plan 2 capability is
+implemented yet.
+
+## v0.1.0 Demo
+
+![Desktop Chat workspace](docs/assets/plan1/chat-workspace-desktop.png)
+
+![Mobile Chat workspace](docs/assets/plan1/chat-workspace-mobile.png)
+
+These are sanitized mock demonstrations. No live Provider, real API key, or
+user-local conversation database was used to create them.
 
 ## Non-Goals For Plan 1
 
@@ -215,7 +225,8 @@ from `GET /api/v1/models`; the sidebar loads recent conversations and their
 persisted messages. The selected conversation is stored in
 `?conversation=<uuid>`, so refreshing restores its messages and last successful
 model. Stopping preserves partial text locally, but the interrupted turn is not
-persisted.
+persisted. Late history and conversation-list refresh responses are ignored,
+and a terminal SSE error actively releases the response reader.
 
 Frontend checks:
 
@@ -226,17 +237,26 @@ npm run test
 npm run build
 ```
 
-Batch 11 commit note: the user creates the actual Git commit manually after
-reviewing the verified diff. Suggested commit message:
+Release documentation:
 
-```text
-test(plan1): harden chat workspace checks and docs
-```
-
-For now, use the plan documents as the source of truth:
-
+- [Changelog](CHANGELOG.md)
+- [Plan 1 foundation release](docs/02-plan-1-foundation.md)
+- [Architecture](docs/01-architecture.md)
+- [LLM Provider and Model Registry](docs/03-llm-provider.md)
+- [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
+
+## Known Limitations
+
+Release verification uses mock Providers; it does not prove live
+DeepSeek/OpenRouter connectivity. Usage, estimated cost, and latency are stored
+on backend `LLMCall` records but are not displayed in the frontend. The current
+editable-install workflow also leaves `models.json` out of future wheel/sdist
+package data. Provider retry/fallback, failed-call audit rows, conversation
+management extensions, Markdown rendering, and later-Plan features remain
+deferred. See the [Plan 1 foundation release](docs/02-plan-1-foundation.md) for
+the complete limitation list.
 
 ## Roadmap
 

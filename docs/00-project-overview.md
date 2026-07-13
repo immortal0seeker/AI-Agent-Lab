@@ -35,9 +35,9 @@ The project emphasizes:
 
 ## Current Stage
 
-Current stage: Plan 1, Milestone 4 engineering reinforcement is complete through the testing, frontend-state, and documentation pass; release preparation and final review remain.
+Current stage: Plan 1 is complete as the `v0.1.0` foundation release.
 
-The repository has completed `P1-M1-S1` through `P1-M4-S6`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 has added:
+The repository has completed `P1-M1-S1` through `P1-M4-S8`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 added:
 
 - Repository structure
 - Root documentation
@@ -71,7 +71,8 @@ The repository has completed `P1-M1-S1` through `P1-M4-S6`. Milestone 1 assemble
 - Automatic first-message titles and last-successful model metadata
 - Registry-backed frontend model selection
 - Recent conversation navigation and `?conversation=<uuid>` refresh recovery
-- Stale history-response suppression and complete M3 regression coverage
+- Stale initialization/history/conversation-refresh/stream-response suppression
+  and complete frontend regression coverage
 - Successful non-streaming and streaming `LLMCall` token/cost/latency persistence
 - Decimal Registry pricing with explicit `null` handling for unknown usage or prices
 - Classified Provider errors without upstream body or credential leakage
@@ -81,8 +82,12 @@ The repository has completed `P1-M1-S1` through `P1-M4-S6`. Milestone 1 assemble
 - Distinct frontend workspace initialization loading and error states
 - Manual Retry recovery after initialization failure without an automatic retry loop
 - Clean-start, service-specific environment, migration, and verification documentation
+- Sanitized desktop/mobile release demonstrations, a changelog, current limitations, and final review evidence
 
-The next scope is `P1-M4-S7` through `P1-M4-S8`, which prepares sanitized release materials, runs the concentrated final review and fixes, and creates the `v0.1.0` tag only after acceptance succeeds.
+The next scope is `P2-M1-S1`, which verifies the tagged Plan 1 handoff before
+any Tool Calling capability is introduced. See the
+[Plan 1 foundation release](02-plan-1-foundation.md) and root
+[changelog](../CHANGELOG.md) for the release boundary and limitations.
 
 ## Plan 1 Scope
 

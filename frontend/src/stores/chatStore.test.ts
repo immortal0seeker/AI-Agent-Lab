@@ -412,4 +412,32 @@ describe("chat store", () => {
     expect(listCalls).toBe(2);
     expect(store.getState().conversations).toEqual(refreshed);
   });
+
+  it("ignores a stale conversation refresh response", async () => {
+    const resolvers: Array<(items: ConversationSummary[]) => void> = [];
+    let listCalls = 0;
+    const store = createChatStore(
+      createWorkspaceDependencies({
+        fetchConversations: async () => {
+          listCalls += 1;
+          if (listCalls === 1) {
+            return conversations;
+          }
+          return new Promise((resolve) => resolvers.push(resolve));
+        },
+      }),
+    );
+    await store.getState().initialize(null);
+
+    const olderRefresh = store.getState().refreshConversations();
+    const newerRefresh = store.getState().refreshConversations();
+    const newest = [{ ...conversations[0], title: "Newest summary" }];
+    const stale = [{ ...conversations[0], title: "Stale summary" }];
+    resolvers[1]?.(newest);
+    await newerRefresh;
+    resolvers[0]?.(stale);
+    await olderRefresh;
+
+    expect(store.getState().conversations).toEqual(newest);
+  });
 });

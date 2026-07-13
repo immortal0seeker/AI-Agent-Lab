@@ -8,7 +8,7 @@ AI Agent Lab 是一个分阶段构建的 AI Engineering Workspace，用来学习
 
 ## 当前阶段
 
-当前计划：Plan 1，目标版本 `v0.1.0`。
+当前版本：`v0.1.0`（Plan 1 工程底座）。
 
 Plan 1 覆盖：
 
@@ -23,9 +23,18 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P1-M4-S6`。
+已完成范围：`P1-M1-S1` 到 `P1-M4-S8`。
 
-下一批范围：`P1-M4-S7` 到 `P1-M4-S8`。
+下一范围：`P2-M1-S1`，仅先做 Plan 1 交接检查；尚未实现 Plan 2 能力。
+
+## v0.1.0 演示
+
+![桌面端 Chat 工作台](docs/assets/plan1/chat-workspace-desktop.png)
+
+![移动端 Chat 工作台](docs/assets/plan1/chat-workspace-mobile.png)
+
+以上均为脱敏 Mock 演示。生成过程没有使用真实 Provider、真实 API Key 或
+用户本地会话数据库。
 
 ## Plan 1 非目标
 
@@ -195,7 +204,8 @@ API 区域显示 `Checking API`、`API connected` 或 `API unavailable`。
 工作区 ready 后，Chat 覆盖空白、会话加载、生成中、成功、已停止和错误状态。
 模型选择器从 `GET /api/v1/models` 加载，侧栏显示最近会话并加载持久化消息。
 当前会话写入 `?conversation=<uuid>`，刷新后会恢复其消息和最后成功使用的模型。
-停止生成会在前端保留已有部分文本，但不会持久化被中断的本轮消息。
+停止生成会在前端保留已有部分文本，但不会持久化被中断的本轮消息。迟到的历史
+消息和会话列表刷新响应不会覆盖较新状态；终止 SSE 错误也会主动释放响应 reader。
 
 前端检查：
 
@@ -206,16 +216,24 @@ npm run test
 npm run build
 ```
 
-Batch 11 提交说明：用户在确认已验证 diff 后手动创建 Git commit。建议 commit message：
+封版文档：
 
-```text
-test(plan1): harden chat workspace checks and docs
-```
-
-当前请以计划文档作为执行依据：
-
+- [CHANGELOG](CHANGELOG.md)
+- [Plan 1 工程底座封版说明](docs/02-plan-1-foundation.md)
+- [架构说明](docs/01-architecture.md)
+- [LLM Provider 与 Model Registry](docs/03-llm-provider.md)
+- [Plan 1 最终复审记录](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
+
+## 当前限制
+
+封版验证只使用 Mock Provider，不能证明真实 DeepSeek/OpenRouter 已连通。
+Token、预估成本和延迟保存在后端 `LLMCall` 中，但当前前端尚不展示。
+当前 editable install 工作流也没有把 `models.json` 声明为未来 wheel/sdist
+的 package data。Provider retry/fallback、失败调用审计记录、会话管理扩展、
+Markdown 渲染以及后续 Plan 能力仍然延后。完整限制见
+[Plan 1 工程底座封版说明](docs/02-plan-1-foundation.md)。
 
 ## Roadmap
 

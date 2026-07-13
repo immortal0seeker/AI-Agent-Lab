@@ -89,26 +89,35 @@ export async function streamChat(
     }
   };
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const parsed = takeFrames(buffer);
+      buffer = parsed.rest;
+      for (const frame of parsed.frames) {
+        handleFrame(frame);
+      }
     }
-    buffer += decoder.decode(value, { stream: true });
-    const parsed = takeFrames(buffer);
-    buffer = parsed.rest;
-    for (const frame of parsed.frames) {
-      handleFrame(frame);
+
+    buffer += decoder.decode();
+    if (buffer.trim()) {
+      handleFrame(buffer.replace(/\r\n/g, "\n"));
     }
-  }
 
-  buffer += decoder.decode();
-  if (buffer.trim()) {
-    handleFrame(buffer.replace(/\r\n/g, "\n"));
+    if (completed === null) {
+      throw new Error("Stream ended before a terminal event");
+    }
+    return completed;
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // Abort 后 cancel 也可能失败，不能让清理异常覆盖原始流错误。
+    }
+    reader.releaseLock();
   }
-
-  if (completed === null) {
-    throw new Error("Stream ended before a terminal event");
-  }
-  return completed;
 }

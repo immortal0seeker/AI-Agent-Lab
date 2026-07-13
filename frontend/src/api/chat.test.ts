@@ -118,6 +118,43 @@ describe("streamChat", () => {
     ).rejects.toThrow("The model provider timed out");
   });
 
+  it("cancels the response reader after a terminal SSE error", async () => {
+    const encoder = new TextEncoder();
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(
+            'event: error\ndata: {"error":{"message":"Provider unavailable"}}\n\n',
+          ),
+        );
+      },
+      cancel,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(body, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+      ),
+    );
+
+    await expect(
+      streamChat(
+        {
+          conversation_id: null,
+          provider: "openai_compatible",
+          model: "example-model",
+          content: "Hello",
+        },
+        { onDelta: () => undefined },
+      ),
+    ).rejects.toThrow("Provider unavailable");
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it("keeps compatibility with a legacy SSE error message", async () => {
     vi.stubGlobal(
       "fetch",

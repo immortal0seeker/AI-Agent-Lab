@@ -14,7 +14,7 @@
 | 执行顺序 | 必须按 `P1-Mx-Sy` 顺序推进，除非 Codex 明确调整 |
 | 每步完成定义 | 代码可运行、局部测试通过、相关文档或配置同步 |
 | 每个阶段完成定义 | 阶段验收项全部通过，Codex review 后进入下一阶段 |
-| Claude Code 使用时机 | M2 已完成二审；下一次集中二审放在 M4 结束后 |
+| 集中二审安排 | M2 已完成 Claude Code 二审；M4 的 Claude Code 与 Fable 5 路径均由用户取消，最终采用扩展版 Codex review |
 | 提交节奏 | 每 1～3 个 Step 一次 commit；每个里程碑结束一次 review commit |
 | 文档同步 | 接口、环境变量、启动方式、目录结构变化必须同步 README 或 docs |
 | 禁止提前做 | Tool Calling、RAG、Memory、MCP、语音、多模态、桌面端 |
@@ -40,8 +40,8 @@ blocked
 |---|---|---|---|---:|---|---|
 | Phase 1 | M1 工程骨架 | Step 1～4 | 仓库、后端、前端、环境变量、健康检查 | 15～25 h | Codex + Cursor | Codex review |
 | Phase 2 | M2 数据与 Provider | Step 5～8 | SQLite、SQLAlchemy、LLM Provider、Model Registry | 25～40 h | Codex | Codex + Claude Code |
-| Phase 3 | M3 Chat 闭环 | Step 9～12 | Chat API、Streaming、Chat UI、会话历史 | 25～40 h | Codex + Cursor | Codex + Claude Code |
-| Phase 4 | M4 工程补强与封版 | Step 13～18 | Token / Cost / Latency、错误处理、日志、测试、文档、v0.1.0 | 20～35 h | Codex + Cursor | Codex + Claude Code |
+| Phase 3 | M3 Chat 闭环 | Step 9～12 | Chat API、Streaming、Chat UI、会话历史 | 25～40 h | Codex + Cursor | Codex review |
+| Phase 4 | M4 工程补强与封版 | Step 13～18 | Token / Cost / Latency、错误处理、日志、测试、文档、v0.1.0 | 20～35 h | Codex + Cursor | 扩展版 Codex final review |
 
 ---
 
@@ -60,7 +60,7 @@ blocked
 | Batch 9 | P1-M3-S7～S9 | 实现会话历史和刷新恢复 | Codex review M3 | 已完成 |
 | Batch 10 | P1-M4-S1～S3 | 实现 token / cost / latency、统一错误和基础日志 | 后端测试 | 已完成 |
 | Batch 11 | P1-M4-S4～S6 | 补充后端测试、前端初始化状态和文档 | 全量测试 | 已完成 |
-| Batch 12 | P1-M4-S7～S8 | 封版、截图、CHANGELOG、tag | Codex + Claude final review | 未完成 |
+| Batch 12 | P1-M4-S7～S8 | 封版、截图、CHANGELOG、tag | 扩展版 Codex review、修复与全量验证 | 进行中：等待用户 commit 与 tag |
 
 ---
 
@@ -217,9 +217,9 @@ feat: implement chat api streaming ui and conversation history
 | P1-M4-S5 | 补充前端检查和基础 UI 修正 | Cursor | 类型修复、基础空状态、loading、error 状态 | `npm run build` 通过 | Codex |
 | P1-M4-S6 | 更新 README、docs、`.env.example` | Codex | 启动说明、配置说明、Plan 1 设计文档 | 新读者能按文档启动项目 | Codex |
 | P1-M4-S7 | 准备封版材料：截图、CHANGELOG、当前限制 | Cursor + Codex | `CHANGELOG.md`、截图文件、限制说明 | v0.1.0 功能边界清晰 | Codex |
-| P1-M4-S8 | Plan 1 最终 review、修复、创建 tag | Codex + Claude Code | review 记录、修复 commit、`v0.1.0` tag | 全量测试通过，tag 存在 | Codex + Claude final review |
+| P1-M4-S8 | Plan 1 最终 review、修复、创建 tag | Codex | review 记录、修复 commit、`v0.1.0` tag | 全量测试通过，tag 存在 | 扩展版 Codex final review |
 
-Batch 11 完成记录：`P1-M4-S4`、`P1-M4-S5`、`P1-M4-S6` 已实现并通过全量验证；`P1-M4-S7`、`P1-M4-S8` 保持未开始。
+Batch 12 当前记录：`P1-M4-S7` 封版材料、脱敏桌面/移动截图、`CHANGELOG.md` 和当前限制已经完成；扩展版 Codex final review 复现了 SSE 错误 reader 未主动释放和迟到会话列表刷新覆盖新状态两项问题，均已通过 TDD 修复。后端 114 项、前端 37 项测试、全新 SQLite migration、Uvicorn/API、构建、文档和安全检查均通过。Claude Code 与 Fable 5 路径均按用户指示取消，不作为封版证据。当前只等待用户手动 release commit 与 `v0.1.0` annotated tag。
 
 M4 完成后建议 commit：
 
@@ -258,17 +258,17 @@ chore: release v0.1.0 foundation chat
 
 ---
 
-## 8. Claude Code Review 节点
+## 8. 集中 Review 节点
 
-Claude Code 不需要每个 Step 都参与，建议在这些节点使用：
+集中二审不需要每个 Step 都参与；M2 已使用 Claude Code，M4 按用户最终决定采用扩展版 Codex final review：
 
-| 节点 | 审核重点 | 输入材料 |
-|---|---|---|
-| M2 结束 | Provider 抽象、配置结构、数据库模型是否稳定 | diff、目录结构、Provider 代码、测试结果 |
-| M3 结束 | Chat / Streaming / 会话历史是否形成稳定闭环 | diff、API 设计、前端页面、测试结果 |
-| M4 封版前 | v0.1.0 是否能作为 Plan 2 地基 | 全量 diff、README、测试结果、CHANGELOG |
+| 节点 | 审核者 | 审核重点 | 输入材料 |
+|---|---|---|---|
+| M2 结束 | Claude Code（已完成） | Provider 抽象、配置结构、数据库模型是否稳定 | diff、目录结构、Provider 代码、测试结果 |
+| M3 结束 | Codex（已完成） | Chat / Streaming / 会话历史是否形成稳定闭环 | diff、API 设计、前端页面、测试结果 |
+| M4 封版前 | 扩展版 Codex final review（已完成，发现项已修复） | v0.1.0 是否能作为 Plan 2 地基 | 全量 diff、README、测试结果、CHANGELOG |
 
-Claude Code 审核后，Codex 负责：
+集中复审后，Codex 负责：
 
 ```text
 1. 判断哪些意见必须修
@@ -283,19 +283,19 @@ Claude Code 审核后，Codex 负责：
 
 | 验收项 | 状态 | 证据 |
 |---|---|---|
-| 后端能启动 | pending | 启动命令和输出 |
-| 前端能启动 | pending | 启动命令和页面截图 |
-| 前端能调用后端 health API | pending | 页面状态或接口响应 |
-| 能配置 DeepSeek 或 OpenRouter API Key | pending | `.env.example` 和配置说明 |
-| 能选择模型 | pending | 前端截图或接口响应 |
-| 能发送消息 | pending | Chat 页面截图 |
-| 能流式输出 | pending | SSE 验证或页面录屏 |
-| 能保存会话 | pending | 数据库记录或接口响应 |
-| 刷新页面后历史会话还在 | pending | 手动验证记录 |
-| 能记录 provider / model / latency / token / cost | pending | `llm_calls` 记录 |
-| API Key 错误时不会崩溃 | pending | 错误场景测试 |
-| README 有启动说明 | pending | README 链接 |
-| docs 有第一阶段设计文档 | pending | docs 链接 |
+| 后端能启动 | done | Uvicorn health 200；OpenAPI 6 个要求路由齐全 |
+| 前端能启动 | done | Vite Mock 浏览器验收和桌面/移动截图 |
+| 前端能调用后端 health API | done | Browser Mock health 200，页面显示 `API connected` |
+| 能配置 DeepSeek 或 OpenRouter API Key | done | `.env.example` 和配置说明；封版不调用真实 Provider |
+| 能选择模型 | done | Registry `Example Model` 选择器与浏览器截图 |
+| 能发送消息 | done | Mock SSE 请求体与 Chat 页面截图 |
+| 能流式输出 | done | Mock `delta` + `done` SSE 流和前端 35 项测试 |
+| 能保存会话 | done | Chat service/API 事务测试与刷新后 messages 请求 |
+| 刷新页面后历史会话还在 | done | 浏览器 URL 恢复和 refresh messages 200 |
+| 能记录 provider / model / latency / token / cost | done | `LLMCall` service/API/usage 测试 |
+| API Key 错误时不会崩溃 | done | Provider auth/config 分类错误测试 |
+| README 有启动说明 | done | `README.md`、`README_CN.md` 本地开发命令 |
+| docs 有第一阶段设计文档 | done | `docs/02-plan-1-foundation.md`、架构和 Provider 文档 |
 | 有 v0.1.0 tag | pending | `git tag --list` 输出 |
 
 ---
@@ -306,11 +306,11 @@ Claude Code 审核后，Codex 负责：
 
 | 桥接项 | 状态 | 说明 |
 |---|---|---|
-| LLM Provider 的 `chat` 接口稳定 | pending | 后续可以扩展 `tools` 参数 |
-| Message / Conversation 数据模型稳定 | pending | Agent Run 可以引用会话上下文 |
-| Streaming Chat 不阻塞普通 Chat API | pending | 普通接口和 SSE 接口都可用 |
-| 基础日志可定位 provider、model、latency 和错误原因 | pending | Plan 2 工具调用失败时可排查 |
-| README 能让开发者从零启动前后端 | pending | Plan 2 不再反复修启动文档 |
+| LLM Provider 的 `chat` 接口稳定 | done | Provider 基类、OpenAI-compatible adapter 与 Mock 测试通过；`tools` 仍属 Plan 2 |
+| Message / Conversation 数据模型稳定 | done | ORM、migration、schema、service/API 测试通过 |
+| Streaming Chat 不阻塞普通 Chat API | done | 普通与 SSE 路由并存，事务/回滚测试通过 |
+| 基础日志可定位 provider、model、latency 和错误原因 | done | request/model-call 日志与脱敏错误测试通过 |
+| README 能让开发者从零启动前后端 | done | 中英文 README、service-specific env、migration 与验证命令齐全 |
 
 ---
 
@@ -343,7 +343,7 @@ Plan 1 的重点不是做复杂功能，而是建立一个稳的底座。
 每天只推进 1～2 个 Batch
 每个 Batch 完成后马上 commit
 每个 Milestone 完成后 Codex review
-M2 已完成二审；下一次集中二审放在 M4 结束后
+M2 已完成 Claude Code 二审；M4 封版采用扩展版 Codex final review
 v0.1.0 tag 创建后再进入 Plan 2
 ```
 

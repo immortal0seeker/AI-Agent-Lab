@@ -124,6 +124,7 @@ export function createChatStore(
 ) {
   const dependencies = { ...productionDependencies, ...overrides };
   let pendingInitialConversationId: string | null = null;
+  let latestRefreshRequestId: string | null = null;
 
   return create<ChatStore>((set, get) => ({
     messages: [],
@@ -262,16 +263,28 @@ export function createChatStore(
     },
 
     async refreshConversations() {
+      const requestId = createLocalId("refresh");
+      latestRefreshRequestId = requestId;
       try {
         const conversations = await dependencies.fetchConversations();
+        if (latestRefreshRequestId !== requestId) {
+          return;
+        }
         set({ conversations, workspaceError: null });
       } catch (error: unknown) {
+        if (latestRefreshRequestId !== requestId) {
+          return;
+        }
         set({
           workspaceError: errorMessage(
             error,
             "Unable to refresh conversations",
           ),
         });
+      } finally {
+        if (latestRefreshRequestId === requestId) {
+          latestRefreshRequestId = null;
+        }
       }
     },
 
