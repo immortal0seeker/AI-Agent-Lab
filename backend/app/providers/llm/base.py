@@ -55,6 +55,30 @@ class ProviderRequestError(LLMProviderError):
         self.status_code = status_code
 
 
+class ProviderAuthError(ProviderRequestError):
+    """Provider 拒绝了服务端凭据。"""
+
+
+class ProviderRateLimitError(ProviderRequestError):
+    """Provider 已触发限流。"""
+
+
+class ProviderTimeoutError(ProviderRequestError):
+    """Provider 请求超时。"""
+
+
+class ProviderBadRequestError(ProviderRequestError):
+    """Provider 拒绝了请求。"""
+
+
+class ProviderServerError(ProviderRequestError):
+    """Provider 服务端失败。"""
+
+
+class ProviderUnknownError(ProviderRequestError):
+    """Provider 请求出现未分类故障。"""
+
+
 class ProviderResponseError(LLMProviderError):
     """Provider 返回了无法解析的成功响应。"""
 

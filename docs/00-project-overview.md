@@ -35,9 +35,9 @@ The project emphasizes:
 
 ## Current Stage
 
-Current stage: Plan 1, Milestone 3 complete; the persisted Chat loop now includes model selection and refresh recovery.
+Current stage: Plan 1, Milestone 4 engineering reinforcement in progress; usage persistence, safe errors, and request-linked logging are implemented.
 
-The repository has completed `P1-M1-S1` through `P1-M3-S9`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, and Milestone 3 adds:
+The repository has completed `P1-M1-S1` through `P1-M4-S3`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and the first Milestone 4 batch adds:
 
 - Repository structure
 - Root documentation
@@ -72,8 +72,13 @@ The repository has completed `P1-M1-S1` through `P1-M3-S9`. Milestone 1 assemble
 - Registry-backed frontend model selection
 - Recent conversation navigation and `?conversation=<uuid>` refresh recovery
 - Stale history-response suppression and complete M3 regression coverage
+- Successful non-streaming and streaming `LLMCall` token/cost/latency persistence
+- Decimal Registry pricing with explicit `null` handling for unknown usage or prices
+- Classified Provider errors without upstream body or credential leakage
+- Unified HTTP/SSE error envelopes with server-generated request IDs
+- Safe request and model-call logs containing request ID, model, outcome, and latency
 
-The next scope is `P1-M4-S1` through `P1-M4-S3`, which adds token/cost/latency persistence and strengthens error handling.
+The next scope is `P1-M4-S4` through `P1-M4-S6`, which broadens backend tests, performs the scheduled frontend UI checks, and completes the Plan 1 documentation pass.
 
 ## Plan 1 Scope
 

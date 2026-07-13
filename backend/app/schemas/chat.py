@@ -41,7 +41,3 @@ class ChatCompletionResponse(BaseModel):
 
 class ChatStreamDeltaResponse(BaseModel):
     content: str
-
-
-class ChatStreamErrorResponse(BaseModel):
-    message: str

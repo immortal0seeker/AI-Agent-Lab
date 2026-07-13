@@ -11,6 +11,8 @@ Plan 1 Milestone 2 provides the backend foundation for model access:
 - API-key masking and readable Provider errors
 - a strict JSON Model Registry
 - mock HTTP and Registry unit tests
+- classified Provider failures with safe client messages
+- successful Chat usage, Registry cost, and latency persistence
 
 The Provider layer is consumed by both `POST /api/v1/chat/completions` and
 `POST /api/v1/chat/stream`. `GET /api/v1/models` exposes read-only Registry
@@ -44,7 +46,10 @@ Provider settings are optional while the application only serves health checks. 
 | `OPENAI_COMPATIBLE_MODEL` | Default model identifier | `example-model` |
 | `OPENAI_COMPATIBLE_TIMEOUT_SECONDS` | Request timeout | `30` |
 
-Keep real credentials only in a local untracked `.env` file or process environment. Settings store the key as Pydantic `SecretStr`. Provider HTTP errors redact the configured key if an upstream error unexpectedly echoes it.
+Keep real credentials only in a local untracked `.env` file or process
+environment. Settings store the key as Pydantic `SecretStr`. Provider HTTP
+errors do not incorporate upstream response bodies, so echoed credentials or
+diagnostic content cannot propagate through the application exception message.
 
 Missing keys fail at Provider initialization with a readable `ProviderConfigurationError`; they do not prevent the health-only application from starting.
 
@@ -58,9 +63,44 @@ completion_tokens -> output_tokens
 total_tokens      -> total_tokens
 ```
 
-Streaming sends `stream=true`, reads `data:` SSE lines, yields `ChatChunk` values, and stops at `[DONE]`. Transport failures, non-success HTTP responses, malformed JSON, and malformed response shapes become Provider-layer exceptions.
+Streaming sends `stream=true`, reads `data:` SSE lines, yields `ChatChunk`
+values, and stops at `[DONE]`. Transport failures, non-success HTTP responses,
+malformed JSON, and malformed response shapes become Provider-layer exceptions.
+Authentication, rate limit, timeout, bad request, upstream server, invalid
+response, and unknown request failures have distinct classes. The adapter never
+propagates the upstream error body through its exception message.
 
-Detailed error classes, retry policy, logging, latency, and cost recording remain scheduled for Milestone 4.
+Retry and fallback policies remain deferred. The current Milestone 4 batch adds
+request-linked safe logs but does not create a persistent Trace system.
+
+## Usage, Cost, And Latency
+
+Both Chat paths persist a completed `LLMCall` only after successful Provider
+completion. Provider usage maps directly to `input_tokens`, `output_tokens`,
+and `total_tokens`. The workspace does not estimate tokens when usage is absent.
+
+Estimated cost uses the exact `Decimal` prices from the selected Registry entry:
+
+```text
+(input_tokens × input_price_per_1m
+ + output_tokens × output_price_per_1m) / 1_000_000
+```
+
+The value is rounded to the database's eight-decimal scale. If usage or either
+price is unknown, cost remains `NULL`; explicit zero prices produce zero cost.
+Latency covers Provider waiting only. Streaming accumulates time spent awaiting
+chunks and excludes pauses while the downstream SSE consumer processes them.
+
+Provider failure, invalid empty streams, database failure, and client
+cancellation do not persist the incomplete turn or a failed `LLMCall`.
+
+## Error Response Safety
+
+Ordinary HTTP errors and terminal SSE error events share a structured envelope
+with a safe code, fixed readable message, and server-generated request ID. The
+same ID is returned in `X-Request-ID` and included in request/model-call logs.
+Logs never include complete messages, credentials, upstream response bodies, or
+SQL parameters.
 
 ## Model Registry
 
@@ -116,11 +156,12 @@ not require a real API key.
 ## Known Limitations
 
 - The current local workflow uses an editable backend install, where `models.json` is loaded directly from the source tree. `backend/pyproject.toml` does not yet declare the JSON file as setuptools package data, so a future wheel or sdist workflow must add and verify that packaging configuration.
-- Registry validation errors currently include Pydantic field context and rejected input values. `models.json` must not contain credentials or other sensitive values. Milestone 4 error handling should evaluate redacted or summarized validation messages before these errors are written to application logs.
+- Registry validation exceptions may still contain Pydantic field context internally. `models.json` must not contain credentials or other sensitive values; API errors and logs intentionally expose only a fixed safe message and exception type.
 
 ## Deferred Work
 
 - conversation rename/delete, search, and pagination
 - Markdown rendering
-- detailed Provider error taxonomy, retries, logging, cost, and latency
+- Provider retries and fallback policy
+- persistent Trace, Timeline, and replay
 - Tool Calling and all later-plan capabilities

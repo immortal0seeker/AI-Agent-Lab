@@ -1,4 +1,9 @@
-import { API_BASE_URL, createApiUrl } from "./client";
+import {
+  API_BASE_URL,
+  apiErrorMessage,
+  createApiUrl,
+  readResponseError,
+} from "./client";
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
@@ -43,16 +48,6 @@ function takeFrames(buffer: string): { frames: string[]; rest: string } {
   return { frames: parts, rest };
 }
 
-async function readHttpError(response: Response): Promise<string> {
-  const fallback = `Request failed with status ${response.status}`;
-  try {
-    const payload = (await response.json()) as { detail?: unknown };
-    return typeof payload.detail === "string" ? payload.detail : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 export async function streamChat(
   request: ChatCompletionRequest,
   options: StreamChatOptions,
@@ -65,7 +60,7 @@ export async function streamChat(
   });
 
   if (!response.ok) {
-    throw new Error(await readHttpError(response));
+    throw new Error(await readResponseError(response));
   }
   if (response.body === null) {
     throw new Error("Streaming response body is unavailable");
@@ -90,12 +85,7 @@ export async function streamChat(
     } else if (frame.event === "done") {
       completed = frame.data as ChatCompletionResponse;
     } else if (frame.event === "error") {
-      const payload = frame.data as { message?: unknown };
-      throw new Error(
-        typeof payload.message === "string"
-          ? payload.message
-          : "Streaming request failed",
-      );
+      throw new Error(apiErrorMessage(frame.data, "Streaming request failed"));
     }
   };
 

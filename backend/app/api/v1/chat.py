@@ -13,13 +13,17 @@ from app.api.dependencies import (
     get_model_registry,
     get_session_factory,
 )
-from app.providers.llm.base import BaseLLMProvider, LLMProviderError
+from app.api.errors import (
+    error_response_for_exception,
+    error_spec_for_exception,
+    log_api_error,
+)
+from app.providers.llm.base import BaseLLMProvider
 from app.providers.llm.registry import ModelRegistry
 from app.schemas.chat import (
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatStreamDeltaResponse,
-    ChatStreamErrorResponse,
 )
 from app.schemas.message import MessageRead
 from app.services.chat_service import (
@@ -28,9 +32,6 @@ from app.services.chat_service import (
     ChatStreamCompleted,
     ChatStreamDelta,
 )
-from app.services.errors import ServiceError
-
-
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
@@ -85,14 +86,12 @@ async def stream_chat_events(
                     "done",
                     to_completion_response(event.result),
                 )
-    except (LLMProviderError, ServiceError) as exc:
-        yield encode_sse("error", ChatStreamErrorResponse(message=str(exc)))
-    except Exception:
+    except Exception as exc:
         session.rollback()
-        yield encode_sse(
-            "error",
-            ChatStreamErrorResponse(message="Streaming request failed"),
-        )
+        spec = error_spec_for_exception(exc)
+        log_api_error(exc, spec)
+        _, payload = error_response_for_exception(exc)
+        yield encode_sse("error", payload)
     finally:
         session.close()
 

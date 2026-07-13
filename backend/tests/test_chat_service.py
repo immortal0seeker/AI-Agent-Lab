@@ -1,5 +1,7 @@
 import asyncio
+import logging
 from collections.abc import AsyncIterator
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -117,7 +119,11 @@ def create_test_session(tmp_path: Path) -> tuple[Session, Engine]:
     return Session(engine), engine
 
 
-def create_registry() -> ModelRegistry:
+def create_registry(
+    *,
+    input_price_per_1m: Decimal | None = Decimal("0.50"),
+    output_price_per_1m: Decimal | None = Decimal("1.50"),
+) -> ModelRegistry:
     return ModelRegistry(
         [
             ModelInfo(
@@ -125,6 +131,8 @@ def create_registry() -> ModelRegistry:
                 model="example-model",
                 display_name="Example Model",
                 supports_streaming=True,
+                input_price_per_1m=input_price_per_1m,
+                output_price_per_1m=output_price_per_1m,
             )
         ]
     )
@@ -174,12 +182,43 @@ def test_chat_service_creates_conversation_messages_and_llm_call(
     assert llm_calls == [result.llm_call]
     assert result.llm_call.message_id == result.assistant_message.id
     assert result.llm_call.status == "completed"
-    assert result.llm_call.input_tokens is None
-    assert result.llm_call.output_tokens is None
+    assert result.llm_call.input_tokens == 4
+    assert result.llm_call.output_tokens == 2
+    assert result.llm_call.total_tokens == 6
+    assert result.llm_call.estimated_cost == Decimal("0.00000500")
+    assert result.llm_call.latency_ms is not None
+    assert result.llm_call.latency_ms >= 0
     assert result.conversation.title == "Hello"
     assert result.conversation.default_provider == "openai_compatible"
     assert result.conversation.default_model == "example-model"
-    assert result.llm_call.total_tokens is None
+    session.close()
+    engine.dispose()
+
+
+def test_chat_service_keeps_cost_null_when_registry_price_is_unknown(
+    tmp_path: Path,
+) -> None:
+    session, engine = create_test_session(tmp_path)
+    service = ChatService(
+        session,
+        registry=create_registry(output_price_per_1m=None),
+        providers={"openai_compatible": MockProvider()},
+    )
+
+    result = asyncio.run(
+        service.complete(
+            ChatCompletionRequest(
+                provider="openai_compatible",
+                model="example-model",
+                content="Hello",
+            )
+        )
+    )
+
+    assert result.llm_call.input_tokens == 4
+    assert result.llm_call.output_tokens == 2
+    assert result.llm_call.total_tokens == 6
+    assert result.llm_call.estimated_cost is None
 
     session.close()
     engine.dispose()
@@ -417,6 +456,12 @@ def test_stream_chat_yields_deltas_and_commits_completed_result(
         output_tokens=2,
         total_tokens=9,
     )
+    assert completed.result.llm_call.input_tokens == 7
+    assert completed.result.llm_call.output_tokens == 2
+    assert completed.result.llm_call.total_tokens == 9
+    assert completed.result.llm_call.estimated_cost == Decimal("0.00000650")
+    assert completed.result.llm_call.latency_ms is not None
+    assert completed.result.llm_call.latency_ms >= 0
     assert completed.result.conversation.title == "Stream this"
     assert completed.result.conversation.default_provider == "openai_compatible"
     assert completed.result.conversation.default_model == "example-model"
@@ -484,7 +529,10 @@ def test_stream_chat_rejects_empty_provider_stream(tmp_path: Path) -> None:
     engine.dispose()
 
 
-def test_stream_chat_rolls_back_when_consumer_stops_early(tmp_path: Path) -> None:
+def test_stream_chat_rolls_back_when_consumer_stops_early(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     session, engine = create_test_session(tmp_path)
     service = ChatService(
         session,
@@ -504,7 +552,8 @@ def test_stream_chat_rolls_back_when_consumer_stops_early(tmp_path: Path) -> Non
         await stream.aclose()
         return first
 
-    first = asyncio.run(receive_one_then_stop())
+    with caplog.at_level(logging.INFO):
+        first = asyncio.run(receive_one_then_stop())
 
     assert isinstance(first, ChatStreamDelta)
     assert first.content == "Streamed "
@@ -512,6 +561,13 @@ def test_stream_chat_rolls_back_when_consumer_stops_early(tmp_path: Path) -> Non
         assert verification_session.scalars(select(Conversation)).all() == []
         assert verification_session.scalars(select(Message)).all() == []
         assert verification_session.scalars(select(LLMCall)).all() == []
+    assert any(
+        record.getMessage() == "llm_call_cancelled"
+        and record.provider == "openai_compatible"
+        and record.model == "example-model"
+        and record.latency_ms >= 0
+        for record in caplog.records
+    )
 
     session.close()
     engine.dispose()

@@ -11,9 +11,15 @@ from app.providers.llm.base import (
     ChatChunk,
     ChatRequest,
     LLMResponse,
+    ProviderAuthError,
+    ProviderBadRequestError,
     ProviderConfigurationError,
+    ProviderRateLimitError,
     ProviderRequestError,
     ProviderResponseError,
+    ProviderServerError,
+    ProviderTimeoutError,
+    ProviderUnknownError,
     TokenUsage,
 )
 
@@ -92,10 +98,10 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     json=self._build_payload(request, stream=False),
                     timeout=self._timeout_seconds,
                 )
+        except httpx.TimeoutException as exc:
+            raise ProviderTimeoutError("Provider request timed out") from exc
         except httpx.RequestError as exc:
-            raise ProviderRequestError(
-                f"Provider request failed: {exc.__class__.__name__}"
-            ) from exc
+            raise ProviderUnknownError("Provider request failed") from exc
 
         self._raise_for_status(response)
 
@@ -142,28 +148,48 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                                 "Provider stream response format is invalid"
                             ) from exc
                         yield self._parse_chunk(payload)
+        except httpx.TimeoutException as exc:
+            raise ProviderTimeoutError("Provider request timed out") from exc
         except httpx.RequestError as exc:
-            raise ProviderRequestError(
-                f"Provider request failed: {exc.__class__.__name__}"
-            ) from exc
+            raise ProviderUnknownError("Provider request failed") from exc
 
     def _raise_for_status(self, response: httpx.Response) -> None:
         if response.is_success:
             return
 
-        message = f"Provider request failed with HTTP {response.status_code}"
-        try:
-            payload = response.json()
-        except ValueError:
-            payload = None
+        raise self._request_error_for_status(response.status_code)
 
-        if isinstance(payload, dict):
-            error = payload.get("error")
-            if isinstance(error, dict) and isinstance(error.get("message"), str):
-                message = f"{message}: {error['message']}"
-
-        message = message.replace(self._api_key, "[REDACTED]")
-        raise ProviderRequestError(message, status_code=response.status_code)
+    @staticmethod
+    def _request_error_for_status(status_code: int) -> ProviderRequestError:
+        if status_code in {401, 403}:
+            return ProviderAuthError(
+                "Provider authentication failed",
+                status_code=status_code,
+            )
+        if status_code == 429:
+            return ProviderRateLimitError(
+                "Provider rate limit exceeded",
+                status_code=status_code,
+            )
+        if status_code in {408, 504}:
+            return ProviderTimeoutError(
+                "Provider request timed out",
+                status_code=status_code,
+            )
+        if 400 <= status_code < 500:
+            return ProviderBadRequestError(
+                "Provider rejected the request",
+                status_code=status_code,
+            )
+        if 500 <= status_code < 600:
+            return ProviderServerError(
+                "Provider server error",
+                status_code=status_code,
+            )
+        return ProviderUnknownError(
+            "Provider request failed",
+            status_code=status_code,
+        )
 
     def _parse_response(self, payload: Any) -> LLMResponse:
         try:

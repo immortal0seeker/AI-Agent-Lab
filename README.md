@@ -23,9 +23,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P1-M3-S9`.
+Completed scope: `P1-M1-S1` through `P1-M4-S3`.
 
-Next scope: `P1-M4-S1` through `P1-M4-S3`.
+Next scope: `P1-M4-S4` through `P1-M4-S6`.
 
 ## Non-Goals For Plan 1
 
@@ -145,6 +145,14 @@ selected Registry model and advance conversation activity time. Conversation
 and message list APIs support recent-history navigation; failed or cancelled
 turns do not update this metadata.
 
+Successful non-streaming and streaming turns persist Provider usage, Registry-
+based estimated cost, and Provider latency on `LLMCall`. Missing usage or an
+unknown Registry price remains `null`; the backend does not invent values.
+HTTP and SSE failures use a safe structured error envelope linked to a server-
+generated `X-Request-ID`. Request and model-call logs include request ID,
+provider/model, outcome, and latency without logging full message content,
+credentials, upstream error bodies, or SQL parameters.
+
 Health check:
 
 ```text
@@ -205,11 +213,11 @@ npm run test
 npm run build
 ```
 
-Batch 9 commit note: the user creates the actual Git commit manually after
+Batch 10 commit note: the user creates the actual Git commit manually after
 reviewing the verified diff. Suggested commit message:
 
 ```text
-feat(chat): add model selection and conversation recovery
+feat(observability): add llm usage errors and request logging
 ```
 
 For now, use the plan documents as the source of truth:

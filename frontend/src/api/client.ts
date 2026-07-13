@@ -8,11 +8,37 @@ export function createApiUrl(baseUrl: string, path: string): string {
   return `${normalizedBaseUrl}${normalizedPath}`;
 }
 
-async function readResponseError(response: Response): Promise<string> {
+type ApiErrorPayload = {
+  error?: unknown;
+  detail?: unknown;
+  message?: unknown;
+};
+
+export function apiErrorMessage(payload: unknown, fallback: string): string {
+  if (typeof payload !== "object" || payload === null) {
+    return fallback;
+  }
+
+  const candidate = payload as ApiErrorPayload;
+  if (typeof candidate.error === "object" && candidate.error !== null) {
+    const structuredError = candidate.error as { message?: unknown };
+    if (typeof structuredError.message === "string") {
+      return structuredError.message;
+    }
+  }
+  if (typeof candidate.detail === "string") {
+    return candidate.detail;
+  }
+  if (typeof candidate.message === "string") {
+    return candidate.message;
+  }
+  return fallback;
+}
+
+export async function readResponseError(response: Response): Promise<string> {
   const fallback = `Request failed with status ${response.status}`;
   try {
-    const payload = (await response.json()) as { detail?: unknown };
-    return typeof payload.detail === "string" ? payload.detail : fallback;
+    return apiErrorMessage(await response.json(), fallback);
   } catch {
     return fallback;
   }

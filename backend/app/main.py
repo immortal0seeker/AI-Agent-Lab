@@ -7,7 +7,10 @@ from app.api.v1.conversations import router as conversations_router
 from app.api.v1.health import router as health_router
 from app.api.v1.models import router as models_router
 from app.core.config import get_settings
+from app.core.logging import configure_logging
+from app.core.request_context import RequestContextMiddleware
 
+configure_logging()
 settings = get_settings()
 
 app = FastAPI(
@@ -22,6 +25,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestContextMiddleware)
 
 register_exception_handlers(app)
 app.include_router(health_router, prefix=settings.api_v1_prefix)

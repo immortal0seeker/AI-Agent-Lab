@@ -1,14 +1,17 @@
 import json
+import logging
 from collections.abc import AsyncIterator
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.api.dependencies import (
@@ -26,6 +29,7 @@ from app.providers.llm.base import (
     ChatChunk,
     ChatRequest,
     LLMResponse,
+    ProviderConfigurationError,
     ProviderRequestError,
     TokenUsage,
 )
@@ -93,6 +97,8 @@ def create_registry() -> ModelRegistry:
                 model="example-model",
                 display_name="Example Model",
                 supports_streaming=True,
+                input_price_per_1m=Decimal("0.50"),
+                output_price_per_1m=Decimal("1.50"),
             )
         ]
     )
@@ -151,6 +157,21 @@ def test_openapi_exposes_chat_catalog_and_conversation_routes(
     assert "/api/v1/chat/stream" in paths
 
 
+def test_server_generates_request_id_and_ignores_client_value(
+    api_context: Any,
+) -> None:
+    client, _, _, _ = api_context
+
+    response = client.get(
+        "/api/v1/health",
+        headers={"X-Request-ID": "client-controlled"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["x-request-id"] != "client-controlled"
+    UUID(response.headers["x-request-id"])
+
+
 def test_models_api_returns_registry_order(api_context: Any) -> None:
     client, _, _, _ = api_context
 
@@ -165,8 +186,8 @@ def test_models_api_returns_registry_order(api_context: Any) -> None:
             "supports_streaming": True,
             "supports_tools": False,
             "supports_json": False,
-            "input_price_per_1m": None,
-            "output_price_per_1m": None,
+            "input_price_per_1m": "0.50",
+            "output_price_per_1m": "1.50",
         }
     ]
 
@@ -200,7 +221,13 @@ def test_conversation_api_returns_404_for_unknown_conversation(
     response = client.get(f"/api/v1/conversations/{missing_id}")
 
     assert response.status_code == 404
-    assert response.json() == {"detail": f"Conversation not found: {missing_id}"}
+    assert response.json() == {
+        "error": {
+            "code": "conversation_not_found",
+            "message": "Conversation not found",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
 
 
 def test_conversation_api_lists_recent_conversations_and_messages(
@@ -263,7 +290,11 @@ def test_conversation_messages_api_returns_404_for_unknown_conversation(
 
     assert response.status_code == 404
     assert response.json() == {
-        "detail": f"Conversation not found: {missing_id}"
+        "error": {
+            "code": "conversation_not_found",
+            "message": "Conversation not found",
+            "request_id": response.headers["x-request-id"],
+        }
     }
 
 
@@ -299,6 +330,55 @@ def test_chat_api_returns_messages_usage_and_persists_records(
         assert session.scalar(select(func.count()).select_from(Conversation)) == 1
         assert session.scalar(select(func.count()).select_from(Message)) == 2
         assert session.scalar(select(func.count()).select_from(LLMCall)) == 1
+        llm_call = session.scalar(select(LLMCall))
+        assert llm_call is not None
+        assert llm_call.input_tokens == 5
+        assert llm_call.output_tokens == 3
+        assert llm_call.total_tokens == 8
+        assert llm_call.estimated_cost == Decimal("0.00000700")
+        assert llm_call.latency_ms is not None
+
+
+def test_chat_logs_request_and_model_metadata_without_content(
+    api_context: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client, _, _, _ = api_context
+    sensitive_content = "complete secret prompt for log safety"
+
+    with caplog.at_level(logging.INFO):
+        response = client.post(
+            "/api/v1/chat/completions",
+            json={
+                "provider": "openai_compatible",
+                "model": "example-model",
+                "content": sensitive_content,
+            },
+        )
+
+    request_id = response.headers["x-request-id"]
+    assert any(
+        record.getMessage() == "request_completed"
+        and record.method == "POST"
+        and record.path == "/api/v1/chat/completions"
+        and record.status_code == 200
+        and record.request_id == request_id
+        for record in caplog.records
+    )
+    assert any(
+        record.getMessage() == "llm_call_completed"
+        and record.provider == "openai_compatible"
+        and record.model == "example-model"
+        and record.latency_ms >= 0
+        and record.request_id == request_id
+        for record in caplog.records
+    )
+    assert sensitive_content not in caplog.text
+    assert not any(
+        record.name in {"httpx", "httpcore"}
+        and record.levelno < logging.WARNING
+        for record in caplog.records
+    )
 
 
 def test_chat_api_returns_400_for_unknown_model(api_context: Any) -> None:
@@ -315,7 +395,11 @@ def test_chat_api_returns_400_for_unknown_model(api_context: Any) -> None:
 
     assert response.status_code == 400
     assert response.json() == {
-        "detail": "Model not found: openai_compatible/missing-model"
+        "error": {
+            "code": "model_not_found",
+            "message": "The requested model is not available",
+            "request_id": response.headers["x-request-id"],
+        }
     }
 
 
@@ -334,15 +418,27 @@ def test_chat_api_returns_503_for_unavailable_provider(api_context: Any) -> None
 
     assert response.status_code == 503
     assert response.json() == {
-        "detail": "Provider is not configured: openai_compatible"
+        "error": {
+            "code": "provider_unavailable",
+            "message": "The requested provider is unavailable",
+            "request_id": response.headers["x-request-id"],
+        }
     }
 
 
-def test_chat_api_returns_502_and_rolls_back_provider_failure(
+def test_chat_api_returns_safe_error_for_provider_configuration(
     api_context: Any,
 ) -> None:
-    client, session_factory, _, providers = api_context
-    providers["openai_compatible"] = FailingProvider()
+    client, _, _, _ = api_context
+
+    def raise_provider_configuration_error() -> dict[str, BaseLLMProvider]:
+        raise ProviderConfigurationError(
+            "fake local key must not be returned"
+        )
+
+    app.dependency_overrides[get_llm_providers] = (
+        raise_provider_configuration_error
+    )
 
     response = client.post(
         "/api/v1/chat/completions",
@@ -353,8 +449,52 @@ def test_chat_api_returns_502_and_rolls_back_provider_failure(
         },
     )
 
+    assert response.status_code == 503
+    assert response.json() == {
+        "error": {
+            "code": "provider_unavailable",
+            "message": "The model provider is not configured",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
+    assert "fake local key" not in response.text
+
+
+def test_chat_api_returns_502_and_rolls_back_provider_failure(
+    api_context: Any,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    client, session_factory, _, providers = api_context
+    providers["openai_compatible"] = FailingProvider()
+
+    with caplog.at_level(logging.INFO):
+        response = client.post(
+            "/api/v1/chat/completions",
+            json={
+                "provider": "openai_compatible",
+                "model": "example-model",
+                "content": "Hello",
+            },
+        )
+
     assert response.status_code == 502
-    assert response.json() == {"detail": "mock upstream failed"}
+    assert response.json() == {
+        "error": {
+            "code": "provider_unknown_error",
+            "message": "The model provider request failed",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
+    assert "mock upstream failed" not in response.text
+    assert "mock upstream failed" not in caplog.text
+    assert any(
+        record.getMessage() == "llm_call_failed"
+        and record.provider == "openai_compatible"
+        and record.model == "example-model"
+        and record.latency_ms >= 0
+        and record.request_id == response.headers["x-request-id"]
+        for record in caplog.records
+    )
     with session_factory() as session:
         assert session.scalar(select(func.count()).select_from(Conversation)) == 0
         assert session.scalar(select(func.count()).select_from(Message)) == 0
@@ -374,6 +514,55 @@ def test_chat_api_rejects_blank_content(api_context: Any) -> None:
     )
 
     assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "validation_error",
+            "message": "Request validation failed",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
+
+
+def test_database_error_returns_safe_unified_response(
+    api_context: Any,
+) -> None:
+    client, _, _, _ = api_context
+
+    async def raise_database_error() -> AsyncIterator[Session]:
+        raise SQLAlchemyError(
+            "simulated database failure with private detail"
+        )
+        if False:
+            yield Session()
+
+    app.dependency_overrides[get_db_session] = raise_database_error
+
+    response = client.get("/api/v1/conversations")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "error": {
+            "code": "database_error",
+            "message": "The database operation failed",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
+    assert "private detail" not in response.text
+
+
+def test_unknown_route_uses_unified_http_error(api_context: Any) -> None:
+    client, _, _, _ = api_context
+
+    response = client.get("/api/v1/not-a-route")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": {
+            "code": "http_error",
+            "message": "Resource not found",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
 
 
 def test_transaction_finalization_failure_does_not_return_success(
@@ -401,6 +590,13 @@ def test_transaction_finalization_failure_does_not_return_success(
         engine.dispose()
 
     assert response.status_code == 500
+    assert response.json() == {
+        "error": {
+            "code": "internal_error",
+            "message": "The request could not be completed",
+            "request_id": response.headers["x-request-id"],
+        }
+    }
 
 
 def parse_sse_events(body: str) -> list[tuple[str, dict[str, Any]]]:
@@ -447,6 +643,13 @@ def test_stream_chat_api_emits_deltas_done_and_persists(api_context: Any) -> Non
         assert session.scalar(select(func.count()).select_from(Conversation)) == 1
         assert session.scalar(select(func.count()).select_from(Message)) == 2
         assert session.scalar(select(func.count()).select_from(LLMCall)) == 1
+        llm_call = session.scalar(select(LLMCall))
+        assert llm_call is not None
+        assert llm_call.input_tokens == 6
+        assert llm_call.output_tokens == 2
+        assert llm_call.total_tokens == 8
+        assert llm_call.estimated_cost == Decimal("0.00000600")
+        assert llm_call.latency_ms is not None
 
 
 def test_stream_chat_api_emits_error_and_rolls_back(api_context: Any) -> None:
@@ -466,8 +669,67 @@ def test_stream_chat_api_emits_error_and_rolls_back(api_context: Any) -> None:
     events = parse_sse_events(response.text)
     assert events == [
         ("delta", {"content": "partial"}),
-        ("error", {"message": "mock stream failed"}),
+        (
+            "error",
+            {
+                "error": {
+                    "code": "provider_unknown_error",
+                    "message": "The model provider request failed",
+                    "request_id": response.headers["x-request-id"],
+                }
+            },
+        ),
     ]
+    assert "mock stream failed" not in response.text
+    with session_factory() as session:
+        assert session.scalar(select(func.count()).select_from(Conversation)) == 0
+        assert session.scalar(select(func.count()).select_from(Message)) == 0
+        assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
+
+
+def test_stream_database_error_emits_safe_error_and_rolls_back(
+    api_context: Any,
+) -> None:
+    client, session_factory, _, _ = api_context
+
+    class FailingCommitSession(Session):
+        def commit(self) -> None:
+            raise SQLAlchemyError(
+                "simulated stream database failure with private detail"
+            )
+
+    failing_session_factory = sessionmaker(
+        bind=session_factory.kw["bind"],
+        class_=FailingCommitSession,
+        expire_on_commit=False,
+    )
+    app.dependency_overrides[get_session_factory] = (
+        lambda: failing_session_factory
+    )
+
+    response = client.post(
+        "/api/v1/chat/stream",
+        json={
+            "provider": "openai_compatible",
+            "model": "example-model",
+            "content": "Hello stream",
+        },
+    )
+
+    assert response.status_code == 200
+    events = parse_sse_events(response.text)
+    assert [name for name, _ in events] == ["delta", "delta", "error"]
+    assert events[-1] == (
+        "error",
+        {
+            "error": {
+                "code": "database_error",
+                "message": "The database operation failed",
+                "request_id": response.headers["x-request-id"],
+            }
+        },
+    )
+    assert "private detail" not in response.text
     with session_factory() as session:
         assert session.scalar(select(func.count()).select_from(Conversation)) == 0
         assert session.scalar(select(func.count()).select_from(Message)) == 0

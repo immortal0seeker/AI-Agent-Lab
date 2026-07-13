@@ -2,7 +2,7 @@
 
 ## Current Architecture Stage
 
-This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M3-S9`, so the health flow, database and Provider foundations, transactional Conversation and Chat services, non-streaming and SSE Chat routes, Registry model selection, conversation navigation, and refresh recovery exist. Later Plan 1 batches will add usage/cost/latency persistence, logging, and detailed error handling.
+This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M4-S3`, so the health flow, database and Provider foundations, transactional Conversation and Chat services, non-streaming and SSE Chat routes, Registry model selection, conversation navigation, refresh recovery, successful-call usage persistence, structured errors, and request-linked logging exist. Later Plan 1 batches will broaden tests, complete the scheduled UI and documentation pass, and prepare the release materials.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -156,9 +156,10 @@ Chat request with one new user turn
 -> commit before the HTTP response is sent
 ```
 
-Provider failures roll back all records created by that Chat request. Token
-usage can be returned to the client, but token/cost/latency persistence remains
-deferred to M4.
+Provider failures roll back all records created by that Chat request. On
+success, normalized Provider usage, Registry-based estimated cost, and Provider
+latency are stored on `LLMCall`. Missing usage leaves token and cost fields
+`NULL`; an unknown input or output Registry price also leaves cost `NULL`.
 
 The streaming flow owns a SQLAlchemy Session inside the response generator:
 
@@ -175,6 +176,41 @@ POST /api/v1/chat/stream
 If the Provider fails, the completion is empty, or the client cancels before
 completion, the uncommitted turn is rolled back. The frontend retains stopped
 partial text only in local state.
+
+Streaming latency accumulates only the time spent awaiting Provider chunks, so
+SSE consumer backpressure is not counted as model latency. The completed
+`LLMCall` is committed before the terminal `done` event.
+
+## Basic Errors And Request Logging
+
+Every HTTP request receives a new server-generated UUID. The backend ignores
+client-provided request IDs and returns its value in `X-Request-ID`. A pure ASGI
+middleware keeps the same request context active until a streaming response is
+fully consumed.
+
+HTTP and SSE failures use the same inner error object:
+
+```json
+{
+  "error": {
+    "code": "provider_timeout",
+    "message": "The model provider timed out",
+    "request_id": "server-generated-uuid"
+  }
+}
+```
+
+Provider authentication, rate limit, timeout, bad request, server, response,
+and unknown failures map to safe application errors. Database and unexpected
+errors return fixed messages without exposing SQL, paths, stack text, upstream
+response bodies, or credentials. SSE errors remain HTTP 200 after response
+streaming has started and terminate with `event: error`.
+
+Standard-library logs record request method/path/status/duration and model-call
+provider/model/outcome/latency. They do not record request or response bodies,
+complete messages, authorization headers, Provider error bodies, or SQL
+parameters. This request-linked logging is a Plan 1 diagnostic foundation, not
+the persistent Trace/Timeline system scheduled for Plan 4.
 
 ## Provider Principle
 

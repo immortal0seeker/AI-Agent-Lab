@@ -35,6 +35,31 @@ describe("createApiUrl", () => {
     );
   });
 
+  it("uses the structured backend error message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "database_error",
+              message: "The database operation failed",
+              request_id: "request-1",
+            },
+          }),
+          {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    await expect(getJson("/conversations")).rejects.toThrow(
+      "The database operation failed",
+    );
+  });
+
   it("falls back to the response status for non-JSON failures", async () => {
     vi.stubGlobal(
       "fetch",

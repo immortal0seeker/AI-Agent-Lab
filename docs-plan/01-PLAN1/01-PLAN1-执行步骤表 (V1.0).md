@@ -58,7 +58,7 @@ blocked
 | Batch 7 | P1-M3-S1～S3 | 实现非流式 Chat API | 后端 chat 测试 | 已完成 |
 | Batch 8 | P1-M3-S4～S6 | 实现 Streaming Chat 和前端基础 Chat UI | 浏览器手测流式输出 | 已完成 |
 | Batch 9 | P1-M3-S7～S9 | 实现会话历史和刷新恢复 | Codex review M3 | 已完成 |
-| Batch 10 | P1-M4-S1～S3 | 实现 token / cost / latency 和错误处理 | 后端测试 | 未完成 |
+| Batch 10 | P1-M4-S1～S3 | 实现 token / cost / latency、统一错误和基础日志 | 后端测试 | 已完成 |
 | Batch 11 | P1-M4-S4～S6 | 实现日志、基础测试、文档 | 全量测试 | 未完成 |
 | Batch 12 | P1-M4-S7～S8 | 封版、截图、CHANGELOG、tag | Codex + Claude final review | 未完成 |
 

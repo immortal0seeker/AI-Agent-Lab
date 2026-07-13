@@ -100,6 +100,29 @@ describe("streamChat", () => {
       "fetch",
       vi.fn().mockResolvedValue(
         createStreamResponse([
+          'event: error\ndata: {"error":{"code":"provider_timeout","message":"The model provider timed out","request_id":"request-1"}}\n\n',
+        ]),
+      ),
+    );
+
+    await expect(
+      streamChat(
+        {
+          conversation_id: null,
+          provider: "openai_compatible",
+          model: "example-model",
+          content: "Hello",
+        },
+        { onDelta: () => undefined },
+      ),
+    ).rejects.toThrow("The model provider timed out");
+  });
+
+  it("keeps compatibility with a legacy SSE error message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        createStreamResponse([
           'event: error\ndata: {"message":"Provider unavailable"}\n\n',
         ]),
       ),
@@ -163,5 +186,38 @@ describe("streamChat", () => {
         { onDelta: () => undefined },
       ),
     ).rejects.toThrow("API key is required");
+  });
+
+  it("uses the structured backend error for an HTTP failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "provider_unavailable",
+              message: "The model provider is not configured",
+              request_id: "request-2",
+            },
+          }),
+          {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    await expect(
+      streamChat(
+        {
+          conversation_id: null,
+          provider: "openai_compatible",
+          model: "example-model",
+          content: "Hello",
+        },
+        { onDelta: () => undefined },
+      ),
+    ).rejects.toThrow("The model provider is not configured");
   });
 });

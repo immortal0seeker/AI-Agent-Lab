@@ -7,8 +7,14 @@ import pytest
 from app.providers.llm.base import (
     ChatMessage,
     ChatRequest,
+    ProviderAuthError,
+    ProviderBadRequestError,
+    ProviderRateLimitError,
     ProviderRequestError,
     ProviderResponseError,
+    ProviderServerError,
+    ProviderTimeoutError,
+    ProviderUnknownError,
     TokenUsage,
 )
 from app.providers.llm.openai_compatible import OpenAICompatibleProvider
@@ -118,12 +124,27 @@ def test_chat_uses_default_model_and_omits_unset_max_tokens() -> None:
     assert "max_tokens" not in payload
 
 
-def test_chat_translates_http_error_without_leaking_api_key() -> None:
+@pytest.mark.parametrize(
+    ("status_code", "expected_error"),
+    [
+        (400, ProviderBadRequestError),
+        (401, ProviderAuthError),
+        (403, ProviderAuthError),
+        (408, ProviderTimeoutError),
+        (429, ProviderRateLimitError),
+        (500, ProviderServerError),
+        (504, ProviderTimeoutError),
+    ],
+)
+def test_chat_classifies_http_errors_without_upstream_text(
+    status_code: int,
+    expected_error: type[ProviderRequestError],
+) -> None:
     async def exercise() -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
-                401,
-                json={"error": {"message": "invalid credentials"}},
+                status_code,
+                json={"error": {"message": "secret upstream diagnostic"}},
             )
 
         async with httpx.AsyncClient(
@@ -139,15 +160,15 @@ def test_chat_translates_http_error_without_leaking_api_key() -> None:
                 ChatRequest(messages=[ChatMessage(role="user", content="hi")])
             )
 
-    with pytest.raises(ProviderRequestError) as exc_info:
+    with pytest.raises(expected_error) as exc_info:
         asyncio.run(exercise())
 
-    assert exc_info.value.status_code == 401
-    assert "invalid credentials" in str(exc_info.value)
+    assert exc_info.value.status_code == status_code
+    assert "secret upstream diagnostic" not in str(exc_info.value)
     assert "test-secret-key" not in str(exc_info.value)
 
 
-def test_chat_redacts_api_key_echoed_by_provider_error() -> None:
+def test_chat_does_not_propagate_api_key_echoed_by_provider_error() -> None:
     async def exercise() -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(
@@ -172,10 +193,10 @@ def test_chat_redacts_api_key_echoed_by_provider_error() -> None:
                 ChatRequest(messages=[ChatMessage(role="user", content="hi")])
             )
 
-    with pytest.raises(ProviderRequestError) as exc_info:
+    with pytest.raises(ProviderBadRequestError) as exc_info:
         asyncio.run(exercise())
 
-    assert "[REDACTED]" in str(exc_info.value)
+    assert "credential" not in str(exc_info.value)
     assert "test-secret-key" not in str(exc_info.value)
 
 
@@ -219,8 +240,62 @@ def test_chat_translates_transport_error() -> None:
                 ChatRequest(messages=[ChatMessage(role="user", content="hi")])
             )
 
-    with pytest.raises(ProviderRequestError, match="ConnectError"):
+    with pytest.raises(ProviderUnknownError, match="Provider request failed"):
         asyncio.run(exercise())
+
+
+def test_chat_translates_timeout_error() -> None:
+    async def exercise() -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("private timeout detail", request=request)
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ) as client:
+            provider = OpenAICompatibleProvider(
+                base_url="https://provider.example/v1",
+                api_key="test-secret-key",
+                default_model="default-model",
+                client=client,
+            )
+            await provider.chat(
+                ChatRequest(messages=[ChatMessage(role="user", content="hi")])
+            )
+
+    with pytest.raises(ProviderTimeoutError) as exc_info:
+        asyncio.run(exercise())
+
+    assert "private timeout detail" not in str(exc_info.value)
+    assert "test-secret-key" not in str(exc_info.value)
+
+
+def test_stream_chat_classifies_http_error_without_upstream_text() -> None:
+    async def exercise() -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                429,
+                json={"error": {"message": "private rate limit detail"}},
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ) as client:
+            provider = OpenAICompatibleProvider(
+                base_url="https://provider.example/v1",
+                api_key="test-secret-key",
+                default_model="default-model",
+                client=client,
+            )
+            async for _ in provider.stream_chat(
+                ChatRequest(messages=[ChatMessage(role="user", content="hi")])
+            ):
+                pass
+
+    with pytest.raises(ProviderRateLimitError) as exc_info:
+        asyncio.run(exercise())
+
+    assert "private rate limit detail" not in str(exc_info.value)
+    assert "test-secret-key" not in str(exc_info.value)
 
 
 def test_stream_chat_parses_sse_chunks_and_done_marker() -> None:
