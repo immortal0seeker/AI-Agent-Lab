@@ -60,7 +60,7 @@ blocked
 | Batch 9 | P1-M3-S7～S9 | 实现会话历史和刷新恢复 | Codex review M3 | 已完成 |
 | Batch 10 | P1-M4-S1～S3 | 实现 token / cost / latency、统一错误和基础日志 | 后端测试 | 已完成 |
 | Batch 11 | P1-M4-S4～S6 | 补充后端测试、前端初始化状态和文档 | 全量测试 | 已完成 |
-| Batch 12 | P1-M4-S7～S8 | 封版、截图、CHANGELOG、tag | 扩展版 Codex review、修复与全量验证 | 进行中：等待用户 commit 与 tag |
+| Batch 12 | P1-M4-S7～S8 | 封版、截图、CHANGELOG、tag | 扩展版 Codex review、修复与全量验证 | 已完成 |
 
 ---
 
@@ -219,7 +219,7 @@ feat: implement chat api streaming ui and conversation history
 | P1-M4-S7 | 准备封版材料：截图、CHANGELOG、当前限制 | Cursor + Codex | `CHANGELOG.md`、截图文件、限制说明 | v0.1.0 功能边界清晰 | Codex |
 | P1-M4-S8 | Plan 1 最终 review、修复、创建 tag | Codex | review 记录、修复 commit、`v0.1.0` tag | 全量测试通过，tag 存在 | 扩展版 Codex final review |
 
-Batch 12 当前记录：`P1-M4-S7` 封版材料、脱敏桌面/移动截图、`CHANGELOG.md` 和当前限制已经完成；扩展版 Codex final review 复现了 SSE 错误 reader 未主动释放和迟到会话列表刷新覆盖新状态两项问题，均已通过 TDD 修复。后端 114 项、前端 37 项测试、全新 SQLite migration、Uvicorn/API、构建、文档和安全检查均通过。Claude Code 与 Fable 5 路径均按用户指示取消，不作为封版证据。当前只等待用户手动 release commit 与 `v0.1.0` annotated tag。
+Batch 12 最终记录：`P1-M4-S7` 封版材料、脱敏桌面/移动截图、`CHANGELOG.md` 和当前限制已经完成；扩展版 Codex final review 复现了 SSE 错误 reader 未主动释放和迟到会话列表刷新覆盖新状态两项问题，均已通过 TDD 修复。后端 114 项、前端 37 项测试、全新 SQLite migration、Uvicorn/API、构建、文档和安全检查均通过。Claude Code 与 Fable 5 路径均按用户指示取消，不作为封版证据。用户已创建 release commit `4802d4348353d86357a89e99b8a32177546ad4f9`，annotated tag `v0.1.0` 以消息 `AI Agent Lab v0.1.0` 精确指向该 commit；Plan 1 已正式封版。
 
 M4 完成后建议 commit：
 
@@ -296,7 +296,7 @@ chore: release v0.1.0 foundation chat
 | API Key 错误时不会崩溃 | done | Provider auth/config 分类错误测试 |
 | README 有启动说明 | done | `README.md`、`README_CN.md` 本地开发命令 |
 | docs 有第一阶段设计文档 | done | `docs/02-plan-1-foundation.md`、架构和 Provider 文档 |
-| 有 v0.1.0 tag | pending | `git tag --list` 输出 |
+| 有 v0.1.0 tag | done | annotated tag `v0.1.0` 精确指向 release commit `4802d4348353d86357a89e99b8a32177546ad4f9` |
 
 ---
 

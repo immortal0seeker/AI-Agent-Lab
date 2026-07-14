@@ -2,7 +2,15 @@
 
 ## Current Architecture Stage
 
-This document describes the Plan 1 architecture target. The repository has completed `P1-M1-S1` through `P1-M4-S6`, so the health flow, database and Provider foundations, transactional Conversation and Chat services, non-streaming and SSE Chat routes, Registry model selection, conversation navigation, refresh recovery, successful-call usage persistence, structured errors, request-linked logging, focused regression coverage, recoverable frontend initialization states, and clean-start documentation exist. The remaining Plan 1 work prepares release materials and performs the concentrated final review.
+This document describes the Plan 1 architecture delivered by `v0.1.0`. The
+repository has completed `P1-M1-S1` through `P1-M4-S8`, including the health
+flow, database and Provider foundations, transactional Conversation and Chat
+services, non-streaming and SSE Chat routes, Registry model selection,
+conversation navigation, refresh recovery, successful-call usage persistence,
+structured errors, request-linked logging, focused regression coverage,
+recoverable frontend initialization states, clean-start documentation, release
+materials, and the expanded final review. Plan 1 is closed; `P2-M1-S1`
+verifies this tagged foundation before Tool Calling work begins.
 
 The first architectural goal is a thin, understandable web application foundation:
 

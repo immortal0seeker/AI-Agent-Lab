@@ -88,7 +88,7 @@ blocked
 
 | Step ID | 任务 | 建议工具 | 交付物 | 验证方式 | Review |
 |---|---|---|---|---|---|
-| P2-M1-S1 | 检查 Plan 1 封版状态和 v0.1.0 tag | Codex | Plan 1 验收记录 | 后端、前端、Chat、Streaming 均可启动或有明确证据 | Codex |
+| P2-M1-S1 | 检查 Plan 1 封版状态和 v0.1.0 tag | Codex | Plan 1 验收记录（见下文） | 后端、前端、Chat、Streaming 均可启动或有明确证据 | Codex（done） |
 | P2-M1-S2 | 创建 Tool 模块目录和基础类型 | Codex | `backend/app/tools/base.py`、`Tool`、`ToolResult`、`ToolError` | Tool 类型测试通过 | Codex |
 | P2-M1-S3 | 定义 ToolCall 请求 / 响应 schema | Codex | `backend/app/schemas/tool.py` | Pydantic schema 测试通过 | Codex |
 | P2-M1-S4 | 实现 Tool Registry | Codex | `backend/app/tools/registry.py` | 注册、查找、重复注册测试通过 | Codex |
@@ -96,6 +96,21 @@ blocked
 | P2-M1-S6 | 实现只读路径安全边界 | Codex | `backend/app/tools/security.py` | 禁止读取 `.env`、目录穿越、工作区外路径测试通过 | Claude Code 可审 |
 | P2-M1-S7 | 创建 `agent_runs` 和 `tool_calls` ORM 模型与迁移 | Codex | `backend/app/models/agent_run.py`、`tool_call.py` | 数据库迁移和模型测试通过 | Codex |
 | P2-M1-S8 | 完成 M1 review 和文档记录 | Codex | `docs/10-tool-calling-design.md` 初版 | 文档说明 Tool 抽象、Registry、权限边界 | Codex + Claude review |
+
+### P2-M1-S1 交接验收记录（2026-07-14）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| Release commit 与 tag | 执行前工作区干净；`main`、`origin/main`、HEAD 和 annotated tag `v0.1.0` 的 peeled commit 均为 `4802d4348353d86357a89e99b8a32177546ad4f9`；tag 消息为 `AI Agent Lab v0.1.0`。 |
+| Plan 1 封版事实 | `README.md`、`README_CN.md`、`CHANGELOG.md`、Foundation、Provider 文档和最终复审记录均确认 Plan 1 范围、Mock 发布证据与已接受限制；发布后的架构阶段、Batch 12 和 tag 状态错漏已在本 Step 修正。 |
+| Backend | 新鲜全量验证为 `114 passed, 1 warning`；warning 是已知 Starlette TestClient/httpx 弃用提示；`pip check` 返回 `No broken requirements found.`。 |
+| Frontend | `npm run typecheck` 通过；完整 Vitest 为 8 files / 37 tests passed；production build 成功，Vite 转换 1804 个模块。 |
+| SQLite 与 API 启动 | 仅使用全新系统临时 SQLite；`alembic upgrade head`、`current --check-heads`、`alembic check` 通过且临时库已删除。Uvicorn health 200、OpenAPI 200、6 个要求路由齐全、服务端 request ID 为 UUID，临时端口和日志已清理。 |
+| Chat 与 Streaming | 后端全量测试包含 Mock Provider 的普通 Chat、SSE、事务提交/回滚、取消与安全错误路径；前端全量测试覆盖 SSE reader 释放、迟到响应保护、停止与刷新恢复。最终复审还保留 Mock 浏览器的模型、会话、SSE、URL 刷新恢复和桌面/移动布局证据。未调用真实或付费 Provider。 |
+| 文档与安全 | 10 份 release/交接相关文档中的 27 个本地链接全部存在；桌面/移动截图大小与 SHA-256 匹配封版记录；tracked secret 扫描只命中测试假值或变量，未发现真实凭据，且无 tracked `.env`。 |
+| Plan 边界 | 本 Step 未创建 `backend/app/tools`、`backend/app/agents` 或任何未来目录，未实现 Tool、Registry、Agent、RAG、Memory 或其他后续能力。 |
+
+**结论：** `P2-M1-S1` 已完成，Plan 1 以 `v0.1.0` 正式封版并满足进入 Plan 2 的桥接条件。Batch 1 仍保持未完成，因为 `P2-M1-S2`～`S3` 尚未开始；下一批可从 `P2-M1-S2` 继续。
 
 M1 完成后建议 commit：
 
