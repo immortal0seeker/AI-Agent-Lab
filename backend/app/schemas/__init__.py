@@ -8,6 +8,7 @@ from app.schemas.error import ErrorDetail, ErrorResponse
 from app.schemas.llm_call import LLMCallCreate, LLMCallRead
 from app.schemas.message import MessageCreate, MessageRead
 from app.schemas.model import ModelRead
+from app.schemas.tool import ToolCallRequest, ToolCallResponse, ToolCallStatus
 
 __all__ = [
     "ChatCompletionRequest",
@@ -22,4 +23,7 @@ __all__ = [
     "MessageCreate",
     "MessageRead",
     "ModelRead",
+    "ToolCallRequest",
+    "ToolCallResponse",
+    "ToolCallStatus",
 ]

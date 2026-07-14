@@ -50,7 +50,7 @@ blocked
 
 | 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 | 状态 |
 |---|---|---|---|---|
-| Batch 1 | P2-M1-S1～S3 | 确认 Plan1 地基，建立 Tool 核心结构 | 跑现有测试，提交 Tool 抽象 | 未完成 |
+| Batch 1 | P2-M1-S1～S3 | 确认 Plan1 地基，建立 Tool 核心结构 | 跑现有测试，提交 Tool 抽象 | 已完成 |
 | Batch 2 | P2-M1-S4～S6 | 实现 Registry、参数校验和安全策略雏形 | Tool 单元测试 | 未完成 |
 | Batch 3 | P2-M1-S7～S8 | 持久化 AgentRun / ToolCall，完成 M1 review | Codex + Claude review M1 | 未完成 |
 | Batch 4 | P2-M2-S1～S3 | 实现 read_file 并覆盖路径安全测试 | 工具测试 | 未完成 |
@@ -89,8 +89,8 @@ blocked
 | Step ID | 任务 | 建议工具 | 交付物 | 验证方式 | Review |
 |---|---|---|---|---|---|
 | P2-M1-S1 | 检查 Plan 1 封版状态和 v0.1.0 tag | Codex | Plan 1 验收记录（见下文） | 后端、前端、Chat、Streaming 均可启动或有明确证据 | Codex（done） |
-| P2-M1-S2 | 创建 Tool 模块目录和基础类型 | Codex | `backend/app/tools/base.py`、`Tool`、`ToolResult`、`ToolError` | Tool 类型测试通过 | Codex |
-| P2-M1-S3 | 定义 ToolCall 请求 / 响应 schema | Codex | `backend/app/schemas/tool.py` | Pydantic schema 测试通过 | Codex |
+| P2-M1-S2 | 创建 Tool 模块目录和基础类型 | Codex | `backend/app/tools/base.py`、`Tool`、`ToolResult`、`ToolError` | Tool 类型测试通过 | Codex（done） |
+| P2-M1-S3 | 定义 ToolCall 请求 / 响应 schema | Codex | `backend/app/schemas/tool.py` | Pydantic schema 测试通过 | Codex（done） |
 | P2-M1-S4 | 实现 Tool Registry | Codex | `backend/app/tools/registry.py` | 注册、查找、重复注册测试通过 | Codex |
 | P2-M1-S5 | 实现工具参数校验 | Codex | JSON Schema 或 Pydantic 校验逻辑 | 缺参、类型错误、未知参数测试通过 | Codex |
 | P2-M1-S6 | 实现只读路径安全边界 | Codex | `backend/app/tools/security.py` | 禁止读取 `.env`、目录穿越、工作区外路径测试通过 | Claude Code 可审 |
@@ -110,7 +110,19 @@ blocked
 | 文档与安全 | 10 份 release/交接相关文档中的 27 个本地链接全部存在；桌面/移动截图大小与 SHA-256 匹配封版记录；tracked secret 扫描只命中测试假值或变量，未发现真实凭据，且无 tracked `.env`。 |
 | Plan 边界 | 本 Step 未创建 `backend/app/tools`、`backend/app/agents` 或任何未来目录，未实现 Tool、Registry、Agent、RAG、Memory 或其他后续能力。 |
 
-**结论：** `P2-M1-S1` 已完成，Plan 1 以 `v0.1.0` 正式封版并满足进入 Plan 2 的桥接条件。Batch 1 仍保持未完成，因为 `P2-M1-S2`～`S3` 尚未开始；下一批可从 `P2-M1-S2` 继续。
+**S1 完成时结论：** `P2-M1-S1` 已完成，Plan 1 以 `v0.1.0` 正式封版并满足进入 Plan 2 的桥接条件。当时 Batch 1 仍保持未完成，因为 `P2-M1-S2`～`S3` 尚未开始；下一批从 `P2-M1-S2` 继续。
+
+### P2-M1-S2～S3 Tool 地基验收记录（2026-07-14）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| Tool 基础契约 | 新增 `Tool` 异步抽象、构造元数据校验、参数 schema 防调用方突变复制、正数超时约束、`ToolResult` 成功/失败一致性校验和 `ToolError` 基础异常。 |
+| ToolCall schema | 新增 Provider/数据库中立的 `tool_call_id`、严格的请求参数结构、6 个显式 ToolCall 状态，以及非终态/终态结果一致性和工具名关联校验。 |
+| TDD 证据 | S2 RED 因 `app.tools` 缺失而失败，GREEN 为 19 passed；S3 RED 因 ToolCall schema 尚未导出而失败，GREEN 为 24 passed；聚焦合并验证为 43 passed。 |
+| 全量验证 | Backend 为 `157 passed, 1 warning`，warning 仍是已知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损依赖。Frontend typecheck、8 files / 37 tests 和 production build 均通过。 |
+| 安全与边界 | 测试只使用进程内 Mock Tool，不读取 `.env`、用户数据库或本地文件，不调用真实 Provider、外部 API 或命令。未实现 Registry、JSON Schema 参数校验、路径安全、内置工具、ORM、Agent、API 或前端能力。 |
+
+**结论：** `P2-M1-S2`～`S3` 已完成，Batch 1 的 `P2-M1-S1`～`S3` 全部验收通过。下一批可进入 `P2-M1-S4`～`S6`，但本批未提前实现这些能力。
 
 M1 完成后建议 commit：
 
