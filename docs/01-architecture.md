@@ -2,15 +2,18 @@
 
 ## Current Architecture Stage
 
-This document describes the Plan 1 architecture delivered by `v0.1.0`. The
-repository has completed `P1-M1-S1` through `P1-M4-S8`, including the health
+This document describes the Plan 1 architecture delivered by `v0.1.0` and the
+Plan 2 M1 Tool Calling foundation built on top of it. The repository has
+completed `P1-M1-S1` through `P1-M4-S8`, including the health
 flow, database and Provider foundations, transactional Conversation and Chat
 services, non-streaming and SSE Chat routes, Registry model selection,
 conversation navigation, refresh recovery, successful-call usage persistence,
 structured errors, request-linked logging, focused regression coverage,
 recoverable frontend initialization states, clean-start documentation, release
-materials, and the expanded final review. Plan 1 is closed; `P2-M1-S1`
-verifies this tagged foundation before Tool Calling work begins.
+materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
+completed `P2-M1-S1` through `P2-M1-S8`: Tool contracts, Registry, validation,
+read-only path policy, and AgentRun/ToolCall persistence are available as
+foundations, while executable tools and Agent runtime behavior remain deferred.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -33,7 +36,8 @@ AI-Agent-Lab/
 │       ├── models/
 │       ├── schemas/
 │       ├── services/
-│       └── providers/
+│       ├── providers/
+│       └── tools/
 ├── frontend/
 │   └── src/
 │       ├── api/
@@ -51,7 +55,7 @@ The complete directory tree will be created incrementally. Plan 1 should not cre
 
 The backend uses FastAPI.
 
-Expected Plan 1 backend layers:
+Current backend layers:
 
 | Layer | Responsibility |
 |---|---|
@@ -59,6 +63,7 @@ Expected Plan 1 backend layers:
 | `schemas/` | Pydantic request and response contracts |
 | `services/` | Chat, conversation, and application logic |
 | `providers/` | LLM provider abstractions and adapters |
+| `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
 | `db/` | SQLAlchemy session and database setup |
 | `models/` | ORM models |
 | `core/` | Config, logging, and error handling |
@@ -98,11 +103,29 @@ The initial migration creates:
 - `messages`
 - `llm_calls`
 
+The Plan 2 M1 migration adds:
+
+- `agent_runs`
+- `tool_calls`
+
 All model IDs use UUID v4 values. Datetimes are stored as timezone-naive UTC
 values because SQLite does not preserve timezone information consistently.
 Deleting a conversation cascades to its messages and LLM calls. Deleting an
 individual message preserves its LLM call records and sets `message_id` to
 `NULL`.
+
+`AgentRun` belongs to one Conversation and may reference the user Message that
+started it. Deleting the Conversation cascades through its AgentRuns and
+ToolCalls; deleting only that Message preserves the run and sets
+`user_message_id` to `NULL`. `ToolCall` belongs to one AgentRun and repeats its
+Conversation ID for direct lookup. A composite foreign key prevents that
+Conversation identity from differing from its parent run.
+
+Both records use UUID database identities. `ToolCall.tool_call_id` is a separate
+string correlation identity and is unique within one AgentRun. Tool arguments
+and results use JSON columns. Named status checks, non-negative latency checks,
+timestamps, and lookup indexes establish persistence integrity without
+introducing an Agent runtime state machine or persistence service.
 
 Foreign-key columns used by conversation and message lookups are indexed.
 SQLAlchemy metadata uses a stable naming convention for primary keys, foreign
@@ -112,6 +135,30 @@ migrations can reference schema objects predictably on SQLite.
 The create and read schemas feed thin HTTP routes and service-owned persistence
 workflows. Update schemas remain deferred until an implemented behavior needs
 them.
+
+## Tool Calling Foundation
+
+Plan 2 M1 defines an asynchronous `Tool` boundary and consistent `ToolResult`,
+plus Provider/database-neutral ToolCall transport schemas. `ToolRegistry`
+registers exact names in stable order, rejects duplicates, and exports defensive
+OpenAI-compatible function schemas. JSON Schema Draft 2020-12 validation checks
+tool schemas and arguments without echoing rejected values in errors.
+
+The read-only security module resolves workspace-relative paths and rejects
+absolute, drive, UNC, parent-traversal, sensitive, private-key, Windows alias,
+and alternate-data-stream inputs. File-size and directory-depth limits are
+policy helpers only; M1 performs no file reads or directory enumeration.
+
+The current Tool data path is deliberately incomplete:
+
+```text
+Future Agent service -> AgentRun -> validated ToolCall -> ToolResult
+```
+
+No current route or service creates AgentRun or ToolCall records. Built-in
+tools, Provider tool calling, Agent Loop transitions, Agent APIs, and frontend
+visualization remain scheduled for later Plan 2 milestones. See
+[Tool Calling Design](10-tool-calling-design.md) for the detailed boundary.
 
 ## Frontend Boundaries
 

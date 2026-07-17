@@ -11,6 +11,7 @@ from app.db.base import Base
 from app.models.common import utc_now
 
 if TYPE_CHECKING:
+    from app.models.agent_run import AgentRun
     from app.models.llm_call import LLMCall
     from app.models.message import Message
 
@@ -54,6 +55,11 @@ class Conversation(Base):
         passive_deletes=True,
     )
     llm_calls: Mapped[list[LLMCall]] = relationship(
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    agent_runs: Mapped[list[AgentRun]] = relationship(
         back_populates="conversation",
         cascade="all, delete-orphan",
         passive_deletes=True,

@@ -10,6 +10,12 @@ from app.core.config import get_settings
 BACKEND_ROOT = Path(__file__).parents[1]
 
 
+def migration_config() -> Config:
+    config = Config()
+    config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
+    return config
+
+
 def test_upgrade_head_creates_initial_schema(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -20,8 +26,7 @@ def test_upgrade_head_creates_initial_schema(
     get_settings.cache_clear()
 
     try:
-        config = Config(str(BACKEND_ROOT / "alembic.ini"))
-        command.upgrade(config, "head")
+        command.upgrade(migration_config(), "head")
     finally:
         get_settings.cache_clear()
 
@@ -77,7 +82,7 @@ def test_downgrade_base_removes_initial_schema(
     get_settings.cache_clear()
 
     try:
-        config = Config(str(BACKEND_ROOT / "alembic.ini"))
+        config = migration_config()
         command.upgrade(config, "head")
         command.downgrade(config, "base")
     finally:

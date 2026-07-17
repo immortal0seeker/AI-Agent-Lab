@@ -52,7 +52,7 @@ blocked
 |---|---|---|---|---|
 | Batch 1 | P2-M1-S1～S3 | 确认 Plan1 地基，建立 Tool 核心结构 | 跑现有测试，提交 Tool 抽象 | 已完成 |
 | Batch 2 | P2-M1-S4～S6 | 实现 Registry、参数校验和安全策略雏形 | Tool 单元测试 | 已完成 |
-| Batch 3 | P2-M1-S7～S8 | 持久化 AgentRun / ToolCall，完成 M1 review | Codex + Claude review M1 | 未完成 |
+| Batch 3 | P2-M1-S7～S8 | 持久化 AgentRun / ToolCall，完成 M1 review | Codex review M1（Claude Code 未运行） | 已完成 |
 | Batch 4 | P2-M2-S1～S3 | 实现 read_file 并覆盖路径安全测试 | 工具测试 | 未完成 |
 | Batch 5 | P2-M2-S4～S6 | 实现 list_dir 和工具注册 | 工具集成测试 | 未完成 |
 | Batch 6 | P2-M2-S7 | 可选实现 web_fetch 或明确延期记录 | Codex review M2 | 未完成 |
@@ -94,8 +94,8 @@ blocked
 | P2-M1-S4 | 实现 Tool Registry | Codex | `backend/app/tools/registry.py` | 注册、查找、重复注册测试通过 | Codex（done） |
 | P2-M1-S5 | 实现工具参数校验 | Codex | JSON Schema 或 Pydantic 校验逻辑 | 缺参、类型错误、未知参数测试通过 | Codex（done） |
 | P2-M1-S6 | 实现只读路径安全边界 | Codex | `backend/app/tools/security.py` | 禁止读取 `.env`、目录穿越、工作区外路径测试通过 | Codex（done；Claude Code 未运行） |
-| P2-M1-S7 | 创建 `agent_runs` 和 `tool_calls` ORM 模型与迁移 | Codex | `backend/app/models/agent_run.py`、`tool_call.py` | 数据库迁移和模型测试通过 | Codex |
-| P2-M1-S8 | 完成 M1 review 和文档记录 | Codex | `docs/10-tool-calling-design.md` 初版 | 文档说明 Tool 抽象、Registry、权限边界 | Codex + Claude review |
+| P2-M1-S7 | 创建 `agent_runs` 和 `tool_calls` ORM 模型与迁移 | Codex | `backend/app/models/agent_run.py`、`tool_call.py` | 数据库迁移和模型测试通过 | Codex（done） |
+| P2-M1-S8 | 完成 M1 review 和文档记录 | Codex | `docs/10-tool-calling-design.md` 初版 | 文档说明 Tool 抽象、Registry、权限边界 | Codex（done；Claude Code 未运行） |
 
 ### P2-M1-S1 交接验收记录（2026-07-14）
 
@@ -136,10 +136,30 @@ blocked
 
 **结论：** `P2-M1-S4`～`S6` 和 Batch 2 已完成。M1 尚未完成，下一批可进入 `P2-M1-S7`～`S8`，但本批未实现持久化、M1 总复审或任何后续能力。
 
-M1 完成后建议 commit：
+S4～S6 完成时建议 commit：
 
 ```text
 feat(tools): add tool abstractions registry and safety boundary
+```
+
+### P2-M1-S7～S8 Agent 持久化与 M1 总复审记录（2026-07-17）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| AgentRun / ToolCall 模型 | 新增 UUID 数据库身份、独立 `tool_call_id` 关联身份、Conversation/Message 关联、JSON 参数与结果、状态/耗时约束及索引。AgentRun 与 ToolCall 的复合外键禁止跨 Conversation 归属，单次 run 内关联 ID 唯一。模型聚焦测试为 `9 passed`。 |
+| 迁移 | 新增线性 revision `20260717_0002`；迁移测试覆盖表、列、外键删除动作、索引、唯一/检查约束及降级保留 Plan 1 表，迁移套件为 `4 passed`。全新系统临时 SQLite 上 `upgrade head`、`current --check-heads`、`alembic check`、降级到 `20260712_0001` 和再次升级均通过，临时库已删除。 |
+| TDD 与回归修复 | ORM RED 因模型尚未导出而失败，GREEN 为 `9 passed`；迁移 RED 因新 revision/表尚不存在而失败。全量测试首次暴露进程内 Alembic 日志配置污染 `caplog`，失败顺序稳定复现后仅将迁移测试改为无日志副作用的编程式配置；同序回归为 `3 passed`。 |
+| 全量验证 | Backend 为 `217 passed, 1 warning`，warning 仍是已知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损依赖。Frontend typecheck、8 files / 37 tests 和 production build（1804 modules transformed）均通过。 |
+| 文档与安全 | 新增 `docs/10-tool-calling-design.md`，并同步 README、项目概览和架构阶段。检查 22 个本地 Markdown 链接均存在；变更文件秘密模式扫描、生成物检查、`CHANGELOG.md` 未改检查及 `git diff --check` 均通过。 |
+| Codex M1 review | ORM/迁移结构与删除语义一致，`alembic check` 无元数据漂移；UUID 与 Provider 关联 ID 分离；状态、负耗时、重复关联 ID、跨 Conversation 归属及删除行为均有测试。未发现阻塞项。未运行 Claude Code，因为用户未明确要求外部复审。 |
+| 安全与 Plan 边界 | 未读取真实 `.env`、用户数据库或凭据，未调用真实 Provider。未创建 `backend/app/agents` 或 builtin Tool 目录，未实现内置工具、Provider tools、Agent Loop、Agent service/API、前端 Agent 视图、RAG、Memory 或 MCP。 |
+
+**结论：** `P2-M1-S7`～`S8`、Batch 3 和 Plan 2 M1 已完成。下一批可进入 `P2-M2-S1`～`S3`，但本批未提前实现 read_file 或任何后续能力。
+
+S7～S8 建议 commit：
+
+```text
+feat(agent): add agent run and tool call persistence
 ```
 
 ---

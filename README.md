@@ -25,8 +25,16 @@ Plan 1 covers:
 
 Completed scope: `P1-M1-S1` through `P1-M4-S8`.
 
-Next scope: `P2-M1-S1` Plan 1 handoff verification. No Plan 2 capability is
-implemented yet.
+Current development stage: Plan 2 Milestone 1 is complete. Completed Plan 2
+scope: `P2-M1-S1` through `P2-M1-S8`.
+
+The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
+schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
+path policy, and AgentRun/ToolCall ORM models with an Alembic migration. It does
+not yet include executable built-in tools, Provider tool calling, an Agent Loop,
+Agent APIs, or frontend Agent/ToolCall views.
+
+Next batch: `P2-M2-S1` through `P2-M2-S3`.
 
 ## v0.1.0 Demo
 
@@ -243,6 +251,7 @@ Release documentation:
 - [Plan 1 foundation release](docs/02-plan-1-foundation.md)
 - [Architecture](docs/01-architecture.md)
 - [LLM Provider and Model Registry](docs/03-llm-provider.md)
+- [Tool Calling design](docs/10-tool-calling-design.md)
 - [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`

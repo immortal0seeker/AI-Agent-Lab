@@ -25,7 +25,15 @@ Plan 1 覆盖：
 
 已完成范围：`P1-M1-S1` 到 `P1-M4-S8`。
 
-下一范围：`P2-M1-S1`，仅先做 Plan 1 交接检查；尚未实现 Plan 2 能力。
+当前开发阶段：Plan 2 Milestone 1 已完成。已完成的 Plan 2 范围为
+`P2-M1-S1` 到 `P2-M1-S8`。
+
+M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
+Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
+模型与 Alembic 迁移。当前尚未实现可执行的内置工具、Provider tool calling、
+Agent Loop、Agent API 或前端 Agent/ToolCall 视图。
+
+下一批：`P2-M2-S1` 到 `P2-M2-S3`。
 
 ## v0.1.0 演示
 
@@ -222,6 +230,7 @@ npm run build
 - [Plan 1 工程底座封版说明](docs/02-plan-1-foundation.md)
 - [架构说明](docs/01-architecture.md)
 - [LLM Provider 与 Model Registry](docs/03-llm-provider.md)
+- [Tool Calling 设计](docs/10-tool-calling-design.md)
 - [Plan 1 最终复审记录](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`

@@ -35,7 +35,8 @@ The project emphasizes:
 
 ## Current Stage
 
-Current stage: Plan 1 is complete as the `v0.1.0` foundation release.
+Current release: Plan 1 is complete as the `v0.1.0` foundation release.
+Current development stage: Plan 2 Milestone 1 is complete.
 
 The repository has completed `P1-M1-S1` through `P1-M4-S8`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 added:
 
@@ -84,10 +85,16 @@ The repository has completed `P1-M1-S1` through `P1-M4-S8`. Milestone 1 assemble
 - Clean-start, service-specific environment, migration, and verification documentation
 - Sanitized desktop/mobile release demonstrations, a changelog, current limitations, and final review evidence
 
-The next scope is `P2-M1-S1`, which verifies the tagged Plan 1 handoff before
-any Tool Calling capability is introduced. See the
-[Plan 1 foundation release](02-plan-1-foundation.md) and root
-[changelog](../CHANGELOG.md) for the release boundary and limitations.
+Plan 2 M1 (`P2-M1-S1` through `P2-M1-S8`) verified the tagged handoff and added
+Tool contracts, ToolCall transport schemas, Registry and argument validation,
+read-only path policy, and AgentRun/ToolCall persistence models. These are
+foundation contracts only: executable built-in tools, Provider tool calling,
+the Agent Loop, Agent APIs, and frontend Agent/ToolCall views remain deferred.
+
+The next batch is `P2-M2-S1` through `P2-M2-S3`. See the
+[Tool Calling design](10-tool-calling-design.md),
+[Plan 1 foundation release](02-plan-1-foundation.md), and root
+[changelog](../CHANGELOG.md) for the current boundaries and limitations.
 
 ## Plan 1 Scope
 
