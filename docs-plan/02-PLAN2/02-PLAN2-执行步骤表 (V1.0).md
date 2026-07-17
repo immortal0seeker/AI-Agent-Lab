@@ -51,7 +51,7 @@ blocked
 | 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 | 状态 |
 |---|---|---|---|---|
 | Batch 1 | P2-M1-S1～S3 | 确认 Plan1 地基，建立 Tool 核心结构 | 跑现有测试，提交 Tool 抽象 | 已完成 |
-| Batch 2 | P2-M1-S4～S6 | 实现 Registry、参数校验和安全策略雏形 | Tool 单元测试 | 未完成 |
+| Batch 2 | P2-M1-S4～S6 | 实现 Registry、参数校验和安全策略雏形 | Tool 单元测试 | 已完成 |
 | Batch 3 | P2-M1-S7～S8 | 持久化 AgentRun / ToolCall，完成 M1 review | Codex + Claude review M1 | 未完成 |
 | Batch 4 | P2-M2-S1～S3 | 实现 read_file 并覆盖路径安全测试 | 工具测试 | 未完成 |
 | Batch 5 | P2-M2-S4～S6 | 实现 list_dir 和工具注册 | 工具集成测试 | 未完成 |
@@ -91,9 +91,9 @@ blocked
 | P2-M1-S1 | 检查 Plan 1 封版状态和 v0.1.0 tag | Codex | Plan 1 验收记录（见下文） | 后端、前端、Chat、Streaming 均可启动或有明确证据 | Codex（done） |
 | P2-M1-S2 | 创建 Tool 模块目录和基础类型 | Codex | `backend/app/tools/base.py`、`Tool`、`ToolResult`、`ToolError` | Tool 类型测试通过 | Codex（done） |
 | P2-M1-S3 | 定义 ToolCall 请求 / 响应 schema | Codex | `backend/app/schemas/tool.py` | Pydantic schema 测试通过 | Codex（done） |
-| P2-M1-S4 | 实现 Tool Registry | Codex | `backend/app/tools/registry.py` | 注册、查找、重复注册测试通过 | Codex |
-| P2-M1-S5 | 实现工具参数校验 | Codex | JSON Schema 或 Pydantic 校验逻辑 | 缺参、类型错误、未知参数测试通过 | Codex |
-| P2-M1-S6 | 实现只读路径安全边界 | Codex | `backend/app/tools/security.py` | 禁止读取 `.env`、目录穿越、工作区外路径测试通过 | Claude Code 可审 |
+| P2-M1-S4 | 实现 Tool Registry | Codex | `backend/app/tools/registry.py` | 注册、查找、重复注册测试通过 | Codex（done） |
+| P2-M1-S5 | 实现工具参数校验 | Codex | JSON Schema 或 Pydantic 校验逻辑 | 缺参、类型错误、未知参数测试通过 | Codex（done） |
+| P2-M1-S6 | 实现只读路径安全边界 | Codex | `backend/app/tools/security.py` | 禁止读取 `.env`、目录穿越、工作区外路径测试通过 | Codex（done；Claude Code 未运行） |
 | P2-M1-S7 | 创建 `agent_runs` 和 `tool_calls` ORM 模型与迁移 | Codex | `backend/app/models/agent_run.py`、`tool_call.py` | 数据库迁移和模型测试通过 | Codex |
 | P2-M1-S8 | 完成 M1 review 和文档记录 | Codex | `docs/10-tool-calling-design.md` 初版 | 文档说明 Tool 抽象、Registry、权限边界 | Codex + Claude review |
 
@@ -123,6 +123,18 @@ blocked
 | 安全与边界 | 测试只使用进程内 Mock Tool，不读取 `.env`、用户数据库或本地文件，不调用真实 Provider、外部 API 或命令。未实现 Registry、JSON Schema 参数校验、路径安全、内置工具、ORM、Agent、API 或前端能力。 |
 
 **结论：** `P2-M1-S2`～`S3` 已完成，Batch 1 的 `P2-M1-S1`～`S3` 全部验收通过。下一批可进入 `P2-M1-S4`～`S6`，但本批未提前实现这些能力。
+
+### P2-M1-S4～S6 Tool Registry、参数校验与安全边界验收记录（2026-07-17）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| Tool Registry | 新增精确名称注册和查询、注册顺序、重复/未知名称错误、无效 schema 原子拒绝及 OpenAI function schema 防御性复制；Registry 聚焦测试为 8 passed。 |
+| 参数校验 | 使用 `jsonschema 4.26.0` 和 JSON Schema Draft 2020-12；缺参、类型错误、未知参数、嵌套路径、多错误稳定排序和不回显参数值均由测试覆盖；参数校验聚焦测试为 8 passed。 |
+| 安全边界 | 仅用 `tmp_path` 验证相对路径、绝对/盘符/UNC、`..`、Windows 尾随点/空格别名和备用数据流、工作区外路径、`.env`、敏感目录、私钥、文件大小和目录深度策略；安全聚焦测试为 33 passed，未读取任何目标文件。 |
+| 聚焦与全量验证 | S2～S6 Tool 聚焦套件为 92 passed。完整 Backend 为 `206 passed, 1 warning`，warning 仍是已知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损依赖。Frontend typecheck、8 files / 37 tests 和 production build（1804 modules transformed）均通过。 |
+| 安全与边界 | 未读取真实 `.env`、用户数据库或凭据，未调用 Provider；未实现 builtin Tool、ORM、迁移、Agent、API、前端、RAG、Memory 或 MCP。S6 由 Codex 完成 review，未运行可选 Claude Code 复审。 |
+
+**结论：** `P2-M1-S4`～`S6` 和 Batch 2 已完成。M1 尚未完成，下一批可进入 `P2-M1-S7`～`S8`，但本批未实现持久化、M1 总复审或任何后续能力。
 
 M1 完成后建议 commit：
 
