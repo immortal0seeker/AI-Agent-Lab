@@ -87,4 +87,4 @@ Message 增加命名唯一约束 `(id, conversation_id)`，作为复合外键的
 
 ## 7. 完成标准
 
-审计中的 6 个代码缺陷都有先失败后通过的回归测试，2 个文档错漏已同步；完整后端、前端、迁移和 smoke 验证通过；Git diff 只包含本修复批次，不含 secrets、生成物或跨 Plan 能力。完成 Codex self-review 后，由于涉及数据库约束和本地文件权限安全边界，明确标记需要 Claude Code secondary review，复审完成前不进入 P2-M3-S1～S3。
+审计中的 6 个代码缺陷都有先失败后通过的回归测试，2 个文档错漏已同步；完整后端、前端、迁移和 smoke 验证通过；Git diff 只包含本修复批次，不含 secrets、生成物或跨 Plan 能力。Codex self-review 无阻塞项后即可进入 P2-M3-S1～S3。依据 2026-07-18 用户决定，不再执行 Claude Code secondary review；全部 6 个 Plan 和整个项目完成后，再由用户决定是否使用 Fable 5 做一次全项目检查。

@@ -3,6 +3,7 @@
 > 适用文档：`00-ALL PLAN/02-PLAN-2 (V1.0).md`  
 > 执行方式：每次只领取连续 1～3 个 Step，完成后立即测试、提交、review。  
 > 阶段目标：一个阶段完成一个里程碑；一个里程碑通过后再进入下一个里程碑。
+> 外部复审策略覆盖（2026-07-18 用户决定）：不再使用 Claude Code；本文件后续所有 Claude Code / Claude review 节点均被此决定覆盖，不作为验收或推进门槛。每批只执行 Codex self-review；全部 6 个 Plan 和整个项目完成后，再由用户决定是否使用 Fable 5 做一次全项目检查。
 
 ---
 
@@ -14,7 +15,7 @@
 | 执行顺序 | 必须按 `P2-Mx-Sy` 顺序推进，除非 Codex 明确调整 |
 | 每步完成定义 | 代码可运行、局部测试通过、相关文档或配置同步 |
 | 每个阶段完成定义 | 阶段验收项全部通过，Codex review 后进入下一阶段 |
-| Claude Code 使用时机 | Tool 抽象、工具安全边界、Provider tools 支持、Agent Loop 完成后 |
+| 外部复审策略 | 不使用 Claude Code；每批以 Codex self-review 和新鲜验证为 gate；整个项目完成后再由用户决定是否使用 Fable 5 |
 | 提交节奏 | 每 1～3 个 Step 一次 commit；每个里程碑结束一次 review commit |
 | 文档同步 | Tool Schema、权限边界、Agent API、前端展示变化必须同步 docs 或 README |
 | 禁止提前做 | RAG、Embedding、复杂状态机、Planner-Executor、Reflection、Memory、MCP、Shell Tool、写文件工具 |
@@ -38,11 +39,11 @@ blocked
 
 | 阶段 | 里程碑 | 对应原 PLAN2 Step | 核心交付 | 预计时间 | 主要工具 | 审核节点 |
 |---|---|---|---|---:|---|---|
-| Phase 1 | M1 Plan 1 交接与 Tool 地基 | Step 1～5 | v0.1.0 检查、Tool 抽象、Registry、参数校验、安全边界 | 15～25 h | Codex | Codex + Claude Code |
+| Phase 1 | M1 Plan 1 交接与 Tool 地基 | Step 1～5 | v0.1.0 检查、Tool 抽象、Registry、参数校验、安全边界 | 15～25 h | Codex | Codex review |
 | Phase 2 | M2 内置只读工具 | Step 6～8 | read_file、list_dir、可选 web_fetch | 10～20 h | Codex | Codex review |
-| Phase 3 | M3 LLM Tools 与 Agent Loop | Step 9～10 | Provider tools 参数、Simple Agent Loop、最大步数和失败处理 | 15～25 h | Codex | Codex + Claude Code |
+| Phase 3 | M3 LLM Tools 与 Agent Loop | Step 9～10 | Provider tools 参数、Simple Agent Loop、最大步数和失败处理 | 15～25 h | Codex | Codex review |
 | Phase 4 | M4 Agent API 与前端展示 | Step 11～12 | Agent API、Tool Call 前端展示 | 10～20 h | Codex + Cursor | Codex review |
-| Phase 5 | M5 测试、文档与封版 | Step 13～15 | Tool / Agent 测试、文档、CHANGELOG、v0.2.0 tag | 10～15 h | Codex + Cursor | Codex + Claude Code |
+| Phase 5 | M5 测试、文档与封版 | Step 13～15 | Tool / Agent 测试、文档、CHANGELOG、v0.2.0 tag | 10～15 h | Codex + Cursor | Codex review |
 
 ---
 
@@ -58,12 +59,12 @@ blocked
 | Batch 6 | P2-M2-S7 | 可选实现 web_fetch 或明确延期记录 | Codex review M2 | 已完成（deferred） |
 | Batch 7 | P2-M3-S1～S3 | 扩展 LLM Provider 支持 tools | Provider mock 测试 | 未完成 |
 | Batch 8 | P2-M3-S4～S6 | 实现 Simple Agent Loop | Agent mock 测试 | 未完成 |
-| Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex + Claude review M3 | 未完成 |
+| Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex review M3 | 未完成 |
 | Batch 10 | P2-M4-S1～S3 | 实现 Agent API 和 Tool Call 查询 | API 测试 | 未完成 |
 | Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 | 未完成 |
 | Batch 12 | P2-M5-S1～S3 | 补 Tool / Agent 测试 | 后端测试 | 未完成 |
 | Batch 13 | P2-M5-S4～S6 | 补文档、README、截图和限制说明 | 文档 review | 未完成 |
-| Batch 14 | P2-M5-S7～S8 | 最终 review、修复、v0.2.0 封版 | Codex + Claude final review | 未完成 |
+| Batch 14 | P2-M5-S7～S8 | 最终 review、修复、v0.2.0 封版 | Codex final review | 未完成 |
 
 ---
 
@@ -282,14 +283,14 @@ feat(tools): add read only builtin tools
 
 | Step ID | 任务 | 建议工具 | 交付物 | 验证方式 | Review |
 |---|---|---|---|---|---|
-| P2-M3-S1 | 扩展 LLMProvider `chat` 接口支持 tools | Codex | Provider base interface 更新 | mock provider 可接收 tools 参数 | Claude Code 可审 |
+| P2-M3-S1 | 扩展 LLMProvider `chat` 接口支持 tools | Codex | Provider base interface 更新 | mock provider 可接收 tools 参数 | Codex |
 | P2-M3-S2 | 扩展 OpenAI-compatible Provider 的 tool calling 请求和响应解析 | Codex | provider tool call 支持 | mock response 能解析 tool call | Codex |
 | P2-M3-S3 | 实现 Tool Schema 转换为模型可用格式 | Codex | tool schema adapter | read_file / list_dir schema 可序列化 | Codex |
 | P2-M3-S4 | 创建 Simple Agent Loop 基础流程 | Codex | `backend/app/agents/simple_agent.py` | 无工具任务直接返回答案 | Codex |
 | P2-M3-S5 | 接入工具选择、执行和 observation 回填 | Codex | Agent 调用 Tool Registry | 固定 mock 模型触发 read_file 后生成最终答案 | Codex |
 | P2-M3-S6 | 持久化 AgentRun 和 ToolCall | Codex | Agent run service | 每次工具调用都有数据库记录 | Codex |
-| P2-M3-S7 | 实现最大步数、超时、失败返回 | Codex | runtime policy 常量或配置 | 超过最大步数返回可读错误 | Claude Code 可审 |
-| P2-M3-S8 | 完成 M3 review 和 Agent Loop 文档 | Codex | `docs/11-simple-agent-loop.md` | 文档解释 Agent Loop 流程和限制 | Codex + Claude review |
+| P2-M3-S7 | 实现最大步数、超时、失败返回 | Codex | runtime policy 常量或配置 | 超过最大步数返回可读错误 | Codex |
+| P2-M3-S8 | 完成 M3 review 和 Agent Loop 文档 | Codex | `docs/11-simple-agent-loop.md` | 文档解释 Agent Loop 流程和限制 | Codex review |
 
 M3 完成后建议 commit：
 
@@ -361,7 +362,7 @@ feat(agent): add agent api and tool call UI
 | P2-M5-S4 | 补前端 Tool Call 展示检查 | Cursor | 前端类型检查、基础 UI 验证记录 | `npm run build` 或前端检查通过 | Codex |
 | P2-M5-S5 | 更新 README 和 Plan 2 文档 | Codex | README、`docs/10-tool-calling-design.md`、`docs/11-simple-agent-loop.md` | 文档说明工具限制和启动方式 | Codex |
 | P2-M5-S6 | 准备封版材料：截图、CHANGELOG、当前限制 | Cursor + Codex | Tool Call 截图、`CHANGELOG.md` | v0.2.0 功能边界清晰 | Codex |
-| P2-M5-S7 | Plan 2 全量 review 和修复 | Codex + Claude Code | review 记录、修复 commit | 后端测试和前端检查通过 | Codex + Claude |
+| P2-M5-S7 | Plan 2 全量 review 和修复 | Codex | review 记录、修复 commit | 后端测试和前端检查通过 | Codex final review |
 | P2-M5-S8 | 创建 v0.2.0 tag 并记录进入 Plan 3 的桥接状态 | Codex | `v0.2.0` tag、桥接检查表 | `git tag --list` 包含 v0.2.0 | Codex final review |
 
 M5 完成后建议 commit：
@@ -401,9 +402,9 @@ chore: release v0.2.0 basic agent
 
 ---
 
-## 9. Claude Code Review 节点
+## 9. Review 节点
 
-Claude Code 不需要每个 Step 都参与，建议在这些节点使用：
+每批和每个里程碑只执行 Codex self-review，不请求、运行或等待 Claude Code。M1、M3 和 M5 的重点如下：
 
 | 节点 | 审核重点 | 输入材料 |
 |---|---|---|
@@ -411,7 +412,7 @@ Claude Code 不需要每个 Step 都参与，建议在这些节点使用：
 | M3 结束 | Provider tools 接口和 Simple Agent Loop 是否稳定 | diff、Agent Loop、Provider 改动、ToolCall 记录、测试结果 |
 | M5 封版前 | v0.2.0 是否能作为 Plan 3 的工具底座 | 全量 diff、README、测试结果、CHANGELOG、桥接检查 |
 
-Claude Code 审核后，Codex 负责：
+Codex review 后：
 
 ```text
 1. 判断哪些意见必须修
@@ -419,6 +420,8 @@ Claude Code 审核后，Codex 负责：
 3. 修复后重新跑测试
 4. 更新文档和 changelog
 ```
+
+全部 6 个 Plan 和整个项目完成后，再由用户决定是否使用 Fable 5 做一次全项目检查；项目完成前不请求 Fable 5，也不得虚构任何外部复审结果。
 
 ---
 
@@ -432,7 +435,7 @@ Claude Code 审核后，Codex 负责：
 | 正确性与文档 | `list_dir` 只有确实存在未返回条目时才标记截断；README/README_CN、CHANGELOG、Tool Calling 设计和本验收清单同步当前事实。 |
 | TDD 与完整验证证据 | 文件安全测试为 `107 passed`，Tool/Registry/validation 为 `49 passed`，Agent ORM 为 `10 passed`，迁移套件为 `6 passed`。完整 Backend 为 `308 passed, 1 warning`；`pip check`、Frontend typecheck、8 files / 37 tests、production build、全新临时 SQLite 升级/检查/降级/再升级和无 Provider FastAPI smoke 均通过。 |
 
-该记录修复独立审计发现，不实现 Provider tools、Agent Loop、Agent API、前端 Tool Call 或任何后续 Plan 能力。数据库约束和本地路径安全边界仍需要 Claude Code secondary review；外部复审结果不得由 Codex 虚构。
+该记录修复独立审计发现，不实现 Provider tools、Agent Loop、Agent API、前端 Tool Call 或任何后续 Plan 能力。Codex self-review 和完整验证均无阻塞项；依据 2026-07-18 用户决定，不再执行 Claude Code secondary review，可以进入 P2-M3-S1～S3。全部 6 个 Plan 和整个项目完成前不请求 Fable 5，也不得虚构任何外部复审结果。
 
 ---
 

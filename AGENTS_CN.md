@@ -42,10 +42,11 @@
    - 检查是否有 secret 泄漏。
    - 检查测试/验证证据是否充分。
    - 检查 README / docs / env example 是否需要同步。
-   - 明确告诉用户：本批是否需要 Claude Code 复审。
-5. 判断是否需要 Claude Code 复审。
-   - 如果不需要 Claude Code 复审，继续修复和重新验证。
-   - 如果需要 Claude Code 复审，暂停进入下一批 Step，等待复审结果。
+   - 明确报告 Codex review 结论和遗留风险。
+5. 执行项目复审策略。
+   - 任何批次或 Plan 都不请求、运行、等待或使用 Claude Code 复审。
+   - Codex self-review 是每批唯一的 review gate。
+   - 全部 6 个 Plan 和整个项目完成后，再由用户决定是否使用 Fable 5 做一次全项目检查；在此之前，不以外部复审阻塞推进。
 6. 按审核意见修复。
    - 必须修：当前批次内修复。
    - 后续批次修：记录到后续 Step 或限制说明。
@@ -58,8 +59,7 @@
 8. 完成本批。
    - 给出变更摘要。
    - 给出验证结果。
-   - 给出 Codex review 结论。
-   - 说明是否需要 Claude Code 复审。
+   - 给出 Codex review 结论，并说明是否可以进入下一批 Step。
    - 给出遗留风险或限制。
    - 给出下一批 Step 建议。
    - 给出建议 commit message，但实际 commit 由用户手动创建，除非用户明确要求 Codex commit。
@@ -166,7 +166,9 @@ Trace、Tool Call、Approval、Agent Run 页面必须保留可追踪 ID。
 
 每批 Step 后做 Codex review。
 
-这些位置优先用 Claude Code 复审：数据库模型、Provider 抽象、RAG / ranking、Trace / Evaluation、Memory 写入策略、Context Engine、Agent Runtime 状态机、Human Approval、MCP Permission、Desktop 本地文件权限、release candidate。
+不使用 Claude Code 复审。该决定适用于数据库模型、Provider 抽象、RAG / ranking、Trace / Evaluation、Memory 写入策略、Context Engine、Agent Runtime 状态机、Human Approval、MCP Permission、Desktop 本地文件权限、release candidate 和其他所有批次。
+
+Codex self-review 和新鲜验证仍为强制要求。整个项目完成后，由用户决定是否执行一次 Fable 5 全项目检查。在此之前不要请求 Fable 5，也不得虚构任何外部复审证据。
 
 Review 意见必须分类为：必须修、后续批次修、记录为限制、不适用并说明原因。
 

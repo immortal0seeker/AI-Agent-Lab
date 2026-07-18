@@ -42,10 +42,11 @@ By default, follow this fixed small loop:
    - Check for secret leakage.
    - Check whether verification evidence is sufficient.
    - Check whether README / docs / env examples need updates.
-   - Clearly tell the user whether this batch needs Claude Code secondary review.
-5. Decide on Claude Code secondary review.
-   - If Claude Code review is not needed, continue to fixes and re-verification.
-   - If Claude Code review is needed, pause before entering the next Step batch and wait for review results.
+   - Clearly report the Codex review conclusion and remaining risks.
+5. Apply the project review policy.
+   - Do not request, run, wait for, or use Claude Code review for any batch or Plan.
+   - Codex self-review is the only per-batch review gate.
+   - After all 6 Plans and the whole project are complete, the user may choose one Fable 5 full-project review; until then, external review must not block progress.
 6. Fix review feedback.
    - Must fix: fix in the current batch.
    - Fix later: record for a later Step or limitation note.
@@ -58,8 +59,7 @@ By default, follow this fixed small loop:
 8. Finish the batch.
    - Provide a change summary.
    - Provide verification results.
-   - Provide the Codex review conclusion.
-   - State whether Claude Code review is needed.
+   - State the Codex review conclusion and whether the batch can enter the next Step range.
    - List residual risks or limitations.
    - Suggest the next Step batch.
    - Provide a suggested commit message, but the user creates the actual commit manually unless explicitly requested otherwise.
@@ -166,7 +166,9 @@ Do not claim completion without fresh verification results.
 
 Run Codex review after each Step batch.
 
-Prioritize Claude Code secondary review for: database models, Provider abstractions, RAG / ranking, Trace / Evaluation, Memory write strategy, Context Engine, Agent Runtime state machine, Human Approval, MCP Permission, Desktop local file permissions, and release candidates.
+Do not use Claude Code review. This decision applies to database models, Provider abstractions, RAG / ranking, Trace / Evaluation, Memory write strategy, Context Engine, Agent Runtime state machine, Human Approval, MCP Permission, Desktop local file permissions, release candidates, and every other batch.
+
+Codex self-review and fresh verification remain mandatory. After the whole project is complete, the user may decide whether to run one Fable 5 full-project review. Do not request Fable 5 earlier and never invent external review evidence.
 
 Review feedback must be classified as: must fix, fix in later batch, record as limitation, or not applicable with explanation.
 
