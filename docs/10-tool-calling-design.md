@@ -3,9 +3,9 @@
 ## Current Scope
 
 Plan 2 M1 establishes Tool contracts, discovery, validation, read-only security,
-and persistence models. `P2-M2-S1` through `P2-M2-S3` add the first executable
-built-in Tool, `read_file`, plus caller-controlled Registry initialization. No
-Agent service, API, or Provider currently invokes it.
+and persistence models. `P2-M2-S1` through `P2-M2-S6` provide two executable
+read-only builtins, `read_file` and `list_dir`, plus caller-controlled Registry
+initialization. No Agent service, API, or Provider currently invokes them.
 
 ## Tool Boundary
 
@@ -26,7 +26,8 @@ contain safe paths and rules and never echo rejected argument values.
 Paths are workspace-relative and resolved before use. Absolute, drive, UNC,
 parent traversal, `.env`, sensitive directories, private keys, Windows path
 aliases, and alternate data streams are rejected. File-size and directory-depth
-limits are pure policy helpers. M1 does not read or enumerate files.
+limits are shared policy helpers. The security module itself does not read or
+enumerate files; each builtin owns its bounded filesystem operation.
 
 ## Built-in read_file
 
@@ -44,9 +45,31 @@ and truncation state in metadata. Expected validation, security, file-size,
 encoding, and filesystem failures return fixed safe failed ToolResults without
 argument values, absolute paths, file contents, or raw exceptions.
 
-`register_builtin_tools(registry, ...)` adds a configured `ReadFileTool` to a
-caller-owned Registry. It creates no singleton and has no import-time or
-application-startup side effect.
+## Built-in list_dir
+
+`ListDirTool` accepts a required workspace-relative `path` and optional integer
+`max_depth`. Depth 1 lists direct children, depth 2 includes one more level,
+the default is 2, and the configured hard limit is at most 3. Traversal returns
+at most 500 entries by default and marks bounded results as truncated.
+
+Each entry contains a normalized relative path, name, `file`, `directory`, or
+`symlink` type, and byte size for regular files. Results are globally ordered
+by case-folded relative POSIX path with the original path as tie-breaker.
+Line-oriented `content` and structured `data.entries` carry the same listing;
+metadata records root path, applied depth, entry count, and truncation state.
+
+Sensitive names including `.git`, `.ssh`, `docs-local`, `__pycache__`, `.env*`,
+private-key names, `*.pem`, and `*.key` are filtered before metadata access or
+recursion. Ordinary `.gitignore` remains visible. Discovered symlinks may be
+reported but are never followed. Invalid, unsafe, missing, non-directory, and
+filesystem failure paths return fixed safe ToolResults. Directory metadata
+work runs through `asyncio.to_thread`.
+
+`register_builtin_tools(registry, ...)` adds configured `ReadFileTool` and
+`ListDirTool` instances, in that order, to a caller-owned Registry. It creates
+no singleton and has no import-time or application-startup side effect.
+Configuration and duplicate-name checks happen before either Tool is added, so
+an initialization failure leaves the caller's Registry unchanged.
 
 ## Persistence
 
@@ -72,15 +95,19 @@ These are integrity values, not a full runtime state machine.
 
 ## Current Data Flow
 
-The implemented read_file path is:
+The implemented builtin path is:
 
 ```text
-Caller-owned Registry -> ReadFileTool -> validation/security -> ToolResult
+Caller-owned Registry
+-> ReadFileTool or ListDirTool
+-> argument and workspace security validation
+-> bounded read or directory traversal
+-> ToolResult
 ```
 
 No current route or service invokes the Tool or creates AgentRun/ToolCall
-records. `list_dir`, Provider integration, Agent Loop transitions, API access,
-and frontend visualization are scheduled in later Plan 2 milestones.
+records. Provider integration, Agent Loop transitions, API access, and frontend
+visualization are scheduled in later Plan 2 milestones.
 
 ## Verification and Security Boundary
 
@@ -91,7 +118,7 @@ credential, private key, or call a real Provider.
 ## Deferred Work
 
 - Agent persistence service and transactions
-- `list_dir` and optional `web_fetch` evaluation
+- optional `web_fetch` evaluation
 - Provider tool calling
 - Simple Agent Loop
 - Agent APIs and frontend ToolCall visualization

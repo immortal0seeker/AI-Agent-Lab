@@ -54,7 +54,7 @@ blocked
 | Batch 2 | P2-M1-S4～S6 | 实现 Registry、参数校验和安全策略雏形 | Tool 单元测试 | 已完成 |
 | Batch 3 | P2-M1-S7～S8 | 持久化 AgentRun / ToolCall，完成 M1 review | Codex review M1（Claude Code 未运行） | 已完成 |
 | Batch 4 | P2-M2-S1～S3 | 实现 read_file 并覆盖路径安全测试 | 工具测试 | 已完成 |
-| Batch 5 | P2-M2-S4～S6 | 实现 list_dir 和工具注册 | 工具集成测试 | 未完成 |
+| Batch 5 | P2-M2-S4～S6 | 实现 list_dir 和工具注册 | 工具集成测试 | 已完成 |
 | Batch 6 | P2-M2-S7 | 可选实现 web_fetch 或明确延期记录 | Codex review M2 | 未完成 |
 | Batch 7 | P2-M3-S1～S3 | 扩展 LLM Provider 支持 tools | Provider mock 测试 | 未完成 |
 | Batch 8 | P2-M3-S4～S6 | 实现 Simple Agent Loop | Agent mock 测试 | 未完成 |
@@ -187,9 +187,9 @@ feat(agent): add agent run and tool call persistence
 | P2-M2-S1 | 实现 read_file 工具 | Codex | `backend/app/tools/builtin/read_file.py` | 可读取 README，返回文本内容和 metadata | Codex（done） |
 | P2-M2-S2 | 为 read_file 添加安全和异常测试 | Codex | read_file 测试 | `.env`、二进制文件、超大文件、目录穿越均被拒绝或安全处理 | Codex（done） |
 | P2-M2-S3 | 将 read_file 注册到 Tool Registry | Codex | builtin tool 初始化逻辑 | Registry 能列出 read_file | Codex（done） |
-| P2-M2-S4 | 实现 list_dir 工具 | Codex | `backend/app/tools/builtin/list_dir.py` | 可列出项目内目录，返回文件名、类型、大小 | Codex |
-| P2-M2-S5 | 为 list_dir 添加安全和异常测试 | Codex | list_dir 测试 | 工作区外路径、隐藏敏感文件、无权限路径安全处理 | Codex |
-| P2-M2-S6 | 将 list_dir 注册到 Tool Registry 并补工具列表测试 | Codex | builtin tools registry 测试 | Registry 能列出 read_file / list_dir | Codex |
+| P2-M2-S4 | 实现 list_dir 工具 | Codex | `backend/app/tools/builtin/list_dir.py` | 可列出项目内目录，返回文件名、类型、大小 | Codex（done） |
+| P2-M2-S5 | 为 list_dir 添加安全和异常测试 | Codex | list_dir 测试 | 工作区外路径、隐藏敏感文件、无权限路径安全处理 | Codex（done） |
+| P2-M2-S6 | 将 list_dir 注册到 Tool Registry 并补工具列表测试 | Codex | builtin tools registry 测试 | Registry 能列出 read_file / list_dir | Codex（done） |
 | P2-M2-S7 | 评估并处理 web_fetch：实现低风险版本或记录延期 | Codex | `web_fetch.py` 或 docs 限制说明 | 若实现则普通网页文本抓取测试通过；若延期则 README 说明 | Codex review |
 
 ### P2-M2-S1～S3 read_file 验收记录（2026-07-18）
@@ -204,12 +204,33 @@ feat(agent): add agent run and tool call persistence
 | 文档与检查 | README、中英文当前阶段、项目概览、架构和 Tool Calling 设计已同步；22 个本地 Markdown 链接存在，变更文件秘密模式、生成物、Step 边界、`CHANGELOG.md` 未改及 diff 检查均通过。 |
 | Codex review 与边界 | 必须修 1 项（文件增长竞态下无界 `read_bytes()`）已按 RED/GREEN 改为限长读取；计划遗漏的项目概览同步已补齐。无剩余阻塞项。未运行 Claude Code，因为本执行行仅要求 Codex 且用户未明确要求外部复审。未实现 `list_dir`、`web_fetch`、Provider tools、Agent Loop、service/API、前端 Agent 视图、RAG、Memory、MCP、Shell 或写文件能力。 |
 
-**结论：** `P2-M2-S1`～`S3` 和 Batch 4 已完成。下一批可进入 `P2-M2-S4`～`S6`，但本批未提前实现 `list_dir` 或任何后续能力。
+**结论：** `P2-M2-S1`～`S3` 和 Batch 4 已完成；后续 `S4`～`S6` 的实现与验收记录见下节。
 
 S1～S3 建议 commit：
 
 ```text
 feat(tools): add safe read file builtin
+```
+
+### P2-M2-S4～S6 list_dir 验收记录（2026-07-18）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| list_dir 契约 | 新增异步只读 `ListDirTool`，接受必填 `path` 和可选 `max_depth`；默认深度 2、硬上限 3、默认最多 500 条。成功结果同时返回逐行 `content`、结构化 `data.entries` 以及根路径、深度、条目数和截断状态 metadata。 |
+| 遍历与安全 | 工作区相对路径复用 M1 sandbox；条目按规范化相对路径稳定排序，文件返回字节大小，目录返回空大小。`.git`、`.env*`、`.ssh`、`docs-local`、`__pycache__` 和私钥类名称在 metadata 读取和递归前过滤；普通 `.gitignore` 可见；符号链接只报告、不跟随；所有目录 metadata 工作进入 `asyncio.to_thread`。 |
+| 异常处理 | 参数错误、越界/敏感根路径、缺失路径、非目录和权限/文件系统异常均返回固定失败 ToolResult，不回显参数、绝对路径、目录内容或原始异常。测试只使用临时工作区，未读取真实 secret、Provider 配置或用户数据库。 |
+| Registry | `register_builtin_tools()` 由调用方持有并按 `read_file`、`list_dir` 顺序注册，支持注入两类 Tool 的限制并导出 OpenAI-compatible schemas；配置或重复名称失败时 Registry 保持不变，无 singleton、import-time 或应用启动副作用。 |
+| TDD 证据 | S4 RED 因 `app.tools.builtin.list_dir` 不存在而 collection 失败，GREEN 为 `11 passed`；S5 RED 为敏感项过滤 `1 failed, 24 passed`，GREEN 与共享 security 测试为 `58 passed`；S6 RED 为双工具注册 `2 failed, 25 passed`，GREEN 为双 builtin 聚焦 `52 passed`、Tool foundation `144 passed`。Codex review 的原子性回归先为 `2 failed`，修复后为 `2 passed`，最终双 builtin 聚焦 `54 passed`、Tool foundation `146 passed`。 |
+| 全量验证 | Backend 为 `271 passed, 1 warning`，warning 仍是已知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损依赖。Frontend typecheck、8 files / 37 tests 和 production build（1804 modules transformed）均通过；build 使用已批准权限规避受管沙箱对 `dist` 的已知写限制。 |
+| 文档与检查 | 中英文 README、项目概览、架构和 Tool Calling 设计已同步；31 个本地 Markdown 链接存在，变更文件秘密模式 0、Git 可见 Python 生成物 0、越界能力代码命中 0，`CHANGELOG.md` 未改，diff 检查通过。pytest 生成的 70 个本地 `.pyc` 均被忽略且未进入 Git。 |
+| Codex review 与边界 | 必须修 1 项：双工具初始化在无效 `list_dir` 配置或预存同名 Tool 时会留下部分注册；已按 RED/GREEN 改为构造和重复检查全部成功后再写 Registry，并完成聚焦、Tool foundation 与后端全量复验。无剩余阻塞项。未运行 Claude Code，因为用户未明确要求外部复审。未实现 S7、Provider tools、Agent Loop、service/API/frontend Agent 视图、RAG、Memory、MCP、Shell 或写文件能力。 |
+
+**结论：** `P2-M2-S4`～`S6` 已完成。下一批可单独进入 `P2-M2-S7`，本批未提前实现或决定 `web_fetch`。
+
+S4～S6 建议 commit：
+
+```text
+feat(tools): add safe list directory builtin
 ```
 
 M2 完成后建议 commit：

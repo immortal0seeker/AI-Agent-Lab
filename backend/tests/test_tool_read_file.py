@@ -6,7 +6,10 @@ from typing import Any
 import pytest
 
 from app.tools import (
+    DEFAULT_LIST_DIR_DEPTH,
+    DEFAULT_MAX_LIST_ENTRIES,
     DuplicateToolError,
+    ListDirTool,
     ToolRegistry,
     register_builtin_tools,
 )
@@ -275,7 +278,7 @@ def test_read_file_returns_safe_failure_for_oserror(
     assert "credential-value" not in result.model_dump_json()
 
 
-def test_register_builtin_tools_adds_read_file_with_exportable_schema(
+def test_register_builtin_tools_adds_both_tools_with_exportable_schemas(
     tmp_path: Path,
 ) -> None:
     registry = ToolRegistry()
@@ -285,33 +288,53 @@ def test_register_builtin_tools_adds_read_file_with_exportable_schema(
         workspace_root=tmp_path,
         max_file_bytes=123,
         max_characters=45,
+        max_directory_depth=1,
+        max_directory_entries=7,
     )
 
-    tool = registry.get_tool("read_file")
-    assert isinstance(tool, ReadFileTool)
-    assert tool.workspace_root == tmp_path.resolve()
-    assert tool.max_file_bytes == 123
-    assert tool.max_characters == 45
+    read_file = registry.get_tool("read_file")
+    list_dir = registry.get_tool("list_dir")
+    assert isinstance(read_file, ReadFileTool)
+    assert read_file.workspace_root == tmp_path.resolve()
+    assert read_file.max_file_bytes == 123
+    assert read_file.max_characters == 45
+    assert isinstance(list_dir, ListDirTool)
+    assert DEFAULT_LIST_DIR_DEPTH == 2
+    assert DEFAULT_MAX_LIST_ENTRIES == 500
+    assert list_dir.workspace_root == tmp_path.resolve()
+    assert list_dir.max_depth == 1
+    assert list_dir.default_depth == 1
+    assert list_dir.max_entries == 7
     assert [registered.name for registered in registry.list_tools()] == [
-        "read_file"
+        "read_file",
+        "list_dir",
     ]
-    assert registry.get_openai_tool_schemas() == [
-        {
-            "type": "function",
-            "function": {
-                "name": "read_file",
-                "description": "Read a UTF-8 text file from the workspace",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "minLength": 1},
+    schemas = registry.get_openai_tool_schemas()
+    assert [schema["function"]["name"] for schema in schemas] == [
+        "read_file",
+        "list_dir",
+    ]
+    assert schemas[1] == {
+        "type": "function",
+        "function": {
+            "name": "list_dir",
+            "description": "List files and directories in the workspace",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "minLength": 1},
+                    "max_depth": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1,
+                        "default": 1,
                     },
-                    "required": ["path"],
-                    "additionalProperties": False,
                 },
+                "required": ["path"],
+                "additionalProperties": False,
             },
-        }
-    ]
+        },
+    }
 
 
 def test_register_builtin_tools_preserves_duplicate_error(tmp_path: Path) -> None:
@@ -320,6 +343,39 @@ def test_register_builtin_tools_preserves_duplicate_error(tmp_path: Path) -> Non
 
     with pytest.raises(DuplicateToolError, match="read_file"):
         register_builtin_tools(registry, workspace_root=tmp_path)
+
+    assert [tool.name for tool in registry.list_tools()] == [
+        "read_file",
+        "list_dir",
+    ]
+
+
+def test_register_builtin_tools_rejects_invalid_list_config_atomically(
+    tmp_path: Path,
+) -> None:
+    registry = ToolRegistry()
+
+    with pytest.raises(ValueError, match="max_entries"):
+        register_builtin_tools(
+            registry,
+            workspace_root=tmp_path,
+            max_directory_entries=0,
+        )
+
+    assert registry.list_tools() == []
+
+
+def test_register_builtin_tools_rejects_existing_list_dir_atomically(
+    tmp_path: Path,
+) -> None:
+    registry = ToolRegistry()
+    existing = ListDirTool(workspace_root=tmp_path)
+    registry.register_tool(existing)
+
+    with pytest.raises(DuplicateToolError, match="list_dir"):
+        register_builtin_tools(registry, workspace_root=tmp_path)
+
+    assert registry.list_tools() == [existing]
 
 
 def test_register_builtin_tools_rejects_non_registry(tmp_path: Path) -> None:

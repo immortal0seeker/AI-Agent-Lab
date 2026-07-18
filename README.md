@@ -25,19 +25,20 @@ Plan 1 covers:
 
 Completed scope: `P1-M1-S1` through `P1-M4-S8`.
 
-Current development stage: Plan 2 M2 `read_file` is complete. Completed Plan 2
-scope: `P2-M1-S1` through `P2-M2-S3`.
+Current development stage: Plan 2 M2 `read_file` and `list_dir` are complete.
+Completed Plan 2 scope: `P2-M1-S1` through `P2-M2-S6`.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
 path policy, and AgentRun/ToolCall ORM models with an Alembic migration. The
-first executable built-in Tool safely reads workspace-relative UTF-8 text,
-rejects files over 1 MiB, truncates output after 100,000 characters with
-metadata, returns safe failures, and registers into a caller-owned Registry. It
-does not yet include `list_dir`, Provider tool calling, an Agent Loop, Agent
-APIs, or frontend Agent/ToolCall views.
+builtin Registry now exposes `read_file` and `list_dir` in stable order.
+`read_file` safely performs bounded UTF-8 reads. `list_dir` performs bounded,
+deterministic workspace traversal with depth and entry limits, filters
+sensitive entries, and never follows discovered symlinks. Expected failures
+become safe ToolResults. Provider tool calling, an Agent Loop, Agent APIs, and
+frontend Agent/ToolCall views are not yet implemented.
 
-Next batch: `P2-M2-S4` through `P2-M2-S6`.
+Next batch: `P2-M2-S7` only.
 
 ## v0.1.0 Demo
 

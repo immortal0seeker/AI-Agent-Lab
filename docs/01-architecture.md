@@ -13,9 +13,9 @@ recoverable frontend initialization states, clean-start documentation, release
 materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
 completed `P2-M1-S1` through `P2-M1-S8`: Tool contracts, Registry, validation,
 read-only path policy, and AgentRun/ToolCall persistence are available as
-foundations. `P2-M2-S1` through `P2-M2-S3` add the first executable built-in
-Tool, `read_file`, while directory listing and Agent runtime behavior remain
-deferred.
+foundations. `P2-M2-S1` through `P2-M2-S6` add the executable read-only
+`read_file` and `list_dir` builtins, while Provider tool calling and Agent
+runtime behavior remain deferred.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -45,6 +45,7 @@ AI-Agent-Lab/
 │           ├── security.py
 │           ├── validation.py
 │           └── builtin/
+│               ├── list_dir.py
 │               └── read_file.py
 ├── frontend/
 │   └── src/
@@ -169,20 +170,29 @@ Expected validation, security, size, encoding, and filesystem failures become
 fixed safe failed `ToolResult` values without raw paths, content, or exception
 text. File I/O runs through `asyncio.to_thread`.
 
+`ListDirTool` accepts a workspace-relative `path` and an optional `max_depth`.
+Depth 1 lists direct children, the default is 2, and the hard limit is 3. It
+returns at most 500 entries by default, ordered by normalized relative path,
+with name, `file`/`directory`/`symlink` type, and regular-file byte size. It
+filters sensitive entries before metadata access or recursion, keeps ordinary
+dotfiles such as `.gitignore`, reports but never follows discovered symlinks,
+and returns fixed safe failures. Directory metadata work also runs through
+`asyncio.to_thread`.
+
 The implemented Tool data path is:
 
 ```text
 Caller-owned ToolRegistry
 -> register_builtin_tools()
--> ReadFileTool
+-> ReadFileTool or ListDirTool
 -> argument and workspace security validation
--> bounded UTF-8 read
+-> bounded UTF-8 read or directory traversal
 -> ToolResult
 ```
 
 No current route or service invokes the Tool or creates AgentRun/ToolCall
-records. `list_dir`, Provider tool calling, Agent Loop transitions, Agent APIs,
-and frontend visualization remain scheduled for later Plan 2 milestones. See
+records. Provider tool calling, Agent Loop transitions, Agent APIs, and
+frontend visualization remain scheduled for later Plan 2 milestones. See
 [Tool Calling Design](10-tool-calling-design.md) for the detailed boundary.
 
 ## Frontend Boundaries

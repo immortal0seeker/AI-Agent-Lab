@@ -1,6 +1,9 @@
 from app.tools.base import Tool, ToolError, ToolResult
 from app.tools.builtin import (
+    DEFAULT_LIST_DIR_DEPTH,
+    DEFAULT_MAX_LIST_ENTRIES,
     DEFAULT_MAX_READ_CHARACTERS,
+    ListDirTool,
     ReadFileTool,
     register_builtin_tools,
 )
@@ -17,6 +20,7 @@ from app.tools.security import (
     ToolLimitError,
     ToolSecurityError,
     UnsafePathError,
+    is_sensitive_path_component,
     resolve_workspace_path,
     validate_directory_depth,
     validate_file_size,
@@ -30,11 +34,14 @@ from app.tools.validation import (
 )
 
 __all__ = [
+    "DEFAULT_LIST_DIR_DEPTH",
     "DEFAULT_MAX_DIRECTORY_DEPTH",
     "DEFAULT_MAX_FILE_BYTES",
+    "DEFAULT_MAX_LIST_ENTRIES",
     "DEFAULT_MAX_READ_CHARACTERS",
     "DuplicateToolError",
     "PROJECT_WORKSPACE_ROOT",
+    "ListDirTool",
     "ReadFileTool",
     "Tool",
     "ToolArgumentValidationError",
@@ -48,6 +55,7 @@ __all__ = [
     "ToolSecurityError",
     "ToolValidationIssue",
     "UnsafePathError",
+    "is_sensitive_path_component",
     "resolve_workspace_path",
     "register_builtin_tools",
     "validate_directory_depth",

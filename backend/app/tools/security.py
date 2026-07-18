@@ -7,7 +7,9 @@ PROJECT_WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_MAX_FILE_BYTES = 1_048_576
 DEFAULT_MAX_DIRECTORY_DEPTH = 3
 
-_SENSITIVE_DIRECTORY_NAMES = frozenset({".git", ".ssh", "docs-local"})
+_SENSITIVE_DIRECTORY_NAMES = frozenset(
+    {".git", ".ssh", "__pycache__", "docs-local"}
+)
 _PRIVATE_KEY_NAMES = frozenset({"id_dsa", "id_ecdsa", "id_ed25519", "id_rsa"})
 
 
@@ -38,7 +40,9 @@ def _normalize_windows_component(component: str) -> str:
     return normalized.rstrip(".")
 
 
-def _is_sensitive_component(component: str) -> bool:
+def is_sensitive_path_component(component: str) -> bool:
+    if not isinstance(component, str):
+        raise TypeError("component must be a string")
     normalized = _normalize_windows_component(component).casefold()
     return (
         normalized in _SENSITIVE_DIRECTORY_NAMES
@@ -75,7 +79,7 @@ def resolve_workspace_path(
         raise UnsafePathError("parent traversal is forbidden")
     if any(":" in part for part in raw_parts):
         raise UnsafePathError("Windows alternate data streams are forbidden")
-    if any(_is_sensitive_component(part) for part in raw_parts):
+    if any(is_sensitive_path_component(part) for part in raw_parts):
         raise UnsafePathError("sensitive workspace paths are forbidden")
 
     root = workspace_root.resolve()
@@ -84,7 +88,7 @@ def resolve_workspace_path(
         relative = resolved.relative_to(root)
     except ValueError as exc:
         raise UnsafePathError("path resolves outside the workspace") from exc
-    if any(_is_sensitive_component(part) for part in relative.parts):
+    if any(is_sensitive_path_component(part) for part in relative.parts):
         raise UnsafePathError("sensitive workspace paths are forbidden")
     return resolved
 
