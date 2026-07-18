@@ -53,7 +53,7 @@ blocked
 | Batch 1 | P2-M1-S1～S3 | 确认 Plan1 地基，建立 Tool 核心结构 | 跑现有测试，提交 Tool 抽象 | 已完成 |
 | Batch 2 | P2-M1-S4～S6 | 实现 Registry、参数校验和安全策略雏形 | Tool 单元测试 | 已完成 |
 | Batch 3 | P2-M1-S7～S8 | 持久化 AgentRun / ToolCall，完成 M1 review | Codex review M1（Claude Code 未运行） | 已完成 |
-| Batch 4 | P2-M2-S1～S3 | 实现 read_file 并覆盖路径安全测试 | 工具测试 | 未完成 |
+| Batch 4 | P2-M2-S1～S3 | 实现 read_file 并覆盖路径安全测试 | 工具测试 | 已完成 |
 | Batch 5 | P2-M2-S4～S6 | 实现 list_dir 和工具注册 | 工具集成测试 | 未完成 |
 | Batch 6 | P2-M2-S7 | 可选实现 web_fetch 或明确延期记录 | Codex review M2 | 未完成 |
 | Batch 7 | P2-M3-S1～S3 | 扩展 LLM Provider 支持 tools | Provider mock 测试 | 未完成 |
@@ -184,13 +184,33 @@ feat(agent): add agent run and tool call persistence
 
 | Step ID | 任务 | 建议工具 | 交付物 | 验证方式 | Review |
 |---|---|---|---|---|---|
-| P2-M2-S1 | 实现 read_file 工具 | Codex | `backend/app/tools/builtin/read_file.py` | 可读取 README，返回文本内容和 metadata | Codex |
-| P2-M2-S2 | 为 read_file 添加安全和异常测试 | Codex | read_file 测试 | `.env`、二进制文件、超大文件、目录穿越均被拒绝或安全处理 | Codex |
-| P2-M2-S3 | 将 read_file 注册到 Tool Registry | Codex | builtin tool 初始化逻辑 | Registry 能列出 read_file | Codex |
+| P2-M2-S1 | 实现 read_file 工具 | Codex | `backend/app/tools/builtin/read_file.py` | 可读取 README，返回文本内容和 metadata | Codex（done） |
+| P2-M2-S2 | 为 read_file 添加安全和异常测试 | Codex | read_file 测试 | `.env`、二进制文件、超大文件、目录穿越均被拒绝或安全处理 | Codex（done） |
+| P2-M2-S3 | 将 read_file 注册到 Tool Registry | Codex | builtin tool 初始化逻辑 | Registry 能列出 read_file | Codex（done） |
 | P2-M2-S4 | 实现 list_dir 工具 | Codex | `backend/app/tools/builtin/list_dir.py` | 可列出项目内目录，返回文件名、类型、大小 | Codex |
 | P2-M2-S5 | 为 list_dir 添加安全和异常测试 | Codex | list_dir 测试 | 工作区外路径、隐藏敏感文件、无权限路径安全处理 | Codex |
 | P2-M2-S6 | 将 list_dir 注册到 Tool Registry 并补工具列表测试 | Codex | builtin tools registry 测试 | Registry 能列出 read_file / list_dir | Codex |
 | P2-M2-S7 | 评估并处理 web_fetch：实现低风险版本或记录延期 | Codex | `web_fetch.py` 或 docs 限制说明 | 若实现则普通网页文本抓取测试通过；若延期则 README 说明 | Codex review |
+
+### P2-M2-S1～S3 read_file 验收记录（2026-07-18）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| read_file 契约 | 新增异步 `ReadFileTool`，参数仅允许必填字符串 `path`；默认工作区根目录、1 MiB 文件上限和 100,000 返回字符上限均可注入。成功结果包含 UTF-8 文本、规范化相对路径、字节/字符计数和截断状态；默认配置安全读取 tracked `README.md`。 |
+| 安全与异常 | 复用 M1 路径边界；参数错误、`.env`、私钥、目录穿越、缺失文件、目录、超大文件、NUL、非 UTF-8 和 `OSError` 均返回固定安全失败 ToolResult，不回显参数值、绝对路径、文件内容或原始异常。文件读取通过 `asyncio.to_thread`，单次最多请求 `max_file_bytes + 1` 字节。 |
+| Registry | 新增 caller-controlled `register_builtin_tools()`，可将配置后的 read_file 注册到现有 Registry 并导出 OpenAI-compatible schema；重复调用保持显式 DuplicateTool 错误，无 singleton、import-time 或应用启动副作用。 |
+| TDD 证据 | S1 RED 因 `app.tools.builtin` 缺失而 collection 失败，GREEN 为 11 passed；S2 新增 12 个失败路径后为 12 failed / 11 passed，GREEN 为 23 passed；S3 RED 因 `register_builtin_tools` 未导出而失败，GREEN 为 26 passed。Codex review 的 bounded-I/O 回归先证明旧实现调用 `read(-1)`，修复后 read_file 聚焦为 `27 passed`，完整 Tool foundation 为 `119 passed`。 |
+| 全量验证 | Backend 为 `244 passed, 1 warning`，warning 仍是已知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损依赖。Frontend typecheck、8 files / 37 tests 和 production build（1804 modules transformed）均通过；首次 build 的 `dist` 写入 EPERM 已确认是受管沙箱权限限制，使用已批准 build 权限重跑成功。 |
+| 文档与检查 | README、中英文当前阶段、项目概览、架构和 Tool Calling 设计已同步；22 个本地 Markdown 链接存在，变更文件秘密模式、生成物、Step 边界、`CHANGELOG.md` 未改及 diff 检查均通过。 |
+| Codex review 与边界 | 必须修 1 项（文件增长竞态下无界 `read_bytes()`）已按 RED/GREEN 改为限长读取；计划遗漏的项目概览同步已补齐。无剩余阻塞项。未运行 Claude Code，因为本执行行仅要求 Codex 且用户未明确要求外部复审。未实现 `list_dir`、`web_fetch`、Provider tools、Agent Loop、service/API、前端 Agent 视图、RAG、Memory、MCP、Shell 或写文件能力。 |
+
+**结论：** `P2-M2-S1`～`S3` 和 Batch 4 已完成。下一批可进入 `P2-M2-S4`～`S6`，但本批未提前实现 `list_dir` 或任何后续能力。
+
+S1～S3 建议 commit：
+
+```text
+feat(tools): add safe read file builtin
+```
 
 M2 完成后建议 commit：
 

@@ -3,8 +3,9 @@
 ## Current Scope
 
 Plan 2 M1 establishes Tool contracts, discovery, validation, read-only security,
-and persistence models. It does not yet execute a Tool, expose an Agent API, or
-call a Provider with Tool schemas.
+and persistence models. `P2-M2-S1` through `P2-M2-S3` add the first executable
+built-in Tool, `read_file`, plus caller-controlled Registry initialization. No
+Agent service, API, or Provider currently invokes it.
 
 ## Tool Boundary
 
@@ -26,6 +27,26 @@ Paths are workspace-relative and resolved before use. Absolute, drive, UNC,
 parent traversal, `.env`, sensitive directories, private keys, Windows path
 aliases, and alternate data streams are rejected. File-size and directory-depth
 limits are pure policy helpers. M1 does not read or enumerate files.
+
+## Built-in read_file
+
+`ReadFileTool` accepts one required string `path` and rejects unknown arguments.
+It resolves only workspace-relative paths, requires a regular file, rejects
+files over 1 MiB before reading, and checks the actual byte length again after
+the read. A single read requests at most the byte limit plus one, preventing an
+unbounded allocation if the file grows after `stat`. It accepts UTF-8 and UTF-8
+BOM text, rejects NUL and non-UTF-8 content, and truncates returned text after
+100,000 decoded characters.
+
+Successful results place text in `ToolResult.content` and return a normalized
+relative path, `utf-8` encoding, byte count, original/returned character counts,
+and truncation state in metadata. Expected validation, security, file-size,
+encoding, and filesystem failures return fixed safe failed ToolResults without
+argument values, absolute paths, file contents, or raw exceptions.
+
+`register_builtin_tools(registry, ...)` adds a configured `ReadFileTool` to a
+caller-owned Registry. It creates no singleton and has no import-time or
+application-startup side effect.
 
 ## Persistence
 
@@ -51,25 +72,26 @@ These are integrity values, not a full runtime state machine.
 
 ## Current Data Flow
 
-M1 provides definitions and storage only:
+The implemented read_file path is:
 
 ```text
-Future Agent service -> AgentRun -> validated ToolCall -> ToolResult
+Caller-owned Registry -> ReadFileTool -> validation/security -> ToolResult
 ```
 
-No current route or service creates these records. Built-in tools, Provider
-integration, Agent Loop transitions, API access, and frontend visualization are
-scheduled in later Plan 2 milestones.
+No current route or service invokes the Tool or creates AgentRun/ToolCall
+records. `list_dir`, Provider integration, Agent Loop transitions, API access,
+and frontend visualization are scheduled in later Plan 2 milestones.
 
 ## Verification and Security Boundary
 
-Tests use Mock Tools, `tmp_path`, and disposable SQLite databases. They do not
-read a real `.env`, user database, credential, or call a real Provider.
+Tests use Mock Tools, `tmp_path`, the tracked repository `README.md`, and
+disposable SQLite databases. They do not read a real `.env`, user database,
+credential, private key, or call a real Provider.
 
 ## Deferred Work
 
 - Agent persistence service and transactions
-- Built-in read-only tools
+- `list_dir` and optional `web_fetch` evaluation
 - Provider tool calling
 - Simple Agent Loop
 - Agent APIs and frontend ToolCall visualization

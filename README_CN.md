@@ -25,15 +25,17 @@ Plan 1 覆盖：
 
 已完成范围：`P1-M1-S1` 到 `P1-M4-S8`。
 
-当前开发阶段：Plan 2 Milestone 1 已完成。已完成的 Plan 2 范围为
-`P2-M1-S1` 到 `P2-M1-S8`。
+当前开发阶段：Plan 2 M2 的 `read_file` 已完成。已完成的 Plan 2 范围为
+`P2-M1-S1` 到 `P2-M2-S3`。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
-模型与 Alembic 迁移。当前尚未实现可执行的内置工具、Provider tool calling、
-Agent Loop、Agent API 或前端 Agent/ToolCall 视图。
+模型与 Alembic 迁移。首个可执行内置 Tool 可安全读取工作区内的 UTF-8 文本，
+拒绝超过 1 MiB 的文件，对超过 100,000 字符的输出截断并返回 metadata，失败
+时返回安全结果，并由调用方注册到 Registry。当前尚未实现 `list_dir`、
+Provider tool calling、Agent Loop、Agent API 或前端 Agent/ToolCall 视图。
 
-下一批：`P2-M2-S1` 到 `P2-M2-S3`。
+下一批：`P2-M2-S4` 到 `P2-M2-S6`。
 
 ## v0.1.0 演示
 

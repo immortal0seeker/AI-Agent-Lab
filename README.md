@@ -25,16 +25,19 @@ Plan 1 covers:
 
 Completed scope: `P1-M1-S1` through `P1-M4-S8`.
 
-Current development stage: Plan 2 Milestone 1 is complete. Completed Plan 2
-scope: `P2-M1-S1` through `P2-M1-S8`.
+Current development stage: Plan 2 M2 `read_file` is complete. Completed Plan 2
+scope: `P2-M1-S1` through `P2-M2-S3`.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
-path policy, and AgentRun/ToolCall ORM models with an Alembic migration. It does
-not yet include executable built-in tools, Provider tool calling, an Agent Loop,
-Agent APIs, or frontend Agent/ToolCall views.
+path policy, and AgentRun/ToolCall ORM models with an Alembic migration. The
+first executable built-in Tool safely reads workspace-relative UTF-8 text,
+rejects files over 1 MiB, truncates output after 100,000 characters with
+metadata, returns safe failures, and registers into a caller-owned Registry. It
+does not yet include `list_dir`, Provider tool calling, an Agent Loop, Agent
+APIs, or frontend Agent/ToolCall views.
 
-Next batch: `P2-M2-S1` through `P2-M2-S3`.
+Next batch: `P2-M2-S4` through `P2-M2-S6`.
 
 ## v0.1.0 Demo
 

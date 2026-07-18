@@ -1,4 +1,9 @@
 from app.tools.base import Tool, ToolError, ToolResult
+from app.tools.builtin import (
+    DEFAULT_MAX_READ_CHARACTERS,
+    ReadFileTool,
+    register_builtin_tools,
+)
 from app.tools.registry import (
     DuplicateToolError,
     ToolNotFoundError,
@@ -27,8 +32,10 @@ from app.tools.validation import (
 __all__ = [
     "DEFAULT_MAX_DIRECTORY_DEPTH",
     "DEFAULT_MAX_FILE_BYTES",
+    "DEFAULT_MAX_READ_CHARACTERS",
     "DuplicateToolError",
     "PROJECT_WORKSPACE_ROOT",
+    "ReadFileTool",
     "Tool",
     "ToolArgumentValidationError",
     "ToolError",
@@ -42,6 +49,7 @@ __all__ = [
     "ToolValidationIssue",
     "UnsafePathError",
     "resolve_workspace_path",
+    "register_builtin_tools",
     "validate_directory_depth",
     "validate_file_size",
     "validate_tool_arguments",

@@ -3,7 +3,7 @@
 ## Current Architecture Stage
 
 This document describes the Plan 1 architecture delivered by `v0.1.0` and the
-Plan 2 M1 Tool Calling foundation built on top of it. The repository has
+Plan 2 Tool Calling foundation built on top of it. The repository has
 completed `P1-M1-S1` through `P1-M4-S8`, including the health
 flow, database and Provider foundations, transactional Conversation and Chat
 services, non-streaming and SSE Chat routes, Registry model selection,
@@ -13,7 +13,9 @@ recoverable frontend initialization states, clean-start documentation, release
 materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
 completed `P2-M1-S1` through `P2-M1-S8`: Tool contracts, Registry, validation,
 read-only path policy, and AgentRun/ToolCall persistence are available as
-foundations, while executable tools and Agent runtime behavior remain deferred.
+foundations. `P2-M2-S1` through `P2-M2-S3` add the first executable built-in
+Tool, `read_file`, while directory listing and Agent runtime behavior remain
+deferred.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -38,6 +40,12 @@ AI-Agent-Lab/
 │       ├── services/
 │       ├── providers/
 │       └── tools/
+│           ├── base.py
+│           ├── registry.py
+│           ├── security.py
+│           ├── validation.py
+│           └── builtin/
+│               └── read_file.py
 ├── frontend/
 │   └── src/
 │       ├── api/
@@ -146,18 +154,35 @@ tool schemas and arguments without echoing rejected values in errors.
 
 The read-only security module resolves workspace-relative paths and rejects
 absolute, drive, UNC, parent-traversal, sensitive, private-key, Windows alias,
-and alternate-data-stream inputs. File-size and directory-depth limits are
-policy helpers only; M1 performs no file reads or directory enumeration.
+and alternate-data-stream inputs. File-size and directory-depth limits remain
+shared policy helpers.
 
-The current Tool data path is deliberately incomplete:
+`ReadFileTool` is the first consumer of this boundary. It validates one `path`
+argument, resolves it below an injected workspace root, requires a regular file,
+rejects files over 1 MiB before reading, rechecks the actual byte length, rejects
+NUL and non-UTF-8 content, removes a UTF-8 BOM, and truncates returned text after
+100,000 decoded characters. The read itself requests at most the byte limit plus
+one, so a file growth race cannot cause an unbounded allocation. Successful
+metadata contains only a normalized
+workspace-relative path, encoding, byte/character counts, and truncation state.
+Expected validation, security, size, encoding, and filesystem failures become
+fixed safe failed `ToolResult` values without raw paths, content, or exception
+text. File I/O runs through `asyncio.to_thread`.
+
+The implemented Tool data path is:
 
 ```text
-Future Agent service -> AgentRun -> validated ToolCall -> ToolResult
+Caller-owned ToolRegistry
+-> register_builtin_tools()
+-> ReadFileTool
+-> argument and workspace security validation
+-> bounded UTF-8 read
+-> ToolResult
 ```
 
-No current route or service creates AgentRun or ToolCall records. Built-in
-tools, Provider tool calling, Agent Loop transitions, Agent APIs, and frontend
-visualization remain scheduled for later Plan 2 milestones. See
+No current route or service invokes the Tool or creates AgentRun/ToolCall
+records. `list_dir`, Provider tool calling, Agent Loop transitions, Agent APIs,
+and frontend visualization remain scheduled for later Plan 2 milestones. See
 [Tool Calling Design](10-tool-calling-design.md) for the detailed boundary.
 
 ## Frontend Boundaries
