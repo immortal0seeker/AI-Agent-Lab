@@ -11,11 +11,11 @@ conversation navigation, refresh recovery, successful-call usage persistence,
 structured errors, request-linked logging, focused regression coverage,
 recoverable frontend initialization states, clean-start documentation, release
 materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
-completed `P2-M1-S1` through `P2-M1-S8`: Tool contracts, Registry, validation,
-read-only path policy, and AgentRun/ToolCall persistence are available as
-foundations. `P2-M2-S1` through `P2-M2-S6` add the executable read-only
-`read_file` and `list_dir` builtins, while Provider tool calling and Agent
-runtime behavior remain deferred.
+completed `P2-M1-S1` through `P2-M2-S7`: Tool contracts, Registry, validation,
+read-only path policy, AgentRun/ToolCall persistence, and the executable
+`read_file` and `list_dir` builtins are available. `web_fetch` was evaluated
+and deferred; no network Tool, Provider Tool Calling, or Agent runtime behavior
+is implemented at this stage.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -189,6 +189,11 @@ Caller-owned ToolRegistry
 -> bounded UTF-8 read or directory traversal
 -> ToolResult
 ```
+
+`web_fetch` is intentionally absent from this architecture. A future
+reassessment must define SSRF-safe address and redirect validation, DNS-
+rebinding resistance, bounded streaming, content policy, text extraction,
+safe errors, and mock acceptance coverage before exposing a network Tool.
 
 No current route or service invokes the Tool or creates AgentRun/ToolCall
 records. Provider tool calling, Agent Loop transitions, Agent APIs, and

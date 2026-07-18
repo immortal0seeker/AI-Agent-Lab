@@ -25,20 +25,22 @@ Plan 1 covers:
 
 Completed scope: `P1-M1-S1` through `P1-M4-S8`.
 
-Current development stage: Plan 2 M2 `read_file` and `list_dir` are complete.
-Completed Plan 2 scope: `P2-M1-S1` through `P2-M2-S6`.
+Current development stage: Plan 2 M2 is complete. Completed Plan 2 scope:
+`P2-M1-S1` through `P2-M2-S7`.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
-path policy, and AgentRun/ToolCall ORM models with an Alembic migration. The
-builtin Registry now exposes `read_file` and `list_dir` in stable order.
-`read_file` safely performs bounded UTF-8 reads. `list_dir` performs bounded,
-deterministic workspace traversal with depth and entry limits, filters
-sensitive entries, and never follows discovered symlinks. Expected failures
-become safe ToolResults. Provider tool calling, an Agent Loop, Agent APIs, and
-frontend Agent/ToolCall views are not yet implemented.
+path policy, and AgentRun/ToolCall ORM models with an Alembic migration. M2
+adds the two registered read-only builtins `read_file` and `list_dir`, with
+bounded I/O, workspace-relative path policy, sensitive-name filtering, safe
+failures, and mocked regression coverage. `web_fetch` was evaluated in
+`P2-M2-S7` and explicitly deferred because a trustworthy network Tool requires
+a complete SSRF, DNS/redirect, timeout, response-size, content-type, and text-
+extraction boundary. No `web_fetch` Tool or schema is implemented or exposed.
+Provider tool calling, an Agent Loop, Agent APIs, and frontend Agent/ToolCall
+views are not yet implemented.
 
-Next batch: `P2-M2-S7` only.
+Next batch: `P2-M3-S1` through `P2-M3-S3`.
 
 ## v0.1.0 Demo
 

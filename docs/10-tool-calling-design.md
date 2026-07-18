@@ -3,9 +3,10 @@
 ## Current Scope
 
 Plan 2 M1 establishes Tool contracts, discovery, validation, read-only security,
-and persistence models. `P2-M2-S1` through `P2-M2-S6` provide two executable
-read-only builtins, `read_file` and `list_dir`, plus caller-controlled Registry
-initialization. No Agent service, API, or Provider currently invokes them.
+and persistence models. `P2-M2-S1` through `P2-M2-S7` complete M2 with two
+executable read-only builtins, `read_file` and `list_dir`, plus caller-controlled
+Registry initialization and an explicit `web_fetch` deferral. No Agent service,
+API, or Provider currently invokes a Tool.
 
 ## Tool Boundary
 
@@ -71,6 +72,20 @@ no singleton and has no import-time or application-startup side effect.
 Configuration and duplicate-name checks happen before either Tool is added, so
 an initialization failure leaves the caller's Registry unchanged.
 
+## web_fetch Deferral
+
+`P2-M2-S7` evaluated `web_fetch` and explicitly deferred it. No
+`web_fetch.py`, Tool/schema registration, URL helper, dependency, API, or UI is
+implemented. A safe network Tool requires a complete scheme/port policy,
+public-address and DNS-rebinding strategy, redirect revalidation, strict
+timeouts, bounded streaming, content-type/decoding rules, safe HTML text
+extraction, redacted errors, and mock coverage. Implementing a subset would
+misrepresent the Tool as low risk.
+
+The capability may be reassessed in Plan 4 or Plan 6, but neither Plan is
+committed to this exact Tool shape. The active future Step must approve the
+network permission and extraction contract before implementation.
+
 ## Persistence
 
 `AgentRun` records Conversation ownership, an optional user Message, simple
@@ -107,7 +122,8 @@ Caller-owned Registry
 
 No current route or service invokes the Tool or creates AgentRun/ToolCall
 records. Provider integration, Agent Loop transitions, API access, and frontend
-visualization are scheduled in later Plan 2 milestones.
+visualization are scheduled in later Plan 2 milestones. Provider Tool Calling
+in `P2-M3-S1` through `P2-M3-S3` is the next implementation boundary.
 
 ## Verification and Security Boundary
 
@@ -118,7 +134,7 @@ credential, private key, or call a real Provider.
 ## Deferred Work
 
 - Agent persistence service and transactions
-- optional `web_fetch` evaluation
+- `web_fetch` reassessment, no earlier than Plan 4 or Plan 6
 - Provider tool calling
 - Simple Agent Loop
 - Agent APIs and frontend ToolCall visualization

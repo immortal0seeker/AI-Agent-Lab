@@ -55,7 +55,7 @@ blocked
 | Batch 3 | P2-M1-S7～S8 | 持久化 AgentRun / ToolCall，完成 M1 review | Codex review M1（Claude Code 未运行） | 已完成 |
 | Batch 4 | P2-M2-S1～S3 | 实现 read_file 并覆盖路径安全测试 | 工具测试 | 已完成 |
 | Batch 5 | P2-M2-S4～S6 | 实现 list_dir 和工具注册 | 工具集成测试 | 已完成 |
-| Batch 6 | P2-M2-S7 | 可选实现 web_fetch 或明确延期记录 | Codex review M2 | 未完成 |
+| Batch 6 | P2-M2-S7 | 可选实现 web_fetch 或明确延期记录 | Codex review M2 | 已完成（deferred） |
 | Batch 7 | P2-M3-S1～S3 | 扩展 LLM Provider 支持 tools | Provider mock 测试 | 未完成 |
 | Batch 8 | P2-M3-S4～S6 | 实现 Simple Agent Loop | Agent mock 测试 | 未完成 |
 | Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex + Claude review M3 | 未完成 |
@@ -190,7 +190,7 @@ feat(agent): add agent run and tool call persistence
 | P2-M2-S4 | 实现 list_dir 工具 | Codex | `backend/app/tools/builtin/list_dir.py` | 可列出项目内目录，返回文件名、类型、大小 | Codex（done） |
 | P2-M2-S5 | 为 list_dir 添加安全和异常测试 | Codex | list_dir 测试 | 工作区外路径、隐藏敏感文件、无权限路径安全处理 | Codex（done） |
 | P2-M2-S6 | 将 list_dir 注册到 Tool Registry 并补工具列表测试 | Codex | builtin tools registry 测试 | Registry 能列出 read_file / list_dir | Codex（done） |
-| P2-M2-S7 | 评估并处理 web_fetch：实现低风险版本或记录延期 | Codex | `web_fetch.py` 或 docs 限制说明 | 若实现则普通网页文本抓取测试通过；若延期则 README 说明 | Codex review |
+| P2-M2-S7 | 评估并处理 web_fetch：实现低风险版本或记录延期 | Codex | docs 延期与限制说明 | README / docs 明确未实现、延期原因和重评边界 | Codex review（done：deferred） |
 
 ### P2-M2-S1～S3 read_file 验收记录（2026-07-18）
 
@@ -225,12 +225,32 @@ feat(tools): add safe read file builtin
 | 文档与检查 | 中英文 README、项目概览、架构和 Tool Calling 设计已同步；31 个本地 Markdown 链接存在，变更文件秘密模式 0、Git 可见 Python 生成物 0、越界能力代码命中 0，`CHANGELOG.md` 未改，diff 检查通过。pytest 生成的 70 个本地 `.pyc` 均被忽略且未进入 Git。 |
 | Codex review 与边界 | 必须修 1 项：双工具初始化在无效 `list_dir` 配置或预存同名 Tool 时会留下部分注册；已按 RED/GREEN 改为构造和重复检查全部成功后再写 Registry，并完成聚焦、Tool foundation 与后端全量复验。无剩余阻塞项。未运行 Claude Code，因为用户未明确要求外部复审。未实现 S7、Provider tools、Agent Loop、service/API/frontend Agent 视图、RAG、Memory、MCP、Shell 或写文件能力。 |
 
-**结论：** `P2-M2-S4`～`S6` 已完成。下一批可单独进入 `P2-M2-S7`，本批未提前实现或决定 `web_fetch`。
+**结论：** `P2-M2-S4`～`S6` 已完成；后续 S7 的评估与延期决策见下节，本批没有提前实现 `web_fetch`。
 
 S4～S6 建议 commit：
 
 ```text
 feat(tools): add safe list directory builtin
+```
+
+### P2-M2-S7 web_fetch 评估与 M2 review 记录（2026-07-18）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 决策 | 采用计划允许的延期路径：Plan 2 不实现 `web_fetch`。M2 以 `read_file` 与 `list_dir` 两个只读内置 Tool 收口。 |
+| 延期原因 | 可信网络 Tool 必须完整处理 scheme/port、SSRF、DNS 与重绑定、每次重定向复验、严格超时、有界流式响应、内容类型/解码、HTML 正文提取和安全错误；只实现其中一部分会形成误导性的“低风险”能力。 |
+| 可执行边界 | 未创建 `web_fetch.py`、`WebFetchTool`、URL/network helper、依赖、配置、测试、Registry schema、API 或前端 UI；未发起真实网络请求或 Provider 调用。 |
+| 重评边界 | 候选重评点为 Plan 4 或 Plan 6，但不承诺采用当前 Tool 形态；未来必须先批准完整网络权限、重定向/地址验证、提取和 Mock 验收契约。 |
+| 全量验证 | Backend `271 passed, 1 warning`，`pip check` 通过；Frontend typecheck、8 files / 37 tests 和 production build（1804 modules transformed）通过。warning 仍是已知 Starlette TestClient/httpx 弃用提示。 |
+| 文档与检查 | README/README_CN、项目概览、架构、Tool Calling 设计和执行表事实一致；最终复验记录 31 个本地 Markdown 链接、秘密模式 0、Git 可见生成物 0、无网络 Tool surface、`CHANGELOG.md` 未改和 diff 检查通过。 |
+| Codex M2 review | 必须修 1 项：验收记录曾预填 32 个本地 Markdown 链接，实际完整扫描为 31 个；已按真实证据纠正并复验。纯文档 diff 与批准方案一致，无剩余阻塞项。确认未进入 Provider tools、Agent Loop、service/API/frontend Agent 视图或后续 Plan。未运行 Claude Code，因为用户未明确要求外部复审。 |
+
+**结论：** `P2-M2-S1`～`S7` 与 M2 已完成。下一批进入 `P2-M3-S1`～`S3`，本 Step 没有实现或暴露 `web_fetch`。
+
+S7 建议 commit：
+
+```text
+docs(plan2): defer web fetch tool
 ```
 
 M2 完成后建议 commit：

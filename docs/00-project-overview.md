@@ -36,7 +36,7 @@ The project emphasizes:
 ## Current Stage
 
 Current release: Plan 1 is complete as the `v0.1.0` foundation release.
-Current development stage: Plan 2 M2 `read_file` and `list_dir` are complete.
+Current development stage: Plan 2 M2 is complete through `P2-M2-S7`.
 
 The repository has completed `P1-M1-S1` through `P1-M4-S8`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 added:
 
@@ -93,11 +93,12 @@ read-only builtins. `read_file` provides bounded workspace-relative UTF-8
 reads. `list_dir` provides deterministic recursive listings with default depth
 2, hard depth 3, a default 500-entry bound, structured name/type/size data,
 sensitive-name filtering, and non-followed discovered symlinks. Both return
-safe failure results and register into a caller-controlled Registry. Provider
-tool calling, the Agent Loop, Agent APIs, and frontend Agent/ToolCall views
-remain deferred.
+safe failure results and register into a caller-controlled Registry.
+`P2-M2-S7` evaluated and explicitly deferred `web_fetch`; no network Tool,
+schema, helper, dependency, API, or UI was added. Provider tool calling, the
+Agent Loop, Agent APIs, and frontend Agent/ToolCall views remain deferred.
 
-The next batch is `P2-M2-S7` only. See the
+The next batch is `P2-M3-S1` through `P2-M3-S3`. See the
 [Tool Calling design](10-tool-calling-design.md),
 [Plan 1 foundation release](02-plan-1-foundation.md), and root
 [changelog](../CHANGELOG.md) for the current boundaries and limitations.
