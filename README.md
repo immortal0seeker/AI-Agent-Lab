@@ -25,8 +25,8 @@ Plan 1 covers:
 
 Completed scope: `P1-M1-S1` through `P1-M4-S8`.
 
-Current development stage: Plan 2 M2 is complete. Completed Plan 2 scope:
-`P2-M1-S1` through `P2-M2-S7`.
+Current development stage: the first Plan 2 M3 batch is complete. Completed
+Plan 2 scope: `P2-M1-S1` through `P2-M3-S3`.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -37,10 +37,15 @@ failures, and mocked regression coverage. `web_fetch` was evaluated in
 `P2-M2-S7` and explicitly deferred because a trustworthy network Tool requires
 a complete SSRF, DNS/redirect, timeout, response-size, content-type, and text-
 extraction boundary. No `web_fetch` Tool or schema is implemented or exposed.
-Provider tool calling, an Agent Loop, Agent APIs, and frontend Agent/ToolCall
-views are not yet implemented.
+`P2-M3-S1` through `P2-M3-S3` add typed non-streaming Provider Tool
+definitions and Tool Calls, a defensive Registry-to-Provider schema adapter,
+and safe OpenAI-compatible `tools` request/response mapping. The tracked
+example model remains `supports_tools=false`, and streaming Tool Calls fail
+locally before HTTP because this batch does not aggregate Tool Call deltas. An
+Agent Loop, Tool execution, AgentRun/ToolCall persistence service, Agent APIs,
+and frontend Agent/ToolCall views are not yet implemented.
 
-Next batch: `P2-M3-S1` through `P2-M3-S3`.
+Next batch: `P2-M3-S4` through `P2-M3-S6`.
 
 ## v0.1.0 Demo
 

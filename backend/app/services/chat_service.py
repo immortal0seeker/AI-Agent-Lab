@@ -155,6 +155,10 @@ class ChatService:
         try:
             with timer.measure():
                 response = await provider.chat(provider_request)
+            if response.content is None:
+                raise ProviderResponseError(
+                    "Provider response did not contain text"
+                )
         except LLMProviderError as exc:
             _log_llm_not_completed(
                 request,

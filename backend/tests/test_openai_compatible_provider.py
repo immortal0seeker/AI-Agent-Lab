@@ -7,6 +7,8 @@ import pytest
 from app.providers.llm.base import (
     ChatMessage,
     ChatRequest,
+    LLMFunctionDefinition,
+    LLMToolDefinition,
     ProviderAuthError,
     ProviderBadRequestError,
     ProviderRateLimitError,
@@ -15,9 +17,27 @@ from app.providers.llm.base import (
     ProviderServerError,
     ProviderTimeoutError,
     ProviderUnknownError,
+    ProviderUnsupportedFeatureError,
     TokenUsage,
 )
 from app.providers.llm.openai_compatible import OpenAICompatibleProvider
+
+
+def build_tool_definition(
+    name: str = "read_file",
+) -> LLMToolDefinition:
+    return LLMToolDefinition(
+        function=LLMFunctionDefinition(
+            name=name,
+            description=f"Run {name}",
+            parameters={
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+                "additionalProperties": False,
+            },
+        )
+    )
 
 
 def test_chat_maps_request_response_and_usage() -> None:
@@ -88,6 +108,284 @@ def test_chat_maps_request_response_and_usage() -> None:
         output_tokens=2,
         total_tokens=6,
     )
+
+
+def test_chat_sends_tools_and_parses_tool_call() -> None:
+    async def exercise() -> tuple[dict[str, object], object]:
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.update(json.loads(request.content))
+            return httpx.Response(
+                200,
+                json={
+                    "id": "chatcmpl-tools",
+                    "model": "tool-model",
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": "call_1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "read_file",
+                                            "arguments": '{"path":"README.md"}',
+                                        },
+                                    }
+                                ],
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ],
+                },
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ) as client:
+            provider = OpenAICompatibleProvider(
+                base_url="https://provider.example/v1",
+                api_key="test-secret-key",
+                default_model="tool-model",
+                client=client,
+            )
+            response = await provider.chat(
+                ChatRequest(
+                    messages=[
+                        ChatMessage(role="user", content="read README")
+                    ],
+                    tools=(build_tool_definition(),),
+                )
+            )
+        return captured, response
+
+    payload, response = asyncio.run(exercise())
+
+    assert payload["tools"] == [
+        build_tool_definition().model_dump(mode="json")
+    ]
+    assert response.content is None
+    assert response.finish_reason == "tool_calls"
+    assert response.tool_calls[0].tool_call_id == "call_1"
+    assert response.tool_calls[0].tool_name == "read_file"
+    assert response.tool_calls[0].arguments == {"path": "README.md"}
+
+
+def test_chat_parses_multiple_tool_calls_in_order_with_usage() -> None:
+    async def exercise() -> object:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "id": "chatcmpl-tools",
+                    "model": "tool-model",
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": "call_1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "read_file",
+                                            "arguments": '{"path":"README.md"}',
+                                        },
+                                    },
+                                    {
+                                        "id": "call_2",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "list_dir",
+                                            "arguments": '{"path":"."}',
+                                        },
+                                    },
+                                ],
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 7,
+                        "completion_tokens": 3,
+                        "total_tokens": 10,
+                    },
+                },
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ) as client:
+            provider = OpenAICompatibleProvider(
+                base_url="https://provider.example/v1",
+                api_key="test-secret-key",
+                default_model="tool-model",
+                client=client,
+            )
+            return await provider.chat(
+                ChatRequest(
+                    messages=[ChatMessage(role="user", content="inspect")],
+                    tools=(
+                        build_tool_definition(),
+                        build_tool_definition("list_dir"),
+                    ),
+                )
+            )
+
+    response = asyncio.run(exercise())
+
+    assert [call.tool_call_id for call in response.tool_calls] == [
+        "call_1",
+        "call_2",
+    ]
+    assert [call.tool_name for call in response.tool_calls] == [
+        "read_file",
+        "list_dir",
+    ]
+    assert response.usage == TokenUsage(
+        input_tokens=7,
+        output_tokens=3,
+        total_tokens=10,
+    )
+
+
+def build_tool_call_payload(
+    *,
+    tool_call_id: str = "call_1",
+    tool_name: str = "read_file",
+    arguments: object = '{"path":"README.md"}',
+    tool_type: str = "function",
+) -> dict[str, object]:
+    return {
+        "id": tool_call_id,
+        "type": tool_type,
+        "function": {
+            "name": tool_name,
+            "arguments": arguments,
+        },
+    }
+
+
+def run_tool_call_response(
+    tool_calls: object,
+    *,
+    request_tools: bool = True,
+) -> object:
+    async def exercise() -> object:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "model": "tool-model",
+                    "choices": [
+                        {
+                            "message": {
+                                "content": None,
+                                "tool_calls": tool_calls,
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ],
+                },
+            )
+
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ) as client:
+            provider = OpenAICompatibleProvider(
+                base_url="https://provider.example/v1",
+                api_key="test-secret-key",
+                default_model="tool-model",
+                client=client,
+            )
+            return await provider.chat(
+                ChatRequest(
+                    messages=[ChatMessage(role="user", content="inspect")],
+                    tools=(build_tool_definition(),) if request_tools else (),
+                )
+            )
+
+    return asyncio.run(exercise())
+
+
+@pytest.mark.parametrize(
+    "tool_calls",
+    [
+        [],
+        [{}],
+        [
+            {
+                "id": "call_1",
+                "type": "function",
+            }
+        ],
+        [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"arguments": "{}"},
+            }
+        ],
+        [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "read_file"},
+            }
+        ],
+        [build_tool_call_payload(tool_call_id="")],
+        [build_tool_call_payload(tool_call_id="x" * 256)],
+        [build_tool_call_payload(tool_type="custom")],
+        [build_tool_call_payload(arguments="{")],
+        [build_tool_call_payload(arguments="[]")],
+        [build_tool_call_payload(arguments={"path": "README.md"})],
+        [build_tool_call_payload(tool_name="read file")],
+    ],
+)
+def test_chat_rejects_malformed_tool_calls(tool_calls: object) -> None:
+    with pytest.raises(ProviderResponseError, match="response format"):
+        run_tool_call_response(tool_calls)
+
+
+def test_chat_rejects_duplicate_tool_call_ids() -> None:
+    with pytest.raises(ProviderResponseError, match="response format"):
+        run_tool_call_response(
+            [
+                build_tool_call_payload(),
+                build_tool_call_payload(tool_name="list_dir"),
+            ]
+        )
+
+
+def test_chat_rejects_non_standard_json_arguments() -> None:
+    with pytest.raises(ProviderResponseError, match="response format"):
+        run_tool_call_response(
+            [build_tool_call_payload(arguments='{"path":NaN}')]
+        )
+
+
+def test_chat_rejects_unrequested_tool_calls() -> None:
+    with pytest.raises(ProviderResponseError, match="response format"):
+        run_tool_call_response(
+            [build_tool_call_payload()],
+            request_tools=False,
+        )
+
+
+def test_chat_tool_call_error_does_not_leak_raw_arguments() -> None:
+    private_arguments = '{"token":"synthetic-secret"'
+
+    with pytest.raises(ProviderResponseError) as exc_info:
+        run_tool_call_response(
+            [build_tool_call_payload(arguments=private_arguments)]
+        )
+
+    assert "synthetic-secret" not in str(exc_info.value)
+    assert private_arguments not in str(exc_info.value)
 
 
 def test_chat_uses_default_model_and_omits_unset_max_tokens() -> None:
@@ -404,3 +702,39 @@ def test_stream_chat_parses_sse_chunks_and_done_marker() -> None:
         output_tokens=2,
         total_tokens=5,
     )
+
+
+def test_stream_chat_rejects_tools_before_http() -> None:
+    called = False
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal called
+        called = True
+        return httpx.Response(500)
+
+    async def exercise() -> None:
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ) as client:
+            provider = OpenAICompatibleProvider(
+                base_url="https://provider.example/v1",
+                api_key="test-secret-key",
+                default_model="tool-model",
+                client=client,
+            )
+            async for _ in provider.stream_chat(
+                ChatRequest(
+                    messages=[
+                        ChatMessage(role="user", content="read README")
+                    ],
+                    tools=(build_tool_definition(),),
+                )
+            ):
+                pass
+
+    with pytest.raises(
+        ProviderUnsupportedFeatureError,
+        match="streaming tool calls",
+    ):
+        asyncio.run(exercise())
+    assert called is False

@@ -1,7 +1,7 @@
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, NoReturn
 
 import httpx
 from pydantic import ValidationError
@@ -11,6 +11,7 @@ from app.providers.llm.base import (
     ChatChunk,
     ChatRequest,
     LLMResponse,
+    LLMToolCall,
     ProviderAuthError,
     ProviderBadRequestError,
     ProviderConfigurationError,
@@ -20,8 +21,13 @@ from app.providers.llm.base import (
     ProviderServerError,
     ProviderTimeoutError,
     ProviderUnknownError,
+    ProviderUnsupportedFeatureError,
     TokenUsage,
 )
+
+
+def _reject_non_standard_json_constant(value: str) -> NoReturn:
+    raise ValueError("tool arguments contain a non-standard JSON constant")
 
 
 class OpenAICompatibleProvider(BaseLLMProvider):
@@ -80,6 +86,10 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         }
         if request.max_tokens is not None:
             payload["max_tokens"] = request.max_tokens
+        if request.tools:
+            payload["tools"] = [
+                tool.model_dump(mode="json") for tool in request.tools
+            ]
         return payload
 
     @property
@@ -112,12 +122,19 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 "Provider response format is invalid: expected JSON"
             ) from exc
 
-        return self._parse_response(payload)
+        return self._parse_response(
+            payload,
+            tools_requested=bool(request.tools),
+        )
 
     async def stream_chat(
         self,
         request: ChatRequest,
     ) -> AsyncIterator[ChatChunk]:
+        if request.tools:
+            raise ProviderUnsupportedFeatureError(
+                "Provider streaming tool calls are not supported"
+            )
         try:
             async with self._client_context() as client:
                 async with client.stream(
@@ -191,13 +208,26 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             status_code=status_code,
         )
 
-    def _parse_response(self, payload: Any) -> LLMResponse:
+    def _parse_response(
+        self,
+        payload: Any,
+        *,
+        tools_requested: bool,
+    ) -> LLMResponse:
         try:
             choice = payload["choices"][0]
             message = choice["message"]
-            content = message["content"]
-            if not isinstance(content, str):
+            if not isinstance(message, dict):
+                raise TypeError("message must be an object")
+            content = message.get("content")
+            if content is not None and not isinstance(content, str):
                 raise TypeError("content must be a string")
+            raw_tool_calls = message.get("tool_calls")
+            tool_calls: tuple[LLMToolCall, ...] = ()
+            if raw_tool_calls is not None:
+                if not tools_requested:
+                    raise TypeError("tool calls were not requested")
+                tool_calls = self._parse_tool_calls(raw_tool_calls)
 
             model = payload.get("model") or self._default_model
             usage = self._parse_usage(payload.get("usage"))
@@ -207,11 +237,48 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 content=content,
                 finish_reason=choice.get("finish_reason"),
                 usage=usage,
+                tool_calls=tool_calls,
             )
-        except (KeyError, IndexError, TypeError, ValidationError) as exc:
+        except (
+            KeyError,
+            IndexError,
+            TypeError,
+            ValueError,
+            ValidationError,
+        ) as exc:
             raise ProviderResponseError(
                 "Provider response format is invalid"
             ) from exc
+
+    @staticmethod
+    def _parse_tool_calls(payload: Any) -> tuple[LLMToolCall, ...]:
+        if not isinstance(payload, list) or not payload:
+            raise TypeError("tool_calls must be a non-empty array")
+
+        tool_calls: list[LLMToolCall] = []
+        for item in payload:
+            if not isinstance(item, dict) or item.get("type") != "function":
+                raise TypeError("tool call type must be function")
+            function = item["function"]
+            if not isinstance(function, dict):
+                raise TypeError("function must be an object")
+            raw_arguments = function["arguments"]
+            if not isinstance(raw_arguments, str):
+                raise TypeError("arguments must be a string")
+            arguments = json.loads(
+                raw_arguments,
+                parse_constant=_reject_non_standard_json_constant,
+            )
+            if not isinstance(arguments, dict):
+                raise TypeError("arguments root must be an object")
+            tool_calls.append(
+                LLMToolCall(
+                    tool_call_id=item["id"],
+                    tool_name=function["name"],
+                    arguments=arguments,
+                )
+            )
+        return tuple(tool_calls)
 
     @staticmethod
     def _parse_usage(payload: Any) -> TokenUsage | None:

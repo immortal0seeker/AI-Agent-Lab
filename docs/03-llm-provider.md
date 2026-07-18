@@ -2,7 +2,8 @@
 
 ## Implemented Scope
 
-Plan 1 Milestone 2 provides the backend foundation for model access:
+Plan 1 Milestone 2 provides the backend foundation for model access, and
+`P2-M3-S1` through `P2-M3-S3` extend its non-streaming protocol boundary:
 
 - vendor-neutral asynchronous chat and stream contracts
 - typed messages, requests, responses, chunks, and token usage
@@ -13,6 +14,9 @@ Plan 1 Milestone 2 provides the backend foundation for model access:
 - mock HTTP and Registry unit tests
 - classified Provider failures with safe client messages
 - successful Chat usage, Registry cost, and latency persistence
+- typed function Tool definitions and normalized Tool Calls
+- a defensive Tool Registry-to-Provider schema adapter
+- OpenAI-compatible non-streaming `tools` serialization and `tool_calls` parsing
 
 The Provider layer is consumed by both `POST /api/v1/chat/completions` and
 `POST /api/v1/chat/stream`. `GET /api/v1/models` exposes read-only Registry
@@ -25,6 +29,9 @@ Listing models does not initialize a Provider or expose credentials.
 
 - `ChatMessage`
 - `ChatRequest`
+- `LLMFunctionDefinition`
+- `LLMToolDefinition`
+- `LLMToolCall`
 - `TokenUsage`
 - `LLMResponse`
 - `ChatChunk`
@@ -33,7 +40,28 @@ Listing models does not initialize a Provider or expose credentials.
 
 Future business services should depend on `BaseLLMProvider`, not on `httpx`, an OpenAI SDK, or a specific model vendor.
 
-The current contract supports non-streaming chat, streaming chunks, text messages, model override, temperature, maximum output tokens, and normalized token usage. Tool Calling and JSON-mode request fields are intentionally absent because they belong to later work.
+The current contract supports non-streaming chat, text-only streaming chunks,
+text messages, model override, temperature, maximum output tokens, normalized
+token usage, typed function Tool definitions, and normalized non-streaming Tool
+Calls. `ChatRequest.tools` defaults to an empty tuple, preserving ordinary Plan
+1 payloads. `LLMResponse` requires text content, at least one Tool Call, or both;
+Tool Call IDs must be unique in one response. JSON-mode request fields remain
+deferred.
+
+## Tool Definition Adapter
+
+`backend/app/providers/llm/tool_adapter.py` converts a caller-owned
+`ToolRegistry` into `LLMToolDefinition` values in Registry order. Each
+definition copies the Tool name, description, and object-root parameter schema.
+The adapter does not execute tools, inspect the workspace, mutate the Registry,
+or depend on builtin Tool classes. Registry schemas and serialized Provider
+definitions remain independent defensive values.
+
+Tool names accept at most 64 ASCII letters, digits, underscores, or hyphens.
+Parameter schemas must have an object root and be strict JSON-serializable;
+non-standard numeric values are rejected. The adapter intentionally does not
+emit OpenAI `strict=true`, because the existing Draft 2020-12 schemas do not
+claim the narrower strict-mode subset.
 
 ## OpenAI-Compatible Configuration
 
@@ -69,6 +97,19 @@ malformed JSON, and malformed response shapes become Provider-layer exceptions.
 Authentication, rate limit, timeout, bad request, upstream server, invalid
 response, and unknown request failures have distinct classes. The adapter never
 propagates the upstream error body through its exception message.
+
+For non-streaming requests, non-empty `ChatRequest.tools` serialize to the
+OpenAI-compatible `tools` array; empty tools are omitted. Response
+`message.tool_calls` values are parsed in Provider order into tool-call ID,
+function name, and object arguments. Arguments must be a standard JSON string
+whose root is an object. Missing/invalid fields, non-function calls,
+non-standard JSON constants, duplicate IDs, and Tool Calls returned when none
+were requested all produce the fixed safe `ProviderResponseError` boundary;
+raw arguments never enter the exception message.
+
+Streaming Tool Calls are not implemented in this batch. `stream_chat()` rejects
+a request containing tools with `ProviderUnsupportedFeatureError` before any
+HTTP I/O instead of silently dropping or partially reconstructing deltas.
 
 Retry and fallback policies remain deferred. Milestone 4 provides
 request-linked safe logs and manual frontend initialization recovery, but it
@@ -120,7 +161,12 @@ Each model defines:
 | `input_price_per_1m` | Optional input price; `null` when not maintained |
 | `output_price_per_1m` | Optional output price; `null` when not maintained |
 
-Capability labels describe project behavior, not every feature offered by an upstream model. Plan 1 currently marks streaming as supported and leaves Tool Calling and JSON mode disabled. Prices remain `null` instead of using invented or stale values.
+Capability labels describe project behavior for a configured model, not every
+feature offered by an upstream endpoint. The tracked example marks streaming as
+supported and leaves Tool Calling and JSON mode disabled. `P2-M3-S1` through
+`P2-M3-S3` prove the non-streaming adapter protocol with mocks; they do not
+verify that the example model supports tools or expose an Agent execution path.
+Prices remain `null` instead of using invented or stale values.
 
 Registry usage:
 
@@ -141,6 +187,7 @@ Run from `backend`:
 
 ```powershell
 ..\.venv\Scripts\python.exe -m pytest tests/test_llm_provider_base.py -q
+..\.venv\Scripts\python.exe -m pytest tests/test_llm_tool_adapter.py -q
 ..\.venv\Scripts\python.exe -m pytest tests/test_openai_compatible_provider.py -q
 ..\.venv\Scripts\python.exe -m pytest tests/test_llm_provider_factory.py -q
 ..\.venv\Scripts\python.exe -m pytest tests/test_llm_model_registry.py -q
@@ -149,10 +196,13 @@ Run from `backend`:
 
 Tests use `httpx.MockTransport`, temporary Registry files, and fake test credentials. They do not call a real Provider or paid API.
 
-Provider adapter tests cover non-streaming and streaming HTTP classification,
-timeout and transport failures, malformed responses, usage normalization, and
-safe exception text. Chat service and API tests additionally use mock Providers
-to verify SSE event framing, successful persistence, classified HTTP/SSE error
+Provider adapter tests cover typed definitions, Registry conversion,
+non-streaming Tool request/response mapping, single and multiple calls,
+malformed or non-standard arguments, no-I/O streaming rejection, ordinary
+streaming, HTTP classification, timeout/transport failures, usage
+normalization, and safe exception text. Chat service and API tests additionally
+use mock Providers to verify SSE event framing, successful persistence,
+classified HTTP/SSE error
 envelopes, Provider failure rollback, cancellation rollback, and request-linked
 safe logs. Conversation and isolated error-handler tests cover default creation,
 malformed IDs, 405 responses, and unexpected 500 responses. Browser verification
@@ -170,4 +220,7 @@ require a real API key.
 - Markdown rendering
 - Provider retries and fallback policy
 - persistent Trace, Timeline, and replay
-- Tool Calling and all later-plan capabilities
+- streaming Tool Call delta aggregation
+- Tool execution, observation messages, and the Simple Agent Loop
+- AgentRun/ToolCall persistence service, Agent APIs, and frontend views
+- all later-plan capabilities

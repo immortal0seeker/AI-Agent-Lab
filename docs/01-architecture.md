@@ -11,11 +11,15 @@ conversation navigation, refresh recovery, successful-call usage persistence,
 structured errors, request-linked logging, focused regression coverage,
 recoverable frontend initialization states, clean-start documentation, release
 materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
-completed `P2-M1-S1` through `P2-M2-S7`: Tool contracts, Registry, validation,
+completed `P2-M1-S1` through `P2-M3-S3`: Tool contracts, Registry, validation,
 read-only path policy, AgentRun/ToolCall persistence, and the executable
-`read_file` and `list_dir` builtins are available. `web_fetch` was evaluated
-and deferred; no network Tool, Provider Tool Calling, or Agent runtime behavior
-is implemented at this stage.
+`read_file` and `list_dir` builtins are available. The Provider contract now
+accepts typed Tool definitions and normalizes non-streaming Tool Calls; an
+independent adapter converts the Registry in stable order, and the
+OpenAI-compatible adapter maps `tools` without leaking vendor payloads into
+services. `web_fetch` remains deferred. No network Tool, Tool execution, Agent
+Loop, Agent persistence service, Agent API, or frontend Agent view is
+implemented at this stage.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -190,13 +194,31 @@ Caller-owned ToolRegistry
 -> ToolResult
 ```
 
+The implemented non-streaming Provider definition/response path is:
+
+```text
+Caller-owned ToolRegistry
+-> build_llm_tool_definitions()
+-> ChatRequest.tools
+-> OpenAI-compatible payload.tools
+-> Provider message.tool_calls
+-> normalized LLMToolCall objects
+```
+
+This path only transports definitions and parses requests selected by a model.
+It does not look up or execute a Tool. Malformed argument JSON, non-object
+arguments, invalid names/IDs, duplicate IDs, and unrequested Tool Calls become
+fixed `ProviderResponseError` values without echoing the raw arguments.
+Streaming Tool requests fail locally before HTTP because Tool Call delta
+aggregation is outside `P2-M3-S1` through `P2-M3-S3`.
+
 `web_fetch` is intentionally absent from this architecture. A future
 reassessment must define SSRF-safe address and redirect validation, DNS-
 rebinding resistance, bounded streaming, content policy, text extraction,
 safe errors, and mock acceptance coverage before exposing a network Tool.
 
 No current route or service invokes the Tool or creates AgentRun/ToolCall
-records. Provider tool calling, Agent Loop transitions, Agent APIs, and
+records. Agent Loop transitions, Agent persistence services, Agent APIs, and
 frontend visualization remain scheduled for later Plan 2 milestones. See
 [Tool Calling Design](10-tool-calling-design.md) for the detailed boundary.
 
@@ -335,19 +357,21 @@ External AI capabilities should be provider-based. Plan 1 starts with LLM provid
 Plan 1 provider target:
 
 - `BaseLLMProvider` defines vendor-neutral asynchronous `chat` and `stream_chat` contracts.
-- Typed request, response, chunk, and token usage models isolate future services from vendor payloads.
-- `OpenAICompatibleProvider` maps non-streaming JSON and streaming SSE responses through `httpx`.
+- Typed request, response, chunk, token usage, Tool definition, and Tool Call models isolate future services from vendor payloads.
+- `build_llm_tool_definitions()` converts a caller-owned Tool Registry into defensive Provider definitions without executing tools.
+- `OpenAICompatibleProvider` maps non-streaming JSON, non-streaming `tools`/`tool_calls`, and text-only streaming SSE responses through `httpx`.
 - `create_openai_compatible_provider()` converts application settings into an adapter only when a call path needs one.
 - API keys use `SecretStr`, remain optional during health-only startup, and are required with a readable error at Provider initialization.
 - Mock transports verify Provider behavior without real credentials or paid API calls.
 - `ModelRegistry` loads strict JSON metadata, preserves configuration order, filters by provider, and resolves exact `(provider, model)` identities.
-- Registry capability labels describe behavior implemented by this workspace. Streaming is enabled for the example entry; Tool Calling and JSON mode remain disabled until their scheduled work.
+- Registry capability labels describe behavior implemented for each configured model. Streaming is enabled for the example entry; Tool Calling stays disabled because the current batch proves the adapter protocol only and does not verify a real model or Agent path. JSON mode also remains disabled.
 - Registry metadata is immutable. Unknown fields, blank names, negative prices, duplicate identities, unreadable files, and invalid JSON fail explicitly.
 
 The Provider stream contract is consumed by `ChatService.stream_complete()` and
 the protocol adapter at `POST /api/v1/chat/stream`. The service emits
 protocol-neutral domain events; the route owns SSE framing and stream-scoped
-Session cleanup.
+Session cleanup. Streaming requests with Tool definitions are explicitly
+unsupported and rejected before any Provider HTTP request.
 
 The tracked Registry entry is example configuration. `GET /api/v1/models`
 exposes non-secret Registry metadata in configuration order, and the frontend

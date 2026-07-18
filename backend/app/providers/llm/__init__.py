@@ -3,8 +3,11 @@ from app.providers.llm.base import (
     ChatChunk,
     ChatMessage,
     ChatRequest,
+    LLMFunctionDefinition,
     LLMProviderError,
     LLMResponse,
+    LLMToolCall,
+    LLMToolDefinition,
     ProviderAuthError,
     ProviderBadRequestError,
     ProviderConfigurationError,
@@ -13,6 +16,7 @@ from app.providers.llm.base import (
     ProviderResponseError,
     ProviderServerError,
     ProviderTimeoutError,
+    ProviderUnsupportedFeatureError,
     ProviderUnknownError,
     TokenUsage,
 )
@@ -23,14 +27,18 @@ from app.providers.llm.registry import (
     ModelRegistryError,
     load_default_registry,
 )
+from app.providers.llm.tool_adapter import build_llm_tool_definitions
 
 __all__ = [
     "BaseLLMProvider",
     "ChatChunk",
     "ChatMessage",
     "ChatRequest",
+    "LLMFunctionDefinition",
     "LLMProviderError",
     "LLMResponse",
+    "LLMToolCall",
+    "LLMToolDefinition",
     "ProviderAuthError",
     "ProviderBadRequestError",
     "ProviderConfigurationError",
@@ -39,6 +47,7 @@ __all__ = [
     "ProviderResponseError",
     "ProviderServerError",
     "ProviderTimeoutError",
+    "ProviderUnsupportedFeatureError",
     "ProviderUnknownError",
     "TokenUsage",
     "DEFAULT_MODEL_CONFIG_PATH",
@@ -46,4 +55,5 @@ __all__ = [
     "ModelRegistry",
     "ModelRegistryError",
     "load_default_registry",
+    "build_llm_tool_definitions",
 ]

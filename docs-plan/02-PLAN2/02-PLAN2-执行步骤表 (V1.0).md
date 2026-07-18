@@ -57,7 +57,7 @@ blocked
 | Batch 4 | P2-M2-S1～S3 | 实现 read_file 并覆盖路径安全测试 | 工具测试 | 已完成 |
 | Batch 5 | P2-M2-S4～S6 | 实现 list_dir 和工具注册 | 工具集成测试 | 已完成 |
 | Batch 6 | P2-M2-S7 | 可选实现 web_fetch 或明确延期记录 | Codex review M2 | 已完成（deferred） |
-| Batch 7 | P2-M3-S1～S3 | 扩展 LLM Provider 支持 tools | Provider mock 测试 | 未完成 |
+| Batch 7 | P2-M3-S1～S3 | 扩展 LLM Provider 支持 tools | Provider mock 测试 | 已完成 |
 | Batch 8 | P2-M3-S4～S6 | 实现 Simple Agent Loop | Agent mock 测试 | 未完成 |
 | Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex review M3 | 未完成 |
 | Batch 10 | P2-M4-S1～S3 | 实现 Agent API 和 Tool Call 查询 | API 测试 | 未完成 |
@@ -283,14 +283,34 @@ feat(tools): add read only builtin tools
 
 | Step ID | 任务 | 建议工具 | 交付物 | 验证方式 | Review |
 |---|---|---|---|---|---|
-| P2-M3-S1 | 扩展 LLMProvider `chat` 接口支持 tools | Codex | Provider base interface 更新 | mock provider 可接收 tools 参数 | Codex |
-| P2-M3-S2 | 扩展 OpenAI-compatible Provider 的 tool calling 请求和响应解析 | Codex | provider tool call 支持 | mock response 能解析 tool call | Codex |
-| P2-M3-S3 | 实现 Tool Schema 转换为模型可用格式 | Codex | tool schema adapter | read_file / list_dir schema 可序列化 | Codex |
+| P2-M3-S1 | 扩展 LLMProvider `chat` 接口支持 tools | Codex | Provider base interface 更新 | mock provider 可接收 tools 参数 | Codex（done） |
+| P2-M3-S2 | 扩展 OpenAI-compatible Provider 的 tool calling 请求和响应解析 | Codex | provider tool call 支持 | mock response 能解析 tool call | Codex（done） |
+| P2-M3-S3 | 实现 Tool Schema 转换为模型可用格式 | Codex | tool schema adapter | read_file / list_dir schema 可序列化 | Codex（done） |
 | P2-M3-S4 | 创建 Simple Agent Loop 基础流程 | Codex | `backend/app/agents/simple_agent.py` | 无工具任务直接返回答案 | Codex |
 | P2-M3-S5 | 接入工具选择、执行和 observation 回填 | Codex | Agent 调用 Tool Registry | 固定 mock 模型触发 read_file 后生成最终答案 | Codex |
 | P2-M3-S6 | 持久化 AgentRun 和 ToolCall | Codex | Agent run service | 每次工具调用都有数据库记录 | Codex |
 | P2-M3-S7 | 实现最大步数、超时、失败返回 | Codex | runtime policy 常量或配置 | 超过最大步数返回可读错误 | Codex |
 | P2-M3-S8 | 完成 M3 review 和 Agent Loop 文档 | Codex | `docs/11-simple-agent-loop.md` | 文档解释 Agent Loop 流程和限制 | Codex review |
+
+### P2-M3-S1～S3 Provider tools 验收记录（2026-07-18）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| Provider 契约 | `ChatRequest` 新增有序强类型 `tools`，空值保持普通 Chat payload 不变；`LLMResponse` 支持文本、一个或多个规范化 `LLMToolCall`，并拒绝无输出或重复 Tool Call ID。Tool 名称、ID、object 根参数 schema 和 JSON 序列化在本地校验。 |
+| Registry adapter | 新增 `build_llm_tool_definitions()`，按 caller-owned Registry 顺序将 `read_file`、`list_dir` 转为顶层 frozen 的 Provider 定义；不执行 Tool、不访问工作区、不依赖 builtin 类型，schema 输入与序列化结果具备防御性复制。 |
+| OpenAI-compatible | 非流式请求仅在 tools 非空时发送标准 `tools` 数组；响应按原顺序解析 `message.tool_calls`，把 arguments JSON 字符串规范化为 object。非法 shape、非标准 JSON 常量、非 object、无效名称/ID、重复 ID 或未请求的 Tool Call 均返回固定安全 `ProviderResponseError`，不回显原始 arguments。 |
+| Streaming 与 Plan 1 兼容 | 带 tools 的流式请求在 HTTP 前以固定 `ProviderUnsupportedFeatureError` 失败；现有文本 Chat 不发送 Tool 定义，若意外收到纯 Tool Call 响应则固定报错并完整回滚。Provider/Chat/API 联合回归为 `68 passed, 1 warning`。 |
+| TDD 证据 | Contract RED 因新 DTO 缺失而 collection 失败，GREEN 为 `17 passed`；adapter RED 因模块缺失而失败，GREEN 为 `4 passed`；OpenAI happy-path RED 为 `2 failed, 17 passed`，GREEN 为 `19 passed`；非标准 `NaN` 回归先为 `1 failed, 28 passed`，修复后 Provider 文件为 `29 passed`；Tool-only Chat 回归先暴露 Pydantic `ValidationError`，修复后通过。Codex self-review 又补齐 6 个缺失字段及空/超长 ID 用例，并增加完整 Registry schema 等值断言，最终 Provider+adapter 聚焦为 `40 passed`。 |
+| 完整验证 | Provider/Tool/Chat 聚焦为 `162 passed, 1 warning`；Backend 为 `344 passed, 1 warning`，`pip check` 无破损依赖。Frontend typecheck、8 files / 37 tests 和 production build（1804 modules transformed）通过；首次 build 的 `dist` EPERM 为受管沙箱限制，按已批准权限重跑成功。FastAPI 临时内存 SQLite smoke 为 health 200、OpenAPI 200、服务端 request ID UUID，未初始化真实 Provider。 |
+| 文档、能力与边界 | README 中英文、项目概览、架构、Provider 文档和 Tool Calling 设计已同步；31 个 committed-scope 本地 Markdown 链接存在，秘密模式、tracked 生成物、迁移变更、`web_fetch` runtime surface 和 API/前端/后续 Plan 变更均为 0，diff/新文件空白检查通过。tracked 示例模型继续为 `supports_tools=false`；未执行 Tool，未实现 Agent Loop、observation、AgentRun/ToolCall service、Agent API、前端或后续 Plan；未调用真实 Provider、网络 Tool 或付费服务。仅执行 Codex self-review，不使用 Claude Code。 |
+
+**结论：** `P2-M3-S1`～`S3` 与 Batch 7 已完成。下一批为 `P2-M3-S4`～`S6`；本批只建立 Provider transport，不代表 M3 或 Agent Loop 已完成。
+
+S1～S3 建议 commit：
+
+```text
+feat(provider): add non-streaming tool calling support
+```
 
 M3 完成后建议 commit：
 
@@ -449,14 +469,14 @@ Codex review 后：
 | list_dir 可用 | done（M2） | list_dir 正常、junction、限制和安全测试 |
 | 工具参数校验可用 | done（M1） | Draft 2020-12、object 根和参数错误测试 |
 | 工具安全边界可用 | done（M1/M2 audit fix） | 路径、凭据名称、symlink/junction 测试 |
-| LLM Provider 支持 tools | pending | Provider mock 测试 |
+| LLM Provider 支持 tools | done（M3 S1～S3，非流式协议） | Provider contract、schema adapter、OpenAI-compatible mock 测试；真实模型能力仍为 false |
 | Simple Agent Loop 可用 | pending | Agent Loop 测试 |
 | Agent API 可用 | pending | API 测试 |
 | 工具调用记录可保存 | done（M1 schema） | AgentRun/ToolCall ORM、迁移与约束测试；执行服务仍属于后续 Step |
 | 前端能展示 Tool Call | pending | 页面截图 |
 | 工具失败不会导致系统崩溃 | done（M1/M2） | Tool validation、read_file、list_dir 固定失败结果测试 |
-| README 已更新 | done（M1/M2） | README / README_CN 当前范围与迁移说明 |
-| docs 已更新 | done（M1/M2） | `docs/10-tool-calling-design.md` 与审计修复记录 |
+| README 已更新 | done（M1/M2/M3 S1～S3） | README / README_CN 当前范围与限制说明 |
+| docs 已更新 | done（M1/M2/M3 S1～S3） | Provider、Tool Calling、架构文档与验收记录 |
 | 已创建 v0.2.0 tag | pending | `git tag --list` 输出 |
 
 ---

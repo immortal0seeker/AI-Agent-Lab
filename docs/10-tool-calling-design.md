@@ -5,8 +5,10 @@
 Plan 2 M1 establishes Tool contracts, discovery, validation, read-only security,
 and persistence models. `P2-M2-S1` through `P2-M2-S7` complete M2 with two
 executable read-only builtins, `read_file` and `list_dir`, plus caller-controlled
-Registry initialization and an explicit `web_fetch` deferral. No Agent service,
-API, or Provider currently invokes a Tool.
+Registry initialization and an explicit `web_fetch` deferral. `P2-M3-S1`
+through `P2-M3-S3` add typed non-streaming Provider Tool definitions and Tool
+Calls, a Registry-to-Provider adapter, and safe OpenAI-compatible request and
+response mapping. No Agent service or API currently invokes a Tool.
 
 ## Tool Boundary
 
@@ -27,6 +29,32 @@ schemas must be JSON-serializable Draft 2020-12 schemas with an explicit
 `type: object` root. Argument validation runs before future execution.
 Validation errors contain safe paths and rules and never echo rejected
 argument or schema values.
+
+`build_llm_tool_definitions(registry)` is the typed Provider boundary. It
+copies the ordered Tool name, description, and object-root parameter schema
+into frozen-top-level `LLMToolDefinition` values without executing a Tool or
+depending on builtin implementations. Nested schema inputs are defensively
+copied, and mutating a serialized definition cannot change the Registry or a
+later conversion.
+
+## Provider Tool Calling Boundary
+
+`ChatRequest.tools` is an ordered tuple and defaults to empty, so ordinary Chat
+payloads still omit `tools`. `LLMResponse` can carry text, normalized
+`LLMToolCall` values, or both; every Tool Call has a Provider correlation ID,
+validated function name, and already parsed object arguments. Multiple calls
+preserve Provider order and duplicate IDs are rejected.
+
+The OpenAI-compatible adapter serializes non-empty Tool definitions only for
+non-streaming chat and parses `choices[0].message.tool_calls`. Function
+arguments must be a standard JSON string with an object root. Invalid shapes,
+non-standard constants, unrequested Tool Calls, or invalid/duplicate IDs become
+a fixed `ProviderResponseError` without raw argument or upstream-body leakage.
+
+Streaming Tool Call aggregation is intentionally absent. A tools-bearing
+`stream_chat()` request raises `ProviderUnsupportedFeatureError` before HTTP.
+The tracked example model remains `supports_tools=false`: mock protocol support
+does not assert a real model capability or expose an Agent execution path.
 
 ## Read-only Security
 
@@ -136,10 +164,23 @@ Caller-owned Registry
 -> ToolResult
 ```
 
+The implemented Provider transport path is:
+
+```text
+Caller-owned Registry
+-> build_llm_tool_definitions()
+-> ChatRequest.tools
+-> OpenAI-compatible payload.tools
+-> Provider message.tool_calls
+-> normalized LLMToolCall objects
+```
+
 No current route or service invokes the Tool or creates AgentRun/ToolCall
-records. Provider integration, Agent Loop transitions, API access, and frontend
-visualization are scheduled in later Plan 2 milestones. Provider Tool Calling
-in `P2-M3-S1` through `P2-M3-S3` is the next implementation boundary.
+records. The existing Plan 1 text Chat service sends no Tool definitions and
+rejects a Tool-only response with a fixed Provider error plus transaction
+rollback. Tool lookup/execution, observation messages, Agent Loop transitions,
+persistence services, API access, and frontend visualization are scheduled in
+later Plan 2 Steps.
 
 ## Verification and Security Boundary
 
@@ -151,7 +192,7 @@ credential, private key, or call a real Provider.
 
 - Agent persistence service and transactions
 - `web_fetch` reassessment, no earlier than Plan 4 or Plan 6
-- Provider tool calling
+- streaming Provider Tool Call aggregation
 - Simple Agent Loop
 - Agent APIs and frontend ToolCall visualization
 - Plan 4 Trace, replay, and evaluation

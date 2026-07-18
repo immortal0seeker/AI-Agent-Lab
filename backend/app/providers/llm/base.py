@@ -1,8 +1,78 @@
+import json
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
-from typing import Literal
+from copy import deepcopy
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
+
+
+LLMToolName = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    ),
+]
+LLMToolCallIdentifier = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+]
+NonBlankDescription = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1),
+]
+
+
+class LLMFunctionDefinition(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: LLMToolName
+    description: NonBlankDescription
+    parameters: dict[str, Any]
+
+    @field_validator("parameters")
+    @classmethod
+    def validate_parameters(cls, value: dict[str, Any]) -> dict[str, Any]:
+        copied = deepcopy(value)
+        if copied.get("type") != "object":
+            raise ValueError("tool parameters root must be an object")
+        try:
+            json.dumps(copied, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "tool parameters must be JSON serializable"
+            ) from exc
+        return copied
+
+
+class LLMToolDefinition(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    type: Literal["function"] = "function"
+    function: LLMFunctionDefinition
+
+
+class LLMToolCall(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    tool_call_id: LLMToolCallIdentifier
+    tool_name: LLMToolName
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("arguments")
+    @classmethod
+    def copy_arguments(cls, value: dict[str, Any]) -> dict[str, Any]:
+        return deepcopy(value)
 
 
 class ChatMessage(BaseModel):
@@ -15,6 +85,7 @@ class ChatRequest(BaseModel):
     model: str | None = None
     temperature: float = Field(default=0.7, ge=0, le=2)
     max_tokens: int | None = Field(default=None, gt=0)
+    tools: tuple[LLMToolDefinition, ...] = ()
 
 
 class TokenUsage(BaseModel):
@@ -26,9 +97,19 @@ class TokenUsage(BaseModel):
 class LLMResponse(BaseModel):
     id: str | None = None
     model: str
-    content: str
+    content: str | None = None
     finish_reason: str | None = None
     usage: TokenUsage | None = None
+    tool_calls: tuple[LLMToolCall, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_output(self) -> Self:
+        if self.content is None and not self.tool_calls:
+            raise ValueError("response requires content or tool calls")
+        tool_call_ids = [call.tool_call_id for call in self.tool_calls]
+        if len(tool_call_ids) != len(set(tool_call_ids)):
+            raise ValueError("tool call ids must be unique")
+        return self
 
 
 class ChatChunk(BaseModel):
@@ -41,6 +122,10 @@ class ChatChunk(BaseModel):
 
 class LLMProviderError(RuntimeError):
     """LLM Provider 边界的基础异常。"""
+
+
+class ProviderUnsupportedFeatureError(LLMProviderError):
+    """Provider adapter 尚未支持请求的本地能力。"""
 
 
 class ProviderConfigurationError(LLMProviderError):

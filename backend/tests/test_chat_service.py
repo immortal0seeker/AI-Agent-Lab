@@ -18,6 +18,7 @@ from app.providers.llm.base import (
     ChatChunk,
     ChatRequest,
     LLMResponse,
+    LLMToolCall,
     ProviderRequestError,
     ProviderResponseError,
     TokenUsage,
@@ -65,6 +66,24 @@ class FailingProvider(MockProvider):
     async def chat(self, request: ChatRequest) -> LLMResponse:
         self.requests.append(request)
         raise ProviderRequestError("mock provider failed", status_code=503)
+
+
+class ToolOnlyProvider(MockProvider):
+    async def chat(self, request: ChatRequest) -> LLMResponse:
+        self.requests.append(request)
+        return LLMResponse(
+            id="response-tool",
+            model="resolved-model",
+            content=None,
+            finish_reason="tool_calls",
+            tool_calls=(
+                LLMToolCall(
+                    tool_call_id="call-1",
+                    tool_name="read_file",
+                    arguments={"path": "README.md"},
+                ),
+            ),
+        )
 
 
 class StreamingProvider(MockProvider):
@@ -355,6 +374,39 @@ def test_chat_service_rolls_back_new_records_when_provider_fails(
     )
 
     with pytest.raises(ProviderRequestError, match="mock provider failed"):
+        asyncio.run(
+            service.complete(
+                ChatCompletionRequest(
+                    provider="openai_compatible",
+                    model="example-model",
+                    content="Hello",
+                )
+            )
+        )
+
+    assert session.scalars(select(Message)).all() == []
+    assert session.scalars(select(LLMCall)).all() == []
+    assert session.scalars(select(Conversation)).all() == []
+
+    session.close()
+    engine.dispose()
+
+
+def test_chat_service_rolls_back_when_provider_returns_only_tool_calls(
+    tmp_path: Path,
+) -> None:
+    session, engine = create_test_session(tmp_path)
+    provider = ToolOnlyProvider()
+    service = ChatService(
+        session,
+        registry=create_registry(),
+        providers={"openai_compatible": provider},
+    )
+
+    with pytest.raises(
+        ProviderResponseError,
+        match="Provider response did not contain text",
+    ):
         asyncio.run(
             service.complete(
                 ChatCompletionRequest(

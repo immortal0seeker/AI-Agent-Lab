@@ -25,8 +25,8 @@ Plan 1 覆盖：
 
 已完成范围：`P1-M1-S1` 到 `P1-M4-S8`。
 
-当前开发阶段：Plan 2 M2 已完成。已完成的 Plan 2 范围为 `P2-M1-S1` 到
-`P2-M2-S7`。
+当前开发阶段：Plan 2 M3 的第一批已完成。已完成的 Plan 2 范围为
+`P2-M1-S1` 到 `P2-M3-S3`。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -34,10 +34,15 @@ Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/Too
 Tool，具备有界 I/O、工作区相对路径策略、敏感名称过滤、安全失败结果和 Mock
 回归覆盖。`P2-M2-S7` 已完成 `web_fetch` 评估并明确延期：可信网络 Tool 需要
 完整处理 SSRF、DNS/重定向、超时、响应大小、内容类型和正文提取边界。当前没有
-实现、注册或暴露 `web_fetch` Tool/schema。Provider tool calling、Agent Loop、
-Agent API 和前端 Agent/ToolCall 视图仍未实现。
+实现、注册或暴露 `web_fetch` Tool/schema。`P2-M3-S1` 到 `P2-M3-S3` 新增
+强类型非流式 Provider Tool 定义与 Tool Call、具备防御性复制的
+Registry-to-Provider schema adapter，以及安全的 OpenAI-compatible `tools`
+请求/响应映射。tracked 示例模型仍为 `supports_tools=false`；本批不聚合流式
+Tool Call delta，因此带 tools 的流式请求会在 HTTP 前本地失败。Agent Loop、
+Tool 执行、AgentRun/ToolCall 持久化 service、Agent API 和前端 Agent/ToolCall
+视图仍未实现。
 
-下一批：`P2-M3-S1` 到 `P2-M3-S3`。
+下一批：`P2-M3-S4` 到 `P2-M3-S6`。
 
 ## v0.1.0 演示
 
