@@ -12,6 +12,7 @@ from app.tools.security import (
     PROJECT_WORKSPACE_ROOT,
     ToolLimitError,
     ToolSecurityError,
+    is_reparse_point,
     is_sensitive_path_component,
     resolve_workspace_path,
     validate_directory_depth,
@@ -130,6 +131,8 @@ class ListDirTool(Tool):
         except OSError:
             return self._failure(_LIST_ERROR)
 
+        if truncated:
+            del entries[self.max_entries :]
         entries.sort(
             key=lambda entry: (
                 str(entry["path"]).casefold(),
@@ -181,15 +184,16 @@ class ListDirTool(Tool):
         for child in children:
             if is_sensitive_path_component(child.name):
                 continue
-            if child.is_symlink():
+            child_stat = child.stat(follow_symlinks=False)
+            if child.is_symlink() or is_reparse_point(child_stat):
                 entry_type = "symlink"
                 size_bytes = None
-            elif child.is_dir(follow_symlinks=False):
+            elif stat.S_ISDIR(child_stat.st_mode):
                 entry_type = "directory"
                 size_bytes = None
-            elif child.is_file(follow_symlinks=False):
+            elif stat.S_ISREG(child_stat.st_mode):
                 entry_type = "file"
-                size_bytes = child.stat(follow_symlinks=False).st_size
+                size_bytes = child_stat.st_size
             else:
                 continue
 
@@ -205,7 +209,7 @@ class ListDirTool(Tool):
                     "size_bytes": size_bytes,
                 }
             )
-            if len(entries) >= self.max_entries:
+            if len(entries) > self.max_entries:
                 return True
             if entry_type == "directory" and current_depth < max_depth:
                 if self._walk_directory(

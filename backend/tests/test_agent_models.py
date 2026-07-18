@@ -237,3 +237,24 @@ def test_tool_call_conversation_must_match_agent_run(
 
     with pytest.raises(IntegrityError):
         session.commit()
+
+
+def test_agent_run_user_message_must_match_conversation(
+    db: tuple[Session, Engine],
+) -> None:
+    session, _ = db
+    first = Conversation()
+    second = Conversation()
+    message = Message(conversation=second, role="user", content="other")
+    session.add_all([first, second])
+    session.flush()
+    session.add(
+        AgentRun(
+            conversation_id=first.id,
+            user_message_id=message.id,
+            goal="invalid cross-conversation run",
+        )
+    )
+
+    with pytest.raises(IntegrityError):
+        session.commit()

@@ -1,3 +1,5 @@
+import os
+import stat
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from app.tools.base import ToolError
@@ -8,7 +10,34 @@ DEFAULT_MAX_FILE_BYTES = 1_048_576
 DEFAULT_MAX_DIRECTORY_DEPTH = 3
 
 _SENSITIVE_DIRECTORY_NAMES = frozenset(
-    {".git", ".ssh", "__pycache__", "docs-local"}
+    {
+        ".aws",
+        ".azure",
+        ".docker",
+        ".git",
+        ".gnupg",
+        ".kube",
+        ".password-store",
+        ".ssh",
+        "__pycache__",
+        "docs-local",
+        "gcloud",
+    }
+)
+_SENSITIVE_FILE_NAMES = frozenset(
+    {
+        ".git-credentials",
+        ".netrc",
+        ".npmrc",
+        ".pypirc",
+        "_netrc",
+        "application_default_credentials.json",
+        "client_secret.json",
+        "credentials.json",
+        "secrets.toml",
+        "service-account.json",
+        "service_account.json",
+    }
 )
 _PRIVATE_KEY_NAMES = frozenset({"id_dsa", "id_ecdsa", "id_ed25519", "id_rsa"})
 
@@ -46,11 +75,18 @@ def is_sensitive_path_component(component: str) -> bool:
     normalized = _normalize_windows_component(component).casefold()
     return (
         normalized in _SENSITIVE_DIRECTORY_NAMES
+        or normalized in _SENSITIVE_FILE_NAMES
         or normalized == ".env"
         or normalized.startswith(".env.")
         or normalized in _PRIVATE_KEY_NAMES
         or normalized.endswith((".pem", ".key"))
     )
+
+
+def is_reparse_point(path_stat: os.stat_result) -> bool:
+    file_attributes = getattr(path_stat, "st_file_attributes", 0)
+    reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
+    return bool(file_attributes & reparse_attribute)
 
 
 def resolve_workspace_path(

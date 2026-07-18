@@ -115,3 +115,30 @@ def test_registry_exports_defensive_openai_function_schemas() -> None:
         "type"
     ] = "integer"
     assert tool.parameters_schema["properties"]["message"]["type"] == "string"
+
+
+def test_registered_tool_definition_cannot_drift_from_registry_key() -> None:
+    tool = build_tool()
+    registry = ToolRegistry()
+    registry.register_tool(tool)
+
+    with pytest.raises(AttributeError):
+        tool.name = "renamed"  # type: ignore[misc]
+    exposed = tool.parameters_schema
+    exposed["type"] = "string"
+
+    assert registry.get_tool("echo") is tool
+    assert registry.get_openai_tool_schemas()[0]["function"]["name"] == "echo"
+    assert (
+        registry.get_openai_tool_schemas()[0]["function"]["parameters"]["type"]
+        == "object"
+    )
+
+
+def test_registry_rejects_non_object_schema_atomically() -> None:
+    registry = ToolRegistry()
+
+    with pytest.raises(ToolSchemaError, match="root must be an object"):
+        registry.register_tool(build_tool(schema_type="string"))
+
+    assert registry.list_tools() == []

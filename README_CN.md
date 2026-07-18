@@ -121,7 +121,9 @@ cd backend
 
 后端默认数据库为 `sqlite:///./ai_agent_lab.db`。如需调整，请通过本地未跟踪的
 环境变量设置 `DATABASE_URL`。数据库结构由 Alembic 管理，目前会创建
-`conversations`、`messages` 和 `llm_calls`；应用启动时不会自动建表。
+`conversations`、`messages`、`llm_calls`、`agent_runs` 和 `tool_calls`；应用启动时
+不会自动建表。最新的 Plan 2 迁移还会约束 AgentRun 关联的可选用户 Message 必须
+属于同一个 Conversation。
 
 OpenAI-compatible Provider 在初始化时读取以下可选环境变量：
 

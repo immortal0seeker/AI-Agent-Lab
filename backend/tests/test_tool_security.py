@@ -85,6 +85,36 @@ def test_resolve_workspace_path_rejects_sensitive_components(
 
 @pytest.mark.parametrize(
     "unsafe_path",
+    [
+        ".npmrc",
+        ".pypirc",
+        ".netrc",
+        "_netrc",
+        ".git-credentials",
+        "credentials.json",
+        "secrets.toml",
+        ".aws/credentials",
+        ".azure/accessTokens.json",
+        ".kube/config",
+        ".docker/config.json",
+        ".gnupg/private-keys-v1.d/key",
+        ".password-store/example.gpg",
+        ".config/gcloud/application_default_credentials.json",
+        "client_secret.json",
+        "service-account.json",
+        "service_account.json",
+    ],
+)
+def test_resolve_workspace_path_rejects_credential_paths(
+    tmp_path: Path,
+    unsafe_path: str,
+) -> None:
+    with pytest.raises(UnsafePathError):
+        resolve_workspace_path(unsafe_path, workspace_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "unsafe_path",
     [".env:stream", "docs/file.txt:stream"],
 )
 def test_resolve_workspace_path_rejects_windows_alternate_data_streams(

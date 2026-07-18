@@ -61,8 +61,14 @@ def test_tool_rejects_blank_text_metadata(field_name: str) -> None:
 
 
 def test_tool_rejects_overlong_name() -> None:
-    with pytest.raises(ValueError, match="name must be at most 100 characters"):
-        build_tool(name="x" * 101)
+    with pytest.raises(ValueError, match="name must be at most 64 characters"):
+        build_tool(name="x" * 65)
+
+
+@pytest.mark.parametrize("name", ["two words", "tool.name", "tool/name", "工具"])
+def test_tool_rejects_provider_incompatible_name(name: str) -> None:
+    with pytest.raises(ValueError, match="letters, numbers, underscores, and hyphens"):
+        build_tool(name=name)
 
 
 def test_tool_requires_parameter_schema_mapping() -> None:
@@ -90,6 +96,35 @@ def test_tool_copies_parameter_schema_from_caller() -> None:
     tool = build_tool(parameters_schema=parameter_schema)
 
     parameter_schema["properties"]["value"]["type"] = "integer"
+
+    assert tool.parameters_schema["properties"]["value"]["type"] == "string"
+
+
+@pytest.mark.parametrize(
+    ("field_name", "new_value"),
+    [
+        ("name", "renamed"),
+        ("description", "changed"),
+        ("permission_level", "write"),
+        ("timeout_seconds", 99.0),
+        ("parameters_schema", {"type": "string"}),
+    ],
+)
+def test_tool_definition_fields_are_read_only(
+    field_name: str,
+    new_value: object,
+) -> None:
+    tool = build_tool()
+
+    with pytest.raises(AttributeError):
+        setattr(tool, field_name, new_value)
+
+
+def test_tool_returns_defensive_parameter_schema_copy() -> None:
+    tool = build_tool()
+    exposed = tool.parameters_schema
+
+    exposed["properties"]["value"]["type"] = "integer"
 
     assert tool.parameters_schema["properties"]["value"]["type"] == "string"
 

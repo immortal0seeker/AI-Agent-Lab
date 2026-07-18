@@ -1,3 +1,4 @@
+import json
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
@@ -77,10 +78,19 @@ def _issue_from_error(error: ValidationError) -> ToolValidationIssue:
 def validate_tool_schema(schema: Mapping[str, Any]) -> None:
     if not isinstance(schema, Mapping):
         raise ToolSchemaError("Tool parameter schema must be an object")
+    plain_schema = deepcopy(dict(schema))
     try:
-        Draft202012Validator.check_schema(dict(schema))
+        json.dumps(plain_schema, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise ToolSchemaError(
+            "Tool parameter schema must be JSON serializable"
+        ) from exc
+    try:
+        Draft202012Validator.check_schema(plain_schema)
     except SchemaError as exc:
         raise ToolSchemaError("Invalid Tool parameter schema") from exc
+    if plain_schema.get("type") != "object":
+        raise ToolSchemaError("Tool parameter schema root must be an object")
 
 
 def validate_tool_arguments(

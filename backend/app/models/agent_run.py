@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     String,
     Text,
@@ -42,6 +43,12 @@ class AgentRun(Base):
             "conversation_id",
             name="uq_agent_runs_id_conversation_id",
         ),
+        ForeignKeyConstraint(
+            ["user_message_id", "conversation_id"],
+            ["messages.id", "messages.conversation_id"],
+            name="fk_agent_runs_user_message_conversation_messages",
+            ondelete="RESTRICT",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -57,7 +64,6 @@ class AgentRun(Base):
     )
     user_message_id: Mapped[UUID | None] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("messages.id", ondelete="SET NULL"),
         index=True,
         nullable=True,
     )
@@ -79,7 +85,14 @@ class AgentRun(Base):
     )
 
     conversation: Mapped[Conversation] = relationship(back_populates="agent_runs")
-    user_message: Mapped[Message | None] = relationship()
+    user_message: Mapped[Message | None] = relationship(
+        back_populates="agent_runs",
+        primaryjoin=(
+            "and_(AgentRun.user_message_id == Message.id, "
+            "AgentRun.conversation_id == Message.conversation_id)"
+        ),
+        foreign_keys=[user_message_id],
+    )
     tool_calls: Mapped[list[ToolCall]] = relationship(
         back_populates="agent_run",
         cascade="all, delete-orphan",

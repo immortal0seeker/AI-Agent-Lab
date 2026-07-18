@@ -2,6 +2,15 @@
 
 All notable changes to AI Agent Lab are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- Prevented `list_dir` from following Windows junctions and other reparse points outside the workspace, and corrected exact-limit truncation metadata.
+- Blocked common credential files and directories such as `.npmrc`, `.netrc`, `.git-credentials`, `.aws`, `.kube`, and cloud credential JSON files from read-only tools.
+- Made registered Tool definitions immutable and required Provider-exported parameter schemas to have a JSON-serializable object root.
+- Enforced that an AgentRun's optional user Message belongs to the same Conversation through an additive Alembic migration.
+
 ## [0.1.0] - 2026-07-13
 
 ### Added

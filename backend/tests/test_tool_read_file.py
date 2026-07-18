@@ -152,6 +152,21 @@ def test_read_file_rejects_unsafe_paths_without_echoing_them(
     assert path not in result.model_dump_json()
 
 
+def test_read_file_rejects_credential_file_without_echoing_content(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / ".npmrc").write_text(
+        "//registry.example/:_authToken=synthetic-token",
+        encoding="utf-8",
+    )
+
+    result = run_tool(ReadFileTool(workspace_root=tmp_path), {"path": ".npmrc"})
+
+    assert result.success is False
+    assert result.error == "The requested path is not allowed"
+    assert "synthetic-token" not in result.model_dump_json()
+
+
 def test_read_file_returns_safe_failure_for_missing_file(tmp_path: Path) -> None:
     result = run_tool(
         ReadFileTool(workspace_root=tmp_path),

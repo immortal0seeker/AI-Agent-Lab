@@ -124,3 +124,18 @@ def test_validate_tool_schema_rejects_invalid_schema_without_echoing_it() -> Non
         validate_tool_schema(schema)
 
     assert "not-a-json-schema-type" not in str(exc_info.value)
+
+
+def test_validate_tool_schema_requires_object_root() -> None:
+    with pytest.raises(ToolSchemaError, match="root must be an object"):
+        validate_tool_schema({"type": "string"})
+
+
+def test_validate_tool_schema_requires_json_serializable_values() -> None:
+    with pytest.raises(ToolSchemaError, match="JSON serializable"):
+        validate_tool_schema(
+            {
+                "type": "object",
+                "properties": {"value": {"enum": [{"not-json"}]}},
+            }
+        )

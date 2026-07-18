@@ -129,8 +129,10 @@ cd backend
 
 The backend defaults to `sqlite:///./ai_agent_lab.db`. Override it with
 `DATABASE_URL` in a local untracked environment file when needed. Alembic owns
-schema creation and currently creates `conversations`, `messages`, and
-`llm_calls`; the application does not create tables during startup.
+schema creation and currently creates `conversations`, `messages`, `llm_calls`,
+`agent_runs`, and `tool_calls`; the application does not create tables during
+startup. The latest Plan 2 migration also enforces that an AgentRun's optional
+user Message belongs to the same Conversation.
 
 The OpenAI-compatible Provider reads these optional environment settings when
 it is initialized:

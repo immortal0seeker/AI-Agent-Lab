@@ -1,9 +1,12 @@
+from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 from alembic import command
 from alembic.config import Config
+import pytest
 from pytest import MonkeyPatch
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 from app.core.config import get_settings
 
@@ -74,8 +77,16 @@ def test_upgrade_head_creates_agent_persistence_schema(
         == "CASCADE"
     )
     assert (
-        agent_foreign_keys[("user_message_id",)]["options"]["ondelete"]
-        == "SET NULL"
+        agent_foreign_keys[("user_message_id", "conversation_id")][
+            "referred_columns"
+        ]
+        == ["id", "conversation_id"]
+    )
+    assert (
+        agent_foreign_keys[("user_message_id", "conversation_id")]["options"][
+            "ondelete"
+        ]
+        == "RESTRICT"
     )
 
     tool_foreign_key = inspector.get_foreign_keys("tool_calls")[0]
@@ -100,6 +111,10 @@ def test_upgrade_head_creates_agent_persistence_schema(
     } == {"uq_agent_runs_id_conversation_id"}
     assert {
         constraint["name"]
+        for constraint in inspector.get_unique_constraints("messages")
+    } == {"uq_messages_id_conversation_id"}
+    assert {
+        constraint["name"]
         for constraint in inspector.get_unique_constraints("tool_calls")
     } == {"uq_tool_calls_agent_run_id_tool_call_id"}
     assert {
@@ -117,6 +132,132 @@ def test_upgrade_head_creates_agent_persistence_schema(
         "ck_tool_calls_status",
     }
     engine.dispose()
+
+
+def test_upgrade_rejects_existing_cross_conversation_agent_message(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    config, database_url = migration_config(tmp_path, monkeypatch)
+    command.upgrade(config, "20260717_0002")
+    now = datetime.now(UTC).replace(tzinfo=None)
+    first_conversation_id = uuid4().hex
+    second_conversation_id = uuid4().hex
+    message_id = uuid4().hex
+
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        for conversation_id in [first_conversation_id, second_conversation_id]:
+            connection.execute(
+                text(
+                    "INSERT INTO conversations "
+                    "(id, title, created_at, updated_at) "
+                    "VALUES (:id, :title, :created_at, :updated_at)"
+                ),
+                {
+                    "id": conversation_id,
+                    "title": "Synthetic conversation",
+                    "created_at": now,
+                    "updated_at": now,
+                },
+            )
+        connection.execute(
+            text(
+                "INSERT INTO messages "
+                "(id, conversation_id, role, content, created_at) "
+                "VALUES (:id, :conversation_id, :role, :content, :created_at)"
+            ),
+            {
+                "id": message_id,
+                "conversation_id": second_conversation_id,
+                "role": "user",
+                "content": "Synthetic content",
+                "created_at": now,
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO agent_runs "
+                "(id, conversation_id, user_message_id, status, goal, created_at) "
+                "VALUES (:id, :conversation_id, :user_message_id, "
+                ":status, :goal, :created_at)"
+            ),
+            {
+                "id": uuid4().hex,
+                "conversation_id": first_conversation_id,
+                "user_message_id": message_id,
+                "status": "created",
+                "goal": "Synthetic audit goal",
+                "created_at": now,
+            },
+        )
+    engine.dispose()
+
+    try:
+        with pytest.raises(
+            RuntimeError,
+            match="inconsistent audit rows exist",
+        ) as exc_info:
+            command.upgrade(config, "head")
+    finally:
+        get_settings.cache_clear()
+
+    assert "Synthetic content" not in str(exc_info.value)
+    assert "Synthetic audit goal" not in str(exc_info.value)
+
+
+def test_upgrade_rejects_existing_orphaned_agent_message(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    config, database_url = migration_config(tmp_path, monkeypatch)
+    command.upgrade(config, "20260717_0002")
+    now = datetime.now(UTC).replace(tzinfo=None)
+    conversation_id = uuid4().hex
+
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO conversations "
+                "(id, title, created_at, updated_at) "
+                "VALUES (:id, :title, :created_at, :updated_at)"
+            ),
+            {
+                "id": conversation_id,
+                "title": "Synthetic conversation",
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO agent_runs "
+                "(id, conversation_id, user_message_id, status, goal, created_at) "
+                "VALUES (:id, :conversation_id, :user_message_id, "
+                ":status, :goal, :created_at)"
+            ),
+            {
+                "id": uuid4().hex,
+                "conversation_id": conversation_id,
+                "user_message_id": uuid4().hex,
+                "status": "created",
+                "goal": "Synthetic orphaned audit goal",
+                "created_at": now,
+            },
+        )
+    engine.dispose()
+
+    try:
+        with pytest.raises(
+            RuntimeError,
+            match="inconsistent audit rows exist",
+        ) as exc_info:
+            command.upgrade(config, "head")
+    finally:
+        get_settings.cache_clear()
+
+    assert "Synthetic orphaned audit goal" not in str(exc_info.value)
 
 
 def test_downgrade_to_plan1_removes_only_agent_tables(

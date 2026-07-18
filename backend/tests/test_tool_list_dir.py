@@ -1,5 +1,6 @@
 import asyncio
 import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,17 @@ from app.tools.builtin.list_dir import (
 
 def run_tool(tool: ListDirTool, arguments: dict[str, Any]):
     return asyncio.run(tool.run(arguments))
+
+
+def create_windows_junction(link: Path, target: Path) -> None:
+    completed = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        pytest.skip("directory junctions are unavailable in this environment")
 
 
 def test_list_dir_declares_stable_tool_metadata(tmp_path: Path) -> None:
@@ -168,6 +180,21 @@ def test_list_dir_truncates_at_stable_entry_limit(tmp_path: Path) -> None:
     assert result.metadata["truncated"] is True
 
 
+def test_list_dir_does_not_report_truncation_at_exact_entry_limit(
+    tmp_path: Path,
+) -> None:
+    for name in ["a.txt", "b.txt"]:
+        (tmp_path / name).write_text(name, encoding="utf-8")
+
+    result = run_tool(
+        ListDirTool(workspace_root=tmp_path, max_entries=2),
+        {"path": "."},
+    )
+
+    assert result.metadata["entry_count"] == 2
+    assert result.metadata["truncated"] is False
+
+
 @pytest.mark.parametrize(
     "arguments",
     [
@@ -207,13 +234,20 @@ def test_list_dir_rejects_unsafe_roots_without_echoing_them(
 def test_list_dir_filters_sensitive_entries_before_traversal(
     tmp_path: Path,
 ) -> None:
-    for name in [".git", ".ssh", "docs-local", "__pycache__"]:
+    for name in [
+        ".aws",
+        ".git",
+        ".ssh",
+        "docs-local",
+        "__pycache__",
+    ]:
         directory = tmp_path / name
         directory.mkdir()
         (directory / "hidden.txt").write_text("secret", encoding="utf-8")
     for name in [
         ".env",
         ".env.local",
+        ".npmrc",
         "id_rsa",
         "private.pem",
         "private.key",
@@ -234,6 +268,7 @@ def test_list_dir_filters_sensitive_entries_before_traversal(
     ]
     serialized = result.model_dump_json()
     assert "hidden.txt" not in serialized
+    assert ".npmrc" not in serialized
     assert "secret" not in serialized
 
 
@@ -259,6 +294,37 @@ def test_list_dir_reports_but_never_follows_symlink(tmp_path: Path) -> None:
     assert "linked/inside.txt" not in {
         entry["path"] for entry in result.data["entries"]
     }
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows reparse-point regression")
+def test_list_dir_reports_but_never_follows_directory_junction(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    outside = tmp_path / "outside"
+    workspace.mkdir()
+    outside.mkdir()
+    (outside / "synthetic-marker.txt").write_text("safe", encoding="utf-8")
+    junction = workspace / "junction-out"
+    create_windows_junction(junction, outside)
+    try:
+        result = run_tool(
+            ListDirTool(workspace_root=workspace),
+            {"path": ".", "max_depth": 3},
+        )
+
+        assert result.success is True
+        paths = {entry["path"] for entry in result.data["entries"]}
+        linked = next(
+            entry
+            for entry in result.data["entries"]
+            if entry["path"] == "junction-out"
+        )
+        assert linked["type"] == "symlink"
+        assert "junction-out/synthetic-marker.txt" not in paths
+    finally:
+        if junction.exists():
+            os.rmdir(junction)
 
 
 def test_list_dir_returns_safe_failure_for_missing_directory(

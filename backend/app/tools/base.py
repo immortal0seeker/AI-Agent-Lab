@@ -1,3 +1,4 @@
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from copy import deepcopy
@@ -10,6 +11,8 @@ ToolName = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
 ]
+
+_TOOL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class ToolResult(BaseModel):
@@ -47,9 +50,9 @@ class Tool(ABC):
         permission_level: str,
         timeout_seconds: float = 30.0,
     ) -> None:
-        self.name = self._normalize_text(name, "name", max_length=100)
-        self.description = self._normalize_text(description, "description")
-        self.permission_level = self._normalize_text(
+        self._name = self._normalize_tool_name(name)
+        self._description = self._normalize_text(description, "description")
+        self._permission_level = self._normalize_text(
             permission_level,
             "permission_level",
         )
@@ -62,8 +65,37 @@ class Tool(ABC):
             raise TypeError("timeout_seconds must be a number")
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be greater than zero")
-        self.parameters_schema = deepcopy(dict(parameters_schema))
-        self.timeout_seconds = float(timeout_seconds)
+        self._parameters_schema = deepcopy(dict(parameters_schema))
+        self._timeout_seconds = float(timeout_seconds)
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def description(self) -> str:
+        return self._description
+
+    @property
+    def permission_level(self) -> str:
+        return self._permission_level
+
+    @property
+    def parameters_schema(self) -> dict[str, Any]:
+        return deepcopy(self._parameters_schema)
+
+    @property
+    def timeout_seconds(self) -> float:
+        return self._timeout_seconds
+
+    @classmethod
+    def _normalize_tool_name(cls, value: str) -> str:
+        normalized = cls._normalize_text(value, "name", max_length=64)
+        if _TOOL_NAME_PATTERN.fullmatch(normalized) is None:
+            raise ValueError(
+                "name must contain only letters, numbers, underscores, and hyphens"
+            )
+        return normalized
 
     @staticmethod
     def _normalize_text(

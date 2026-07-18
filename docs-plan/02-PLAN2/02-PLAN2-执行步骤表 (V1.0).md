@@ -422,24 +422,38 @@ Claude Code 审核后，Codex 负责：
 
 ---
 
+### P2-M1/M2 独立审计修复记录（2026-07-18）
+
+| 修复项 | 结果与证据 |
+|---|---|
+| 本地文件安全 | `list_dir` 通过 Windows reparse-point 属性识别 junction，只以 `symlink` 类型报告且不递归；新增常见包管理器、Git、云、容器和 Kubernetes 凭据路径拒绝策略。合成凭据和 junction 测试不读取真实敏感文件。 |
+| Tool / Registry 契约 | Tool 名称、描述、权限级别、超时和参数 schema 改为只读定义；schema 读取为深拷贝。注册 schema 必须具有 JSON 可序列化的 object 根，Tool 名称符合最多 64 字符的 Provider function 边界。 |
+| Agent 审计一致性 | 新增线性 migration `20260718_0003`，以 Message `(id, conversation_id)` 唯一键和 AgentRun 复合外键拒绝跨 Conversation 关联；旧 revision 中若已有跨会话或悬空关联则升级安全停止且不回显内容。 |
+| 正确性与文档 | `list_dir` 只有确实存在未返回条目时才标记截断；README/README_CN、CHANGELOG、Tool Calling 设计和本验收清单同步当前事实。 |
+| TDD 与完整验证证据 | 文件安全测试为 `107 passed`，Tool/Registry/validation 为 `49 passed`，Agent ORM 为 `10 passed`，迁移套件为 `6 passed`。完整 Backend 为 `308 passed, 1 warning`；`pip check`、Frontend typecheck、8 files / 37 tests、production build、全新临时 SQLite 升级/检查/降级/再升级和无 Provider FastAPI smoke 均通过。 |
+
+该记录修复独立审计发现，不实现 Provider tools、Agent Loop、Agent API、前端 Tool Call 或任何后续 Plan 能力。数据库约束和本地路径安全边界仍需要 Claude Code secondary review；外部复审结果不得由 Codex 虚构。
+
+---
+
 ## 10. Plan 2 最终验收清单
 
 | 验收项 | 状态 | 证据 |
 |---|---|---|
-| Tool 抽象完成 | pending | Tool base 代码和测试 |
-| Tool Registry 完成 | pending | Registry 测试 |
-| read_file 可用 | pending | read_file 测试或手动结果 |
-| list_dir 可用 | pending | list_dir 测试或手动结果 |
-| 工具参数校验可用 | pending | schema 校验测试 |
-| 工具安全边界可用 | pending | 路径安全测试 |
+| Tool 抽象完成 | done（M1） | Tool base 代码和测试 |
+| Tool Registry 完成 | done（M1） | Registry 测试 |
+| read_file 可用 | done（M2） | read_file 正常、限制和安全测试 |
+| list_dir 可用 | done（M2） | list_dir 正常、junction、限制和安全测试 |
+| 工具参数校验可用 | done（M1） | Draft 2020-12、object 根和参数错误测试 |
+| 工具安全边界可用 | done（M1/M2 audit fix） | 路径、凭据名称、symlink/junction 测试 |
 | LLM Provider 支持 tools | pending | Provider mock 测试 |
 | Simple Agent Loop 可用 | pending | Agent Loop 测试 |
 | Agent API 可用 | pending | API 测试 |
-| 工具调用记录可保存 | pending | tool_calls 数据库记录 |
+| 工具调用记录可保存 | done（M1 schema） | AgentRun/ToolCall ORM、迁移与约束测试；执行服务仍属于后续 Step |
 | 前端能展示 Tool Call | pending | 页面截图 |
-| 工具失败不会导致系统崩溃 | pending | 失败场景测试 |
-| README 已更新 | pending | README 链接 |
-| docs 已更新 | pending | docs 链接 |
+| 工具失败不会导致系统崩溃 | done（M1/M2） | Tool validation、read_file、list_dir 固定失败结果测试 |
+| README 已更新 | done（M1/M2） | README / README_CN 当前范围与迁移说明 |
+| docs 已更新 | done（M1/M2） | `docs/10-tool-calling-design.md` 与审计修复记录 |
 | 已创建 v0.2.0 tag | pending | `git tag --list` 输出 |
 
 ---

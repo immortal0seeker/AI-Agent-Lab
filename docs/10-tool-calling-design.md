@@ -11,22 +11,31 @@ API, or Provider currently invokes a Tool.
 ## Tool Boundary
 
 `Tool` owns normalized metadata, a JSON parameter schema, permission label,
-timeout, and asynchronous `run(arguments) -> ToolResult`. `ToolResult` keeps
-success, content, structured data, error, and metadata consistent. ToolCall
-transport schemas keep Provider correlation IDs separate from ORM identities.
+timeout, and asynchronous `run(arguments) -> ToolResult`. Definition metadata
+is read-only after construction, and each parameter-schema read returns a deep
+copy so a registered Tool cannot drift from its Registry key or exported
+schema. Tool names are at most 64 ASCII letters, digits, underscores, or
+hyphens. `ToolResult` keeps success, content, structured data, error, and
+metadata consistent. ToolCall transport schemas keep Provider correlation IDs
+separate from ORM identities.
 
 ## Registry and Validation
 
 `ToolRegistry` registers exact names, rejects duplicates, preserves order, and
-exports defensive OpenAI-compatible function schemas. Draft 2020-12 validation
-checks Tool schemas and arguments before future execution. Validation errors
-contain safe paths and rules and never echo rejected argument values.
+exports defensive OpenAI-compatible function schemas. Registered parameter
+schemas must be JSON-serializable Draft 2020-12 schemas with an explicit
+`type: object` root. Argument validation runs before future execution.
+Validation errors contain safe paths and rules and never echo rejected
+argument or schema values.
 
 ## Read-only Security
 
 Paths are workspace-relative and resolved before use. Absolute, drive, UNC,
-parent traversal, `.env`, sensitive directories, private keys, Windows path
-aliases, and alternate data streams are rejected. File-size and directory-depth
+parent traversal, `.env`, credential files/directories, private keys, Windows
+path aliases, and alternate data streams are rejected. Credential policy
+includes package-manager credentials, Git credential stores, cloud CLI config,
+container/Kubernetes config, and common credential JSON names while ordinary
+dotfiles such as `.gitignore` remain available. File-size and directory-depth
 limits are shared policy helpers. The security module itself does not read or
 enumerate files; each builtin owns its bounded filesystem operation.
 
@@ -59,12 +68,16 @@ by case-folded relative POSIX path with the original path as tie-breaker.
 Line-oriented `content` and structured `data.entries` carry the same listing;
 metadata records root path, applied depth, entry count, and truncation state.
 
-Sensitive names including `.git`, `.ssh`, `docs-local`, `__pycache__`, `.env*`,
-private-key names, `*.pem`, and `*.key` are filtered before metadata access or
-recursion. Ordinary `.gitignore` remains visible. Discovered symlinks may be
-reported but are never followed. Invalid, unsafe, missing, non-directory, and
-filesystem failure paths return fixed safe ToolResults. Directory metadata
-work runs through `asyncio.to_thread`.
+Sensitive names including `.git`, `.ssh`, `.aws`, `.azure`, `.kube`, `.docker`,
+`.gnupg`, `docs-local`, `__pycache__`, `.env*`, package-manager/Git credential
+files, private-key names, `*.pem`, and `*.key` are filtered before metadata
+access or recursion. Ordinary `.gitignore` remains visible. Discovered symlinks
+and Windows reparse points such as directory junctions are reported with the
+stable `symlink` entry type but are never followed and never expose their
+target. `truncated` is true only when at least one additional visible entry was
+not returned. Invalid, unsafe, missing, non-directory, and filesystem failure
+paths return fixed safe ToolResults. Directory metadata work runs through
+`asyncio.to_thread`.
 
 `register_builtin_tools(registry, ...)` adds configured `ReadFileTool` and
 `ListDirTool` instances, in that order, to a caller-owned Registry. It creates
@@ -93,7 +106,10 @@ status, goal/final output/error, timing, and creation time. `ToolCall` uses a UU
 database ID plus a separate string `tool_call_id`, belongs to an AgentRun, keeps
 direct Conversation lookup, stores JSON arguments/result, and records status and
 timing. Composite and unique constraints prevent cross-Conversation ownership
-and duplicate correlation IDs inside one run.
+and duplicate correlation IDs inside one run. An AgentRun's optional user
+Message is also protected by a composite key and must belong to the same
+Conversation; migration stops safely if historical rows violate that rule or
+contain a non-null Message ID that no longer exists.
 
 Deleting a Conversation removes its runs and calls. Deleting one user Message
 keeps the audit record and nulls its link. Deleting an AgentRun removes its
