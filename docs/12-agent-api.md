@@ -188,4 +188,6 @@ does not call or validate a live Provider.
 
 See [Simple Agent Loop](11-simple-agent-loop.md) and
 [Tool Calling Design](10-tool-calling-design.md) for the underlying runtime and
-security contracts.
+security contracts. The S7 [Plan 2 final review](reviews/2026-07-19-plan2-v0.2.0-final-review.md)
+revalidated these routes and their Plan 3 bridge role; the user-owned
+`v0.2.0` tag remains pending in S8.

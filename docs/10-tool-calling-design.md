@@ -15,6 +15,8 @@ a dedicated read-only frontend workspace with bounded ToolCall audit cards.
 `P2-M5-S1` through `P2-M5-S6` harden standard-JSON and `.env*` validation,
 lock the `web_fetch` deferral with regression coverage, refresh frontend
 verification, and prepare sanitized release-candidate documentation.
+`P2-M5-S7` completes the final Codex review and revalidates this Tool boundary
+for Plan 3. S8 tag creation remains a user-owned Git operation.
 
 ## Tool Boundary
 

@@ -11,8 +11,8 @@ conversation navigation, refresh recovery, successful-call usage persistence,
 structured errors, request-linked logging, focused regression coverage,
 recoverable frontend initialization states, clean-start documentation, release
 materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
-completed implementation and release-candidate preparation through
-`P2-M5-S6`: Tool contracts, Registry, validation,
+completed implementation, release-candidate preparation, and final review
+through `P2-M5-S7`: Tool contracts, Registry, validation,
 read-only path policy, AgentRun/ToolCall persistence, and the executable
 `read_file` and `list_dir` builtins are available. The Provider contract now
 accepts typed Tool definitions and normalizes non-streaming Tool Calls; an
@@ -26,7 +26,9 @@ dedicated frontend Agent workspace consumes the synchronous API and renders
 bounded ToolCall audit details. M5 adds safety regression coverage plus
 sanitized desktop/mobile release-candidate evidence without changing runtime
 states or API schemas; no network Tool is implemented at this stage. The final
-Plan 2 review and `v0.2.0` tag remain pending in S7～S8.
+review revalidated all five Plan 3 bridge contracts and aligned backend/API/
+frontend release metadata with `0.2.0`. Only the user-owned `v0.2.0` release
+commit/tag and tag-target verification remain pending in S8.
 
 The first architectural goal is a thin, understandable web application foundation:
 

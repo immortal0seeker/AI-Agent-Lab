@@ -9,7 +9,8 @@ bounded non-streaming loop. Plan 2 M4 S1～S3 now expose it through synchronous
 Agent create/query routes, while M4 S4～S6 add a dedicated frontend Agent
 workspace that submits one goal and renders the persisted AgentRun/ToolCall
 audit result. M5 S1～S6 harden its safety tests and refresh the release-candidate
-verification and documentation without changing the loop contract.
+verification and documentation. M5 S7 completes the final Codex review without
+changing the loop contract.
 
 The loop itself was delivered by `P2-M3-S1` through `P2-M3-S8`. Plan 2 does not
 add RAG, Embedding, Memory, MCP, Shell/file-writing Tools, a Planner, Human
@@ -161,7 +162,7 @@ M3 reuses the existing ORM and migrations:
 - Agent Provider calls still have no Agent-linked `LLMCall`, so their
   usage/cost is not persisted.
 
-No schema field, state, constraint, or Alembic revision was added in S7～S8.
+No schema field, state, constraint, or Alembic revision was added in M3 S7～S8.
 
 ## Verification and Security
 
@@ -191,7 +192,8 @@ touch the user's SQLite database.
 
 The tracked example model remains `supports_tools=false`; browser and release
 acceptance use local Mock data and do not prove live Provider Tool capability.
-The next batch is `P2-M5-S7` through `P2-M5-S8`: final Plan 2 review, any
-required fixes, `v0.2.0` tag creation, and the Plan 3 bridge decision. See
+The S7 final review passed and revalidated the bounded loop for Plan 3. S8
+remains open only for the user-owned `v0.2.0` release commit/tag and subsequent
+tag-target verification. See
 [Agent API](12-agent-api.md) for the implemented HTTP schemas, transaction
 behavior, error mapping, query boundaries, and frontend integration.

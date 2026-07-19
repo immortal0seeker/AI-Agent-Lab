@@ -64,7 +64,7 @@ blocked
 | Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 | 已完成 |
 | Batch 12 | P2-M5-S1～S3 | 补 Tool / Agent 测试 | 后端测试 | 已完成 |
 | Batch 13 | P2-M5-S4～S6 | 补文档、README、截图和限制说明 | 文档 review | 已完成 |
-| Batch 14 | P2-M5-S7～S8 | 最终 review、修复、v0.2.0 封版 | Codex final review | 未完成 |
+| Batch 14 | P2-M5-S7～S8 | 最终 review、修复、v0.2.0 封版 | Codex final review | 进行中（S7 done；S8 tag pending） |
 
 ---
 
@@ -455,8 +455,8 @@ feat(frontend): show agent tool calls
 | P2-M5-S4 | 补前端 Tool Call 展示检查 | Cursor | 前端类型检查、基础 UI 验证记录 | `npm run build` 或前端检查通过 | Codex（done） |
 | P2-M5-S5 | 更新 README 和 Plan 2 文档 | Codex | README、`docs/10-tool-calling-design.md`、`docs/11-simple-agent-loop.md` | 文档说明工具限制和启动方式 | Codex（done） |
 | P2-M5-S6 | 准备封版材料：截图、CHANGELOG、当前限制 | Cursor + Codex | Tool Call 截图、`CHANGELOG.md` | v0.2.0 功能边界清晰 | Codex（done） |
-| P2-M5-S7 | Plan 2 全量 review 和修复 | Codex | review 记录、修复 commit | 后端测试和前端检查通过 | Codex final review |
-| P2-M5-S8 | 创建 v0.2.0 tag 并记录进入 Plan 3 的桥接状态 | Codex | `v0.2.0` tag、桥接检查表 | `git tag --list` 包含 v0.2.0 | Codex final review |
+| P2-M5-S7 | Plan 2 全量 review 和修复 | Codex | review 记录、修复 commit | 后端测试和前端检查通过 | Codex final review（done） |
+| P2-M5-S8 | 创建 v0.2.0 tag 并记录进入 Plan 3 的桥接状态 | Codex | `v0.2.0` tag、桥接检查表 | `git tag --list` 包含 v0.2.0 | 进行中（bridge done；tag 待用户手动创建） |
 
 ### P2-M5-S1～S3 Tool / Agent 测试加固验收记录（2026-07-19）
 
@@ -499,6 +499,20 @@ S4～S6 建议 commit：
 ```text
 docs(plan2): prepare basic agent release materials
 ```
+
+### P2-M5-S7～S8 Plan 2 最终 review 与封版交接记录（2026-07-19）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| S7 全量 review | Codex 审查 `v0.1.0..b7a795c` 的完整 Plan 2 runtime、测试、迁移、API、前端与文档，而非只看本批 diff。检查覆盖 Tool/Registry/参数与路径安全、Provider Tool wire、Agent 最大步数/超时/失败、事务和复合外键、API 错误/查询、前端状态/URL gate、Plan 1 回归、secret/artifact 与 Plan 边界。正式记录见 `docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md`。 |
+| Must-fix 与 TDD | 发现 backend package、FastAPI OpenAPI、frontend package 和 lockfile 仍为 `0.1.0`。第一轮 RED 为 `1 failed`，修 backend 后 GREEN 为 `1 passed`；扩展前端断言后 RED 为 `1 failed, 1 passed`，最小修复后 GREEN 为 `2 passed`。四处版本现统一为 `0.2.0`，无其他 runtime must-fix。 |
+| 完整验证 | Backend `453 passed, 1 warning`，warning 是已知 Starlette TestClient/httpx 弃用；`pip check` 无破损依赖。Frontend typecheck、`16 files / 79 tests`、production build（1812 modules transformed）通过。OpenAPI runtime 为 `0.2.0`，三个复数 Agent 路由存在、单数路由不存在。 |
+| SQLite | 只在新建系统临时目录运行 Alembic `upgrade head`、`current --check-heads`、`check`，head 为 `20260718_0003` 且目录已清理。`backend/ai_agent_lab.db` 只读取文件元数据，验证前后均为 36,864 bytes、`2026-07-12 03:04:00 UTC`，未打开、迁移或修改。 |
+| S8 Plan 3 bridge | Registry 可稳定注册后续 `search_knowledge_base`、ToolResult 四项表达能力、ToolCall 关联、read_file/list_dir 安全规则、Agent 最大步数/超时/失败返回五项均经当前代码、聚焦测试和全量门禁重新确认。没有创建 RAG/Qdrant/Knowledge 目录或实现 Plan 3 runtime。 |
+| 文档与边界 | README 中英文、CHANGELOG、overview、architecture、Tool/Agent/API/release candidate 与本表同步到 S7 final-review-passed / S8 tag-pending 状态。77 个 Markdown、67 个本地链接/图片、0 missing，223 个候选文本路径 secret 命中 0；`web_fetch` runtime、later Plan 目录、migration 改动、tracked dist、临时 Playwright、staged path 和 `v0.2.0` tag 均为 0。最终 18 个路径仅含 release metadata/test/docs，唯一 runtime 路径是 FastAPI 版本号；没有真实 Provider、网络 Tool、`.env`、用户数据库内容、Claude Code、Fable 5、子代理或外部复审。 |
+| Finding 分类 | 必须修：四处 release version metadata，已按 TDD 修复。后续 Step：用户手动 release commit、annotated `v0.2.0` tag 与 tag-target 复核。接受限制：Mock-only Provider、同步非流式/顺序 Tool、无 list/polling/cancel/resume/retry、无严格 sequence/Agent-linked LLMCall usage、字符级 observation 压缩、tracked 模型 tools=false、`web_fetch` 延期、editable-only Registry packaging、开发 favicon 404。不适用：新增 Agent 状态、ORM 字段、migration、Provider Tool 协议、API schema 或前端 runtime。 |
+
+**当前结论：** `P2-M5-S7` 已完成且 Plan 3 五项 bridge 已通过；`P2-M5-S8`、Batch 14 和 Plan 2 仍保持未完成，因为 Git 规则要求用户先手动提交本批并创建 `v0.2.0` tag。tag 及其 peeled target 复核通过前不得开始 `P3-M1-S1`。
 
 M5 完成后建议 commit：
 
@@ -592,6 +606,7 @@ Codex review 后：
 | 工具失败不会导致系统崩溃 | done（M1/M2/M3 S7） | Tool validation、内置 Tool、timeout 和安全 observation 测试 |
 | README 已更新 | done（through M5 S6） | README / README_CN 当前范围、Agent 工作台、启动要求、截图与限制说明 |
 | docs 已更新 | done（through M5 S6） | Provider、Tool Calling、Simple Agent、Agent API、release candidate、架构文档与验收记录 |
+| Plan 2 全量 review 已完成 | done（M5 S7） | Codex final review、release version RED/GREEN、完整 Backend/Frontend/SQLite/边界验证 |
 | 已创建 v0.2.0 tag | pending | `git tag --list` 输出 |
 
 ---
@@ -602,11 +617,11 @@ Codex review 后：
 
 | 桥接项 | 状态 | 说明 |
 |---|---|---|
-| Tool Registry 可以稳定注册后续 `search_knowledge_base` 工具 | done（M1/M2/M3 review） | caller-owned Registry、顺序、schema adapter 与重复/原子失败测试稳定；Plan 3 不需要重写工具体系 |
-| ToolResult 结构能表达 success、content、error、metadata | done（M1/M3 review） | 成功、失败、结构化 data/metadata、标准 JSON 和 observation 压缩测试 |
-| 工具调用日志能关联 conversation_id 或 agent_run_id | done（M1/M3 execution） | ToolCall 复合外键、AgentRun/Conversation 归属和 commit/reload 测试 |
-| read_file / list_dir 的路径安全规则已经固定 | done（M1/M2 audit） | traversal、敏感名称、symlink/junction、大小/深度/条目限制与正式文档 |
-| Simple Agent Loop 有最大步数、超时和失败返回 | done（M3 S7～S8） | 默认 3 步、Tool timeout、结构化 failed AgentRun 和完整回归 |
+| Tool Registry 可以稳定注册后续 `search_knowledge_base` 工具 | done（S7 fresh review） | caller-owned Registry、顺序、schema adapter 与重复/原子失败测试稳定；Plan 3 不需要重写工具体系 |
+| ToolResult 结构能表达 success、content、error、metadata | done（S7 fresh review） | 成功、失败、结构化 data/metadata、标准 JSON 和 observation 压缩测试 |
+| 工具调用日志能关联 conversation_id 或 agent_run_id | done（S7 fresh review） | ToolCall 复合外键、AgentRun/Conversation 归属和 commit/reload 测试 |
+| read_file / list_dir 的路径安全规则已经固定 | done（S7 fresh review） | traversal、敏感名称、symlink/junction、大小/深度/条目限制与正式文档 |
+| Simple Agent Loop 有最大步数、超时和失败返回 | done（S7 fresh review） | 默认 3 步、Tool timeout、结构化 failed AgentRun 和完整回归 |
 
 ---
 

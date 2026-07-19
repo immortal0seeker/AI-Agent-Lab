@@ -4,6 +4,8 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-19
+
 ### Added
 
 - Added Provider-neutral assistant Tool Call and Tool observation messages with exact OpenAI-compatible serialization.
@@ -28,6 +30,7 @@ All notable changes to AI Agent Lab are documented in this file.
 - Rejected non-finite Tool timeouts, cross-round duplicate Tool Call IDs, and oversized escaped observation envelopes before they can break an Agent transaction.
 - Prevented a late Agent response from updating state or rewriting the URL after the user leaves the Agent workspace.
 - Rejected non-finite Tool argument values as non-standard JSON and extended the documented `.env*` path boundary to `.envrc` across shared policy and builtin Tools.
+- Aligned backend package, FastAPI OpenAPI, frontend package, and lockfile release metadata with `0.2.0`.
 
 ### Known Limitations
 
@@ -35,7 +38,6 @@ All notable changes to AI Agent Lab are documented in this file.
 - Agent execution and Tool Calling are synchronous/non-streaming. There is no AgentRun list, polling, cancel/resume/retry, parallel Tool execution, or persisted cancelled-run policy.
 - ToolCall has no strict persisted step sequence, and Agent Provider calls are not linked to `LLMCall` usage/cost rows.
 - `web_fetch` remains explicitly deferred with no executable surface.
-- The `v0.2.0` final review and tag remain pending in `P2-M5-S7～S8`; the current tagged release is still `v0.1.0`.
 
 ## [0.1.0] - 2026-07-13
 

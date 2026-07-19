@@ -35,10 +35,11 @@ The project emphasizes:
 
 ## Current Stage
 
-Current release: Plan 1 is complete as the `v0.1.0` foundation release.
-Current development stage: Plan 2 release-candidate work is complete through
-`P2-M5-S6`. The S7 final review and S8 `v0.2.0` tag/bridge decision remain
-pending, so `v0.1.0` is still the current tagged release.
+Latest existing tag: Plan 1 is complete as the `v0.1.0` foundation release.
+Current development stage: Plan 2 implementation and final review are complete
+through `P2-M5-S7`, and all five Plan 3 bridge contracts have been revalidated.
+`P2-M5-S8` remains open for the user-owned `v0.2.0` release commit/tag and
+tag-target verification.
 
 The repository has completed `P1-M1-S1` through `P1-M4-S8`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 added:
 
@@ -139,11 +140,13 @@ flow, add sanitized desktop/mobile Agent ToolCall screenshots, and synchronize
 the Plan 2 release-candidate documents and limitations. These checks did not
 change frontend runtime behavior or enable a live tools-capable model.
 
-The next batch is `P2-M5-S7` through `P2-M5-S8`. See the
+The next action is the manual `v0.2.0` release commit/tag gate. After its target
+is verified, the repository can enter `P3-M1-S1`. See the
 [Tool Calling design](10-tool-calling-design.md),
 [Simple Agent Loop](11-simple-agent-loop.md),
 [Agent API](12-agent-api.md),
 [Plan 2 basic Agent release candidate](13-plan-2-basic-agent.md),
+[Plan 2 final review](reviews/2026-07-19-plan2-v0.2.0-final-review.md),
 [Plan 1 foundation release](02-plan-1-foundation.md), and root
 [changelog](../CHANGELOG.md) for the current boundaries and limitations.
 

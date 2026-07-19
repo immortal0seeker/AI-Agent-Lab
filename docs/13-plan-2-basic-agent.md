@@ -1,12 +1,13 @@
-# Plan 2 Basic Agent Release Candidate
+# Plan 2 v0.2.0 Basic Agent Release Candidate
 
 ## Release Status And Boundary
 
-This document describes the Plan 2 release candidate prepared through
-`P2-M5-S6`. The current tagged release remains `v0.1.0`; `P2-M5-S7` still owns
-the final Plan 2 review and fixes, while `P2-M5-S8` owns the `v0.2.0` tag and
-Plan 3 bridge decision. Nothing in this document claims that those final steps
-or the release tag already exist.
+This document describes the Plan 2 release candidate reviewed through
+`P2-M5-S7`. The final Codex review passed, all five Plan 3 bridge contracts were
+revalidated, and backend/API/frontend release metadata is `0.2.0`. The latest
+existing tag remains `v0.1.0`; `P2-M5-S8` stays open until the user creates the
+`v0.2.0` release commit/tag and its target is verified. Nothing in this document
+claims that the release tag already exists.
 
 Plan 2 adds a safe, traceable read-only Tool Calling path and a bounded Simple
 Agent loop on top of the Plan 1 Chat foundation. It does not add RAG, Embedding,
@@ -119,9 +120,12 @@ readable in one image.
 - The supported package workflow remains an editable source install;
   `models.json` is not yet declared as future wheel/sdist package data.
 
-## Remaining Plan 2 Steps
+## Release And Plan 3 Handoff
 
-`P2-M5-S7` must perform the full Plan 2 Codex review and any in-scope fixes.
-Only after that gate passes may `P2-M5-S8` create the `v0.2.0` tag and finalize
-the Plan 3 bridge checklist. Until then, this is release-candidate material, not
-a tagged Plan 2 release.
+The full S7 Codex review is recorded in the
+[Plan 2 v0.2.0 final review](reviews/2026-07-19-plan2-v0.2.0-final-review.md).
+Its only runtime/release must-fix aligned the backend package, FastAPI OpenAPI,
+frontend package, and lockfile versions with `0.2.0`; focused and full checks
+then passed. S8 bridge evidence is ready, but this remains release-candidate
+material until the user commits it, creates annotated tag `v0.2.0`, and the tag
+target is verified. Plan 3 must not begin before that gate.

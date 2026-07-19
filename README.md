@@ -8,7 +8,9 @@ This repository is not a collection of disconnected demos. The goal is to build 
 
 ## Current Stage
 
-Current release: `v0.1.0` (Plan 1 foundation).
+Latest existing Git tag: `v0.1.0` (Plan 1 foundation). The `v0.2.0` Plan 2
+release candidate has passed its final Codex review; the user-owned release
+commit and annotated tag are still pending.
 
 Plan 1 covers:
 
@@ -25,9 +27,10 @@ Plan 1 covers:
 
 Completed scope: `P1-M1-S1` through `P1-M4-S8`.
 
-Current development stage: Plan 2 M5 release-candidate materials are complete
-through `P2-M5-S6`. The current tagged release remains `v0.1.0`; the Plan 2
-final review and `v0.2.0` tag remain pending in S7～S8.
+Current development stage: Plan 2 implementation and final review are complete
+through `P2-M5-S7`. All five Plan 3 bridge contracts have been revalidated.
+`P2-M5-S8` remains open only for the user-created `v0.2.0` release commit/tag
+and the subsequent tag-target verification.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -72,8 +75,8 @@ evidence, synchronize the current Tool/Agent documents, and add sanitized Plan 2
 desktop/mobile release-candidate screenshots. No frontend runtime behavior was
 changed for those checks.
 
-Next batch: `P2-M5-S7` through `P2-M5-S8` for the final Plan 2 review, fixes,
-tag, and Plan 3 bridge decision.
+Next action: manually commit this verified release candidate, create annotated
+tag `v0.2.0`, then verify the tag target before beginning `P3-M1-S1`.
 
 ## v0.1.0 Demo
 
@@ -84,15 +87,15 @@ tag, and Plan 3 bridge decision.
 These are sanitized mock demonstrations. No live Provider, real API key, or
 user-local conversation database was used to create them.
 
-## Plan 2 Release Candidate Demo
+## v0.2.0 Release Candidate Demo
 
 ![Desktop Agent ToolCall workspace](docs/assets/plan2/agent-tool-call-desktop.png)
 
 ![Mobile Agent ToolCall workspace](docs/assets/plan2/agent-tool-call-mobile.png)
 
 These are sanitized local Mock demonstrations with synthetic IDs and no project
-backend database. They prepare the `v0.2.0` materials but do not claim that the
-S7～S8 final review or tag has already happened.
+backend database. The S7 final review has passed; the images do not claim that
+the user-owned `v0.2.0` tag already exists.
 
 ## Non-Goals For Plan 1
 
@@ -319,6 +322,7 @@ Release documentation:
 - [Agent API](docs/12-agent-api.md)
 - [Plan 2 basic Agent release candidate](docs/13-plan-2-basic-agent.md)
 - [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
+- [Plan 2 final review record](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
 
@@ -337,8 +341,9 @@ calls are not linked to `LLMCall` usage/cost rows, and `web_fetch` remains
 explicitly deferred with no runtime surface. See the
 [Plan 1 foundation release](docs/02-plan-1-foundation.md),
 [Agent API](docs/12-agent-api.md), and
-[Plan 2 release candidate](docs/13-plan-2-basic-agent.md) for the complete
-current boundaries.
+[Plan 2 release candidate](docs/13-plan-2-basic-agent.md) and
+[Plan 2 final review](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md) for
+the complete current boundaries.
 
 ## Roadmap
 
