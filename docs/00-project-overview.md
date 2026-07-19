@@ -36,8 +36,8 @@ The project emphasizes:
 ## Current Stage
 
 Current release: Plan 1 is complete as the `v0.1.0` foundation release.
-Current development stage: the first Plan 2 M3 batch is complete through
-`P2-M3-S3`.
+Current development stage: the first two Plan 2 M3 batches are complete through
+`P2-M3-S6`.
 
 The repository has completed `P1-M1-S1` through `P1-M4-S8`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 added:
 
@@ -101,10 +101,21 @@ schema, helper, dependency, API, or UI was added. `P2-M3-S1` through
 defensive Registry-to-Provider schema adapter, safe OpenAI-compatible `tools`
 serialization, and normalized single/multiple Tool Call parsing. Streaming
 Tool Calls are explicitly rejected before HTTP, and the tracked example model
-remains `supports_tools=false`. Tool execution, the Agent Loop, persistence
-services, Agent APIs, and frontend Agent/ToolCall views remain deferred.
+remains `supports_tools=false`. At the S1～S3 transport boundary, Tool
+execution, the Agent Loop, persistence services, Agent APIs, and frontend
+Agent/ToolCall views were still deferred.
 
-The next batch is `P2-M3-S4` through `P2-M3-S6`. See the
+`P2-M3-S4` through `P2-M3-S6` add a backend-only `SimpleAgentService`. It
+validates an explicitly tools-capable model, creates or reuses a Conversation,
+persists the user Message and AgentRun, and either completes from one Provider
+text response or executes one ordered Tool round. Tool results are correlated
+back into Provider-neutral observation messages, a second and final Provider
+call supplies the answer, and each attempted Tool Call receives a terminal
+audit row. Agent API/UI, general max-step/timeout/retry/failure policy, strict
+persisted parallel-call ordering, and Agent-linked LLM usage records remain
+deferred.
+
+The next batch is `P2-M3-S7` through `P2-M3-S8`. See the
 [Tool Calling design](10-tool-calling-design.md),
 [Plan 1 foundation release](02-plan-1-foundation.md), and root
 [changelog](../CHANGELOG.md) for the current boundaries and limitations.

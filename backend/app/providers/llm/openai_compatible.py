@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from app.providers.llm.base import (
     BaseLLMProvider,
     ChatChunk,
+    ChatMessage,
     ChatRequest,
     LLMResponse,
     LLMToolCall,
@@ -80,7 +81,10 @@ class OpenAICompatibleProvider(BaseLLMProvider):
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": request.model or self._default_model,
-            "messages": [message.model_dump() for message in request.messages],
+            "messages": [
+                self._serialize_message(message)
+                for message in request.messages
+            ],
             "temperature": request.temperature,
             "stream": stream,
         }
@@ -90,6 +94,33 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             payload["tools"] = [
                 tool.model_dump(mode="json") for tool in request.tools
             ]
+        return payload
+
+    @staticmethod
+    def _serialize_message(message: ChatMessage) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "role": message.role,
+            "content": message.content,
+        }
+        if message.tool_calls:
+            payload["tool_calls"] = [
+                {
+                    "id": call.tool_call_id,
+                    "type": "function",
+                    "function": {
+                        "name": call.tool_name,
+                        "arguments": json.dumps(
+                            call.arguments,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                            allow_nan=False,
+                        ),
+                    },
+                }
+                for call in message.tool_calls
+            ]
+        if message.tool_call_id is not None:
+            payload["tool_call_id"] = message.tool_call_id
         return payload
 
     @property

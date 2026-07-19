@@ -11,15 +11,16 @@ conversation navigation, refresh recovery, successful-call usage persistence,
 structured errors, request-linked logging, focused regression coverage,
 recoverable frontend initialization states, clean-start documentation, release
 materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
-completed `P2-M1-S1` through `P2-M3-S3`: Tool contracts, Registry, validation,
+completed `P2-M1-S1` through `P2-M3-S6`: Tool contracts, Registry, validation,
 read-only path policy, AgentRun/ToolCall persistence, and the executable
 `read_file` and `list_dir` builtins are available. The Provider contract now
 accepts typed Tool definitions and normalizes non-streaming Tool Calls; an
 independent adapter converts the Registry in stable order, and the
 OpenAI-compatible adapter maps `tools` without leaking vendor payloads into
-services. `web_fetch` remains deferred. No network Tool, Tool execution, Agent
-Loop, Agent persistence service, Agent API, or frontend Agent view is
-implemented at this stage.
+services. `web_fetch` remains deferred. A backend-only `SimpleAgentService`
+now owns one bounded Tool round, observation backfill, and AgentRun/ToolCall
+persistence. No network Tool, Agent API, or frontend Agent view is implemented
+at this stage; general step/timeout/failure policy remains in the next batch.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -75,6 +76,7 @@ Current backend layers:
 | `api/` | HTTP routes and response shaping |
 | `schemas/` | Pydantic request and response contracts |
 | `services/` | Chat, conversation, and application logic |
+| `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM provider abstractions and adapters |
 | `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
 | `db/` | SQLAlchemy session and database setup |
@@ -205,21 +207,44 @@ Caller-owned ToolRegistry
 -> normalized LLMToolCall objects
 ```
 
-This path only transports definitions and parses requests selected by a model.
-It does not look up or execute a Tool. Malformed argument JSON, non-object
+The Provider portion transports definitions and parses requests selected by a
+model. Malformed argument JSON, non-object
 arguments, invalid names/IDs, duplicate IDs, and unrequested Tool Calls become
 fixed `ProviderResponseError` values without echoing the raw arguments.
 Streaming Tool requests fail locally before HTTP because Tool Call delta
-aggregation is outside `P2-M3-S1` through `P2-M3-S3`.
+aggregation remains outside the completed non-streaming scope.
+
+The implemented backend Agent path is:
+
+```text
+SimpleAgentRequest
+-> tools-capable ModelRegistry gate
+-> Conversation + user Message + AgentRun(running)
+-> provider.chat(history + Tool definitions)
+   -> direct text -> assistant Message + AgentRun(completed)
+   -> ordered Tool Calls -> validation + execution + ToolCall rows
+      -> assistant Tool Call message + correlated Tool observations
+      -> one final provider.chat() -> assistant Message + AgentRun(completed)
+```
+
+One first response may contain multiple Tool Calls, which run sequentially in
+Provider order. The second response must be non-blank final text without more
+Tool Calls. A further Tool request fails locally instead of starting a third
+call; `P2-M3-S7` will generalize this into an explicit max-step/timeout/failure
+policy. Intermediate Tool protocol messages remain in-process because the
+current Message table cannot losslessly represent correlation fields. The
+ToolCall audit rows retain arguments, full safe results, status, and timing.
 
 `web_fetch` is intentionally absent from this architecture. A future
 reassessment must define SSRF-safe address and redirect validation, DNS-
 rebinding resistance, bounded streaming, content policy, text extraction,
 safe errors, and mock acceptance coverage before exposing a network Tool.
 
-No current route or service invokes the Tool or creates AgentRun/ToolCall
-records. Agent Loop transitions, Agent persistence services, Agent APIs, and
-frontend visualization remain scheduled for later Plan 2 milestones. See
+No current route invokes the Agent service. Agent API access and frontend
+visualization remain scheduled for later Plan 2 milestones. Agent Provider
+calls are not yet linked to `LLMCall`, and the existing ToolCall table has no
+explicit sequence column; runtime results preserve Provider order, while a
+strict persisted step timeline belongs to later AgentStep/Trace design. See
 [Tool Calling Design](10-tool-calling-design.md) for the detailed boundary.
 
 ## Frontend Boundaries

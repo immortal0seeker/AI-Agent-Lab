@@ -3,7 +3,8 @@
 ## Implemented Scope
 
 Plan 1 Milestone 2 provides the backend foundation for model access, and
-`P2-M3-S1` through `P2-M3-S3` extend its non-streaming protocol boundary:
+`P2-M3-S1` through `P2-M3-S6` extend its non-streaming protocol boundary and
+add its first backend Agent consumer:
 
 - vendor-neutral asynchronous chat and stream contracts
 - typed messages, requests, responses, chunks, and token usage
@@ -17,11 +18,15 @@ Plan 1 Milestone 2 provides the backend foundation for model access, and
 - typed function Tool definitions and normalized Tool Calls
 - a defensive Tool Registry-to-Provider schema adapter
 - OpenAI-compatible non-streaming `tools` serialization and `tool_calls` parsing
+- Provider-neutral assistant Tool Call and correlated Tool observation messages
+- a backend-only single-round Agent service with AgentRun/ToolCall persistence
 
 The Provider layer is consumed by both `POST /api/v1/chat/completions` and
 `POST /api/v1/chat/stream`. `GET /api/v1/models` exposes read-only Registry
 metadata, and the frontend selector uses its exact provider/model identities.
 Listing models does not initialize a Provider or expose credentials.
+`SimpleAgentService` also consumes the non-streaming contract directly, but no
+Agent HTTP route or frontend view exists yet.
 
 ## Provider Contract
 
@@ -47,6 +52,13 @@ Calls. `ChatRequest.tools` defaults to an empty tuple, preserving ordinary Plan
 1 payloads. `LLMResponse` requires text content, at least one Tool Call, or both;
 Tool Call IDs must be unique in one response. JSON-mode request fields remain
 deferred.
+
+`ChatMessage` now represents four validated Provider-neutral shapes: system or
+user text, assistant text, assistant Tool Calls, and Tool observations carrying
+the matching `tool_call_id`. Invalid role/field combinations and duplicate
+assistant Tool Call IDs are rejected locally. `LLMToolCall.arguments` must be a
+standard JSON-serializable object even when constructed by a Mock or future
+non-OpenAI adapter.
 
 ## Tool Definition Adapter
 
@@ -107,6 +119,12 @@ non-standard JSON constants, duplicate IDs, and Tool Calls returned when none
 were requested all produce the fixed safe `ProviderResponseError` boundary;
 raw arguments never enter the exception message.
 
+For the follow-up request after execution, the adapter serializes normalized
+assistant Tool Calls back to OpenAI-compatible `id/type/function` values and
+encodes arguments as deterministic compact standard JSON. Each Tool observation
+uses `role="tool"`, string content, and the corresponding `tool_call_id`.
+These wire details remain isolated from the Agent service.
+
 Streaming Tool Calls are not implemented in this batch. `stream_chat()` rejects
 a request containing tools with `ProviderUnsupportedFeatureError` before any
 HTTP I/O instead of silently dropping or partially reconstructing deltas.
@@ -164,9 +182,11 @@ Each model defines:
 Capability labels describe project behavior for a configured model, not every
 feature offered by an upstream endpoint. The tracked example marks streaming as
 supported and leaves Tool Calling and JSON mode disabled. `P2-M3-S1` through
-`P2-M3-S3` prove the non-streaming adapter protocol with mocks; they do not
-verify that the example model supports tools or expose an Agent execution path.
-Prices remain `null` instead of using invented or stale values.
+`P2-M3-S6` prove the non-streaming adapter and Agent service with mocks; they do
+not verify that the example model supports tools. The backend service rejects a
+model unless its selected Registry entry explicitly sets `supports_tools=true`,
+so the tracked example cannot run the Agent path without an intentional local
+configuration. Prices remain `null` instead of using invented or stale values.
 
 Registry usage:
 
@@ -189,6 +209,7 @@ Run from `backend`:
 ..\.venv\Scripts\python.exe -m pytest tests/test_llm_provider_base.py -q
 ..\.venv\Scripts\python.exe -m pytest tests/test_llm_tool_adapter.py -q
 ..\.venv\Scripts\python.exe -m pytest tests/test_openai_compatible_provider.py -q
+..\.venv\Scripts\python.exe -m pytest tests/test_simple_agent.py -q
 ..\.venv\Scripts\python.exe -m pytest tests/test_llm_provider_factory.py -q
 ..\.venv\Scripts\python.exe -m pytest tests/test_llm_model_registry.py -q
 ..\.venv\Scripts\python.exe -m pytest -q
@@ -209,10 +230,19 @@ malformed IDs, 405 responses, and unexpected 500 responses. Browser verification
 intercepts health, Registry, conversation, and stream requests; it does not
 require a real API key.
 
+Simple Agent tests inject a tools-capable Mock Registry and disposable SQLite.
+They cover direct answers, existing history, one/multiple ordered Tool Calls,
+exact observation correlation, safe unknown/invalid/failed/malformed Tool
+results, the two-Provider-call bound, and AgentRun/ToolCall commit/reload. They
+use only temporary workspace files and never initialize a real Provider.
+
 ## Known Limitations
 
 - The current local workflow uses an editable backend install, where `models.json` is loaded directly from the source tree. `backend/pyproject.toml` does not yet declare the JSON file as setuptools package data, so a future wheel or sdist workflow must add and verify that packaging configuration.
 - Registry validation exceptions may still contain Pydantic field context internally. `models.json` must not contain credentials or other sensitive values; API errors and logs intentionally expose only a fixed safe message and exception type.
+- Agent Provider calls are not yet represented by Agent-linked `LLMCall` rows, so their usage/cost is not persisted in this batch.
+- The current ToolCall table has no explicit sequence column. Runtime results preserve Provider order; strict persisted step ordering belongs to later AgentStep/Trace work.
+- The Agent service flushes but does not commit. Provider/terminal failures propagate for caller-owned rollback; comprehensive persisted failure returns belong to `P2-M3-S7`.
 
 ## Deferred Work
 
@@ -221,6 +251,6 @@ require a real API key.
 - Provider retries and fallback policy
 - persistent Trace, Timeline, and replay
 - streaming Tool Call delta aggregation
-- Tool execution, observation messages, and the Simple Agent Loop
-- AgentRun/ToolCall persistence service, Agent APIs, and frontend views
+- general Agent max steps, Tool timeouts, retries, and failure-return policy
+- Agent APIs and frontend views
 - all later-plan capabilities

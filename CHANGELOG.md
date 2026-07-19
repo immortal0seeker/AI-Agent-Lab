@@ -4,6 +4,12 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Added Provider-neutral assistant Tool Call and Tool observation messages with exact OpenAI-compatible serialization.
+- Added a backend-only Simple Agent service for direct answers or one ordered Tool round followed by a final model answer.
+- Added AgentRun and ToolCall execution persistence with safe Tool failure observations, correlated results, and timing metadata.
+
 ### Fixed
 
 - Prevented `list_dir` from following Windows junctions and other reparse points outside the workspace, and corrected exact-limit truncation metadata.

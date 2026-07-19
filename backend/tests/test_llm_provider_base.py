@@ -106,6 +106,103 @@ def test_provider_contract_accepts_tools_and_returns_tool_calls() -> None:
     assert response.tool_calls[0].arguments == {"path": "README.md"}
 
 
+def test_chat_message_supports_tool_call_and_observation() -> None:
+    call = LLMToolCall(
+        tool_call_id="call_1",
+        tool_name="read_file",
+        arguments={"path": "README.md"},
+    )
+
+    assistant = ChatMessage(
+        role="assistant",
+        content=None,
+        tool_calls=(call,),
+    )
+    observation = ChatMessage(
+        role="tool",
+        content='{"success":true}',
+        tool_call_id="call_1",
+    )
+
+    assert assistant.tool_calls == (call,)
+    assert observation.tool_call_id == "call_1"
+
+
+def test_chat_message_keeps_ordinary_text_contract() -> None:
+    messages = [
+        ChatMessage(role="system", content="Follow instructions"),
+        ChatMessage(role="user", content="Hello"),
+        ChatMessage(role="assistant", content="Hi"),
+    ]
+
+    assert [message.model_dump() for message in messages] == [
+        {"role": "system", "content": "Follow instructions"},
+        {"role": "user", "content": "Hello"},
+        {"role": "assistant", "content": "Hi"},
+    ]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        {"role": "user", "content": None},
+        {"role": "user", "content": "hello", "tool_call_id": "call_1"},
+        {"role": "assistant", "content": None},
+        {"role": "tool", "content": "result"},
+        {
+            "role": "tool",
+            "content": "result",
+            "tool_call_id": "call_1",
+            "tool_calls": (
+                LLMToolCall(
+                    tool_call_id="call_2",
+                    tool_name="read_file",
+                    arguments={"path": "README.md"},
+                ),
+            ),
+        },
+    ],
+)
+def test_chat_message_rejects_invalid_role_field_combinations(
+    message: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        ChatMessage.model_validate(message)
+
+
+def test_chat_message_rejects_duplicate_assistant_tool_call_ids() -> None:
+    duplicate_calls = tuple(
+        LLMToolCall(
+            tool_call_id="call_1",
+            tool_name=name,
+            arguments={"path": "README.md"},
+        )
+        for name in ("read_file", "list_dir")
+    )
+
+    with pytest.raises(ValidationError, match="tool call ids must be unique"):
+        ChatMessage(
+            role="assistant",
+            content=None,
+            tool_calls=duplicate_calls,
+        )
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [{"value": object()}, {"value": float("nan")}],
+)
+def test_llm_tool_call_rejects_non_standard_json_arguments(
+    arguments: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError, match="JSON serializable"):
+        LLMToolCall(
+            tool_call_id="call_1",
+            tool_name="read_file",
+            arguments=arguments,
+        )
+
+
 def test_provider_contract_defaults_to_text_only() -> None:
     request = ChatRequest(
         messages=[ChatMessage(role="user", content="hello")]

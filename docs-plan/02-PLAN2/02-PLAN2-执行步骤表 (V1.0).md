@@ -58,7 +58,7 @@ blocked
 | Batch 5 | P2-M2-S4～S6 | 实现 list_dir 和工具注册 | 工具集成测试 | 已完成 |
 | Batch 6 | P2-M2-S7 | 可选实现 web_fetch 或明确延期记录 | Codex review M2 | 已完成（deferred） |
 | Batch 7 | P2-M3-S1～S3 | 扩展 LLM Provider 支持 tools | Provider mock 测试 | 已完成 |
-| Batch 8 | P2-M3-S4～S6 | 实现 Simple Agent Loop | Agent mock 测试 | 未完成 |
+| Batch 8 | P2-M3-S4～S6 | 实现 Simple Agent Loop | Agent mock 测试 | 已完成 |
 | Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex review M3 | 未完成 |
 | Batch 10 | P2-M4-S1～S3 | 实现 Agent API 和 Tool Call 查询 | API 测试 | 未完成 |
 | Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 | 未完成 |
@@ -286,9 +286,9 @@ feat(tools): add read only builtin tools
 | P2-M3-S1 | 扩展 LLMProvider `chat` 接口支持 tools | Codex | Provider base interface 更新 | mock provider 可接收 tools 参数 | Codex（done） |
 | P2-M3-S2 | 扩展 OpenAI-compatible Provider 的 tool calling 请求和响应解析 | Codex | provider tool call 支持 | mock response 能解析 tool call | Codex（done） |
 | P2-M3-S3 | 实现 Tool Schema 转换为模型可用格式 | Codex | tool schema adapter | read_file / list_dir schema 可序列化 | Codex（done） |
-| P2-M3-S4 | 创建 Simple Agent Loop 基础流程 | Codex | `backend/app/agents/simple_agent.py` | 无工具任务直接返回答案 | Codex |
-| P2-M3-S5 | 接入工具选择、执行和 observation 回填 | Codex | Agent 调用 Tool Registry | 固定 mock 模型触发 read_file 后生成最终答案 | Codex |
-| P2-M3-S6 | 持久化 AgentRun 和 ToolCall | Codex | Agent run service | 每次工具调用都有数据库记录 | Codex |
+| P2-M3-S4 | 创建 Simple Agent Loop 基础流程 | Codex | `backend/app/agents/simple_agent.py` | 无工具任务直接返回答案 | Codex（done） |
+| P2-M3-S5 | 接入工具选择、执行和 observation 回填 | Codex | Agent 调用 Tool Registry | 固定 mock 模型触发 read_file 后生成最终答案 | Codex（done） |
+| P2-M3-S6 | 持久化 AgentRun 和 ToolCall | Codex | Agent run service | 每次工具调用都有数据库记录 | Codex（done） |
 | P2-M3-S7 | 实现最大步数、超时、失败返回 | Codex | runtime policy 常量或配置 | 超过最大步数返回可读错误 | Codex |
 | P2-M3-S8 | 完成 M3 review 和 Agent Loop 文档 | Codex | `docs/11-simple-agent-loop.md` | 文档解释 Agent Loop 流程和限制 | Codex review |
 
@@ -312,11 +312,25 @@ S1～S3 建议 commit：
 feat(provider): add non-streaming tool calling support
 ```
 
-M3 完成后建议 commit：
+S4～S6 建议 commit：
 
 ```text
 feat(agent): add simple tool calling loop
 ```
+
+### P2-M3-S4～S6 Simple Agent Loop 验收记录（2026-07-19）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| Provider observation 契约 | `ChatMessage` 可强类型表达普通文本、assistant Tool Calls 与带 correlation ID 的 Tool observation；非法 role/字段组合和重复 ID 本地拒绝。OpenAI-compatible adapter 独占 assistant `tool_calls` 与 `role=tool` wire 映射，普通 Plan 1 payload 保持不变。手工构造的 `LLMToolCall.arguments` 也必须是标准 JSON object。 |
+| S4 直接回答 | 新增 `app.agents.SimpleAgentService`、frozen 请求 DTO、不可变结果和固定 Agent domain errors。服务在任何写入前校验模型存在、`supports_tools=true` 和 Provider 可用；无 Tool 响应只调用 Provider 一次，保存 Conversation、用户/助手 Message 和 completed AgentRun，不创建 ToolCall。 |
+| S5 Tool 闭环 | 首轮可返回一个或多个 Tool Call，服务按 Provider 顺序执行 Registry lookup、统一参数校验和 Tool；随后回填一条 assistant Tool Call 消息及逐调用 observations，并只再调用 Provider 一次取得最终文本。未知 Tool、参数失败、ToolResult 失败、异常、名称不匹配和非标准 JSON ToolResult 均变成安全失败 observation；第二次仍请求 Tool 时固定失败且不进行第三次调用。 |
+| S6 持久化 | 每次尝试的 Tool Call 在 lookup/validation 前创建 ORM 行，结束后保存 arguments、完整 ToolResult、success/failed 状态、安全 error、开始/结束时间和 latency。成功运行的 AgentRun 保存 goal、用户消息关联、final answer 和计时；commit/expire/reload 证明 SQLite round-trip。未新增 migration 或状态。 |
+| TDD 证据 | Provider message RED 为 `5 failed, 22 passed`，GREEN 为 `27 passed`；wire RED 为 `1 failed, 36 passed`，Provider/Chat GREEN 为 `75 passed, 1 warning`。Agent module RED 为 collection error，Gate GREEN 为 `9 passed`；S4 RED 为 `3 failed, 9 passed`，GREEN 联合回归为 `50 passed, 1 warning`；read_file RED 为 `1 failed, 12 passed`，GREEN 为 `13 passed`；安全边界 RED 为 `4 failed, 16 passed`，Agent/Tool GREEN 为 `97 passed`；S6 RED 为 `1 failed, 20 passed`，GREEN 为 `21 passed`。Codex 自审补充非标准 JSON ToolResult 回归，先 `1 failed, 3 passed`，修复后 `4 passed`，Agent/Tool 为 `100 passed`。 |
+| 完整验证 | 功能聚焦 `220 passed, 1 warning`；Backend `378 passed, 1 warning`，`pip check` 无破损依赖。Frontend typecheck、8 files / 37 tests 和 production build（1804 modules transformed）通过；首次 build 的 `dist/assets` EPERM 为受管沙箱限制，按已批准 `npm run build` 权限重跑成功。FastAPI smoke 为 health 200、OpenAPI 200、服务端 request ID UUID，未初始化真实 Provider。61 个 committed-scope Markdown 文件中的 31 个本地链接全部存在，疑似真实秘密命中为 0。 |
+| 当前限制与边界 | 本批没有 Agent API/UI、streaming Tool Calls、通用 max_steps、Tool timeout、retry/cancel 或完整失败返回；这些分别属于 S7～S8 或后续 Milestone。Agent Provider 调用尚未关联 LLMCall，数据库没有显式 ToolCall sequence 字段，失败运行的最终事务策略仍由 S7/API 调用方定义。tracked 示例模型保持 `supports_tools=false`；测试注入 tools-capable Mock Registry。无真实 Provider、网络 Tool、用户数据库、migration、`web_fetch` runtime 或后续 Plan 代码。仅执行 Codex self-review，不使用 Claude Code；Fable 5 只在六个 Plan 全部完成后由用户决定。 |
+
+**结论：** `P2-M3-S4`～`S6` 与 Batch 8 已完成。下一批为 `P2-M3-S7`～`S8`；当前 Simple Agent 是有意限制为一次 Tool round 的后端 service，不代表 M3 review 或 Agent API 已完成。
 
 ---
 

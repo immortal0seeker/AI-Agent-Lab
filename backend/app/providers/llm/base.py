@@ -72,12 +72,66 @@ class LLMToolCall(BaseModel):
     @field_validator("arguments")
     @classmethod
     def copy_arguments(cls, value: dict[str, Any]) -> dict[str, Any]:
-        return deepcopy(value)
+        copied = deepcopy(value)
+        try:
+            json.dumps(copied, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "tool arguments must be JSON serializable"
+            ) from exc
+        return copied
 
 
 class ChatMessage(BaseModel):
-    role: Literal["system", "user", "assistant"]
-    content: str
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    role: Literal["system", "user", "assistant", "tool"]
+    content: str | None = None
+    tool_calls: tuple[LLMToolCall, ...] = Field(
+        default=(),
+        exclude_if=lambda value: not value,
+    )
+    tool_call_id: LLMToolCallIdentifier | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+
+    @model_validator(mode="after")
+    def validate_message_shape(self) -> Self:
+        if self.role in {"system", "user"}:
+            if (
+                self.content is None
+                or self.tool_calls
+                or self.tool_call_id is not None
+            ):
+                raise ValueError("text messages require content only")
+            return self
+
+        if self.role == "assistant":
+            if self.tool_call_id is not None:
+                raise ValueError(
+                    "assistant messages must not include tool_call_id"
+                )
+            if not self.tool_calls and self.content is None:
+                raise ValueError(
+                    "assistant messages require content or tool calls"
+                )
+            tool_call_ids = [
+                call.tool_call_id for call in self.tool_calls
+            ]
+            if len(tool_call_ids) != len(set(tool_call_ids)):
+                raise ValueError("assistant tool call ids must be unique")
+            return self
+
+        if (
+            self.content is None
+            or self.tool_call_id is None
+            or self.tool_calls
+        ):
+            raise ValueError(
+                "tool messages require content and tool_call_id only"
+            )
+        return self
 
 
 class ChatRequest(BaseModel):

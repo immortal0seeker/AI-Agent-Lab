@@ -8,6 +8,7 @@ from app.providers.llm.base import (
     ChatMessage,
     ChatRequest,
     LLMFunctionDefinition,
+    LLMToolCall,
     LLMToolDefinition,
     ProviderAuthError,
     ProviderBadRequestError,
@@ -172,6 +173,92 @@ def test_chat_sends_tools_and_parses_tool_call() -> None:
     assert response.tool_calls[0].tool_call_id == "call_1"
     assert response.tool_calls[0].tool_name == "read_file"
     assert response.tool_calls[0].arguments == {"path": "README.md"}
+
+
+def test_chat_serializes_assistant_tool_calls_and_tool_observations() -> None:
+    async def exercise() -> dict[str, object]:
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.update(json.loads(request.content))
+            return httpx.Response(
+                200,
+                json={
+                    "id": "chatcmpl-final",
+                    "model": "tool-model",
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": "完成",
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                },
+            )
+
+        call = LLMToolCall(
+            tool_call_id="call_1",
+            tool_name="read_file",
+            arguments={"path": "指南.md"},
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ) as client:
+            provider = OpenAICompatibleProvider(
+                base_url="https://provider.example/v1",
+                api_key="test-secret-key",
+                default_model="tool-model",
+                client=client,
+            )
+            await provider.chat(
+                ChatRequest(
+                    messages=[
+                        ChatMessage(role="user", content="读取文件"),
+                        ChatMessage(
+                            role="assistant",
+                            content=None,
+                            tool_calls=(call,),
+                        ),
+                        ChatMessage(
+                            role="tool",
+                            content=(
+                                '{"tool_name":"read_file",'
+                                '"success":true}'
+                            ),
+                            tool_call_id="call_1",
+                        ),
+                    ],
+                    tools=(build_tool_definition(),),
+                )
+            )
+        return captured
+
+    payload = asyncio.run(exercise())
+
+    assert payload["messages"] == [
+        {"role": "user", "content": "读取文件"},
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "read_file",
+                        "arguments": '{"path":"指南.md"}',
+                    },
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "content": '{"tool_name":"read_file","success":true}',
+            "tool_call_id": "call_1",
+        },
+    ]
 
 
 def test_chat_parses_multiple_tool_calls_in_order_with_usage() -> None:

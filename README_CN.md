@@ -25,8 +25,8 @@ Plan 1 覆盖：
 
 已完成范围：`P1-M1-S1` 到 `P1-M4-S8`。
 
-当前开发阶段：Plan 2 M3 的第一批已完成。已完成的 Plan 2 范围为
-`P2-M1-S1` 到 `P2-M3-S3`。
+当前开发阶段：Plan 2 M3 的前两批已完成。已完成的 Plan 2 范围为
+`P2-M1-S1` 到 `P2-M3-S6`。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -38,11 +38,14 @@ Tool，具备有界 I/O、工作区相对路径策略、敏感名称过滤、安
 强类型非流式 Provider Tool 定义与 Tool Call、具备防御性复制的
 Registry-to-Provider schema adapter，以及安全的 OpenAI-compatible `tools`
 请求/响应映射。tracked 示例模型仍为 `supports_tools=false`；本批不聚合流式
-Tool Call delta，因此带 tools 的流式请求会在 HTTP 前本地失败。Agent Loop、
-Tool 执行、AgentRun/ToolCall 持久化 service、Agent API 和前端 Agent/ToolCall
-视图仍未实现。
+Tool Call delta，因此带 tools 的流式请求会在 HTTP 前本地失败。`P2-M3-S4` 到
+`P2-M3-S6` 新增仅后端可用的 Simple Agent service：可以直接回答，或顺序执行
+一轮 Tool Call、按 correlation ID 回填 observations、再调用一次 Provider 取得
+最终答案，并持久化 AgentRun/ToolCall 审计记录。tracked 模型没有声明 Tool
+能力，因此需要显式的本地 tools-capable 配置才能运行此 service。通用最大步数、
+超时、重试、完整失败返回、Agent API 和前端 Agent/ToolCall 视图仍未实现。
 
-下一批：`P2-M3-S4` 到 `P2-M3-S6`。
+下一批：`P2-M3-S7` 到 `P2-M3-S8`。
 
 ## v0.1.0 演示
 

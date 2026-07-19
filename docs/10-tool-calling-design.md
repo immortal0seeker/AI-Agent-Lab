@@ -6,9 +6,10 @@ Plan 2 M1 establishes Tool contracts, discovery, validation, read-only security,
 and persistence models. `P2-M2-S1` through `P2-M2-S7` complete M2 with two
 executable read-only builtins, `read_file` and `list_dir`, plus caller-controlled
 Registry initialization and an explicit `web_fetch` deferral. `P2-M3-S1`
-through `P2-M3-S3` add typed non-streaming Provider Tool definitions and Tool
-Calls, a Registry-to-Provider adapter, and safe OpenAI-compatible request and
-response mapping. No Agent service or API currently invokes a Tool.
+through `P2-M3-S6` add typed non-streaming Provider Tool definitions and Tool
+Calls, a Registry-to-Provider adapter, safe OpenAI-compatible request/response
+mapping, and a backend-only Simple Agent service that executes one Tool round
+and persists AgentRun/ToolCall rows. No Agent API or frontend view exists yet.
 
 ## Tool Boundary
 
@@ -26,7 +27,7 @@ separate from ORM identities.
 `ToolRegistry` registers exact names, rejects duplicates, preserves order, and
 exports defensive OpenAI-compatible function schemas. Registered parameter
 schemas must be JSON-serializable Draft 2020-12 schemas with an explicit
-`type: object` root. Argument validation runs before future execution.
+`type: object` root. Argument validation runs before execution.
 Validation errors contain safe paths and rules and never echo rejected
 argument or schema values.
 
@@ -45,16 +46,27 @@ payloads still omit `tools`. `LLMResponse` can carry text, normalized
 validated function name, and already parsed object arguments. Multiple calls
 preserve Provider order and duplicate IDs are rejected.
 
+`ChatMessage` validates ordinary text, assistant Tool Call, and Tool observation
+shapes without exposing OpenAI field dictionaries to the Agent service.
+Assistant Tool Calls and observations preserve correlation IDs. Manually
+constructed Tool arguments must also be standard JSON-serializable objects.
+
 The OpenAI-compatible adapter serializes non-empty Tool definitions only for
 non-streaming chat and parses `choices[0].message.tool_calls`. Function
 arguments must be a standard JSON string with an object root. Invalid shapes,
 non-standard constants, unrequested Tool Calls, or invalid/duplicate IDs become
 a fixed `ProviderResponseError` without raw argument or upstream-body leakage.
 
+For the follow-up request, the same adapter maps normalized assistant Tool Calls
+back to `id/type/function` wire objects and emits each observation as a
+`role="tool"` message with string content and the corresponding
+`tool_call_id`. Arguments and observations use compact standard JSON.
+
 Streaming Tool Call aggregation is intentionally absent. A tools-bearing
 `stream_chat()` request raises `ProviderUnsupportedFeatureError` before HTTP.
 The tracked example model remains `supports_tools=false`: mock protocol support
-does not assert a real model capability or expose an Agent execution path.
+does not assert a real model capability. `SimpleAgentService` requires an
+explicitly tools-capable Registry entry before it writes an AgentRun.
 
 ## Read-only Security
 
@@ -143,6 +155,13 @@ Deleting a Conversation removes its runs and calls. Deleting one user Message
 keeps the audit record and nulls its link. Deleting an AgentRun removes its
 ToolCalls.
 
+`SimpleAgentService` now creates the AgentRun, user/final assistant Messages,
+and one ToolCall row before each attempted lookup/validation/execution. Safe
+success or failure ToolResults determine terminal ToolCall fields. The service
+flushes but never commits; the future Agent API owns that transaction boundary.
+It does not create LLMCall rows because those rows currently have no AgentRun
+association.
+
 ## Status Values
 
 AgentRun: `created`, `running`, `waiting_tool`, `completed`, `failed`,
@@ -175,12 +194,34 @@ Caller-owned Registry
 -> normalized LLMToolCall objects
 ```
 
-No current route or service invokes the Tool or creates AgentRun/ToolCall
-records. The existing Plan 1 text Chat service sends no Tool definitions and
-rejects a Tool-only response with a fixed Provider error plus transaction
-rollback. Tool lookup/execution, observation messages, Agent Loop transitions,
-persistence services, API access, and frontend visualization are scheduled in
-later Plan 2 Steps.
+The implemented Simple Agent path is:
+
+```text
+SimpleAgentRequest
+-> tools-capable model and Provider gate
+-> Conversation + user Message + AgentRun
+-> provider.chat(history + Registry definitions)
+   -> direct final text
+   -> ordered Tool Calls
+      -> Tool lookup + schema validation + sequential execution
+      -> one ToolCall row and observation per call
+      -> provider.chat(assistant Tool Calls + observations)
+      -> final text
+-> assistant Message + completed AgentRun
+```
+
+The first Provider response may request multiple calls; they execute and return
+observations in Provider order. The second Provider response must contain
+non-blank final text and no further Tool Calls. A further call request ends with
+a fixed `AgentLoopIncompleteError` and no third Provider call. General
+`max_steps`, Tool timeout enforcement, retries, and comprehensive failure
+returns belong to `P2-M3-S7`.
+
+Unknown Tools, argument failures, failed ToolResults, exceptions, mismatched
+Tool names, and non-standard JSON Tool results become safe failed observations.
+Raw exception text and rejected argument values do not enter the observation or
+ToolCall error. The existing Plan 1 text Chat path still sends no Tool
+definitions and rejects Tool-only responses.
 
 ## Verification and Security Boundary
 
@@ -188,11 +229,15 @@ Tests use Mock Tools, `tmp_path`, the tracked repository `README.md`, and
 disposable SQLite databases. They do not read a real `.env`, user database,
 credential, private key, or call a real Provider.
 
+The Agent suite additionally verifies direct and read_file loops, multiple-call
+ordering, observation correlation, safe failures, two-call boundedness, and
+AgentRun/ToolCall commit/reload. The database does not have an explicit ToolCall
+sequence field, so only the runtime result promises strict order in this batch.
+
 ## Deferred Work
 
-- Agent persistence service and transactions
 - `web_fetch` reassessment, no earlier than Plan 4 or Plan 6
 - streaming Provider Tool Call aggregation
-- Simple Agent Loop
+- general Agent max steps, Tool timeouts, retries, and failure-return policy
 - Agent APIs and frontend ToolCall visualization
 - Plan 4 Trace, replay, and evaluation
