@@ -13,6 +13,9 @@ All notable changes to AI Agent Lab are documented in this file.
 - Added AgentRun and ToolCall execution persistence with safe Tool failure observations, correlated results, timeout status, and timing metadata.
 - Added validated Agent API schemas plus synchronous create, AgentRun query, and ToolCall query endpoints under `/api/v1/agents/runs`.
 - Added persistent HTTP 201 responses for structured failed Agent runs and Provider-independent history queries with safe 404/error envelopes.
+- Added a dedicated responsive Agent workspace with typed Agent API wrappers, tools-capable model filtering, and Chat/Agent sidebar navigation.
+- Added bounded ToolCall cards and timeline states for arguments, status, latency, result summaries, safe errors, and traceable AgentRun/Conversation/Provider/database IDs.
+- Added URL-backed AgentRun restoration plus mocked desktop/mobile acceptance for completed, failed, loading, no-model, transport-error, and reload states.
 
 ### Fixed
 
@@ -21,6 +24,7 @@ All notable changes to AI Agent Lab are documented in this file.
 - Made registered Tool definitions immutable and required Provider-exported parameter schemas to have a JSON-serializable object root.
 - Enforced that an AgentRun's optional user Message belongs to the same Conversation through an additive Alembic migration.
 - Rejected non-finite Tool timeouts, cross-round duplicate Tool Call IDs, and oversized escaped observation envelopes before they can break an Agent transaction.
+- Prevented a late Agent response from updating state or rewriting the URL after the user leaves the Agent workspace.
 
 ## [0.1.0] - 2026-07-13
 

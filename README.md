@@ -25,8 +25,8 @@ Plan 1 covers:
 
 Completed scope: `P1-M1-S1` through `P1-M4-S8`.
 
-Current development stage: Plan 2 M4 backend API batch is complete.
-Completed Plan 2 scope: `P2-M1-S1` through `P2-M4-S3`.
+Current development stage: Plan 2 M4 Agent API and frontend workspace are complete.
+Completed Plan 2 scope: `P2-M1-S1` through `P2-M4-S6`.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -52,10 +52,16 @@ run this path without an explicit tools-capable local configuration.
 `P2-M4-S1` through `P2-M4-S3` add validated Agent request/response schemas,
 `POST /api/v1/agents/runs`, and AgentRun/ToolCall query endpoints. Completed and
 structured failed runs both commit and return HTTP 201; read-only queries do not
-initialize Provider configuration. Frontend Agent/ToolCall views are not yet
-implemented.
+initialize Provider configuration. `P2-M4-S4` through `P2-M4-S6` add a dedicated
+Agent workspace, a typed Agent API client, and bounded ToolCall cards/timeline.
+The sidebar switches between Chat and Agent without changing the Chat flow. The
+Agent selector only offers Registry models with `supports_tools=true`; completed
+and structured failed runs show their final result, ToolCall audit fields, and
+traceable IDs. `?workspace=agent&run=<uuid>` restores a persisted run and its
+ToolCalls. The tracked example model still has Tool support disabled, so browser
+acceptance uses local mocks rather than a live Provider.
 
-Next batch: `P2-M4-S4` through `P2-M4-S6`.
+Next batch: `P2-M5-S1` through `P2-M5-S3`.
 
 ## v0.1.0 Demo
 
@@ -259,6 +265,13 @@ model. Stopping preserves partial text locally, but the interrupted turn is not
 persisted. Late history and conversation-list refresh responses are ignored,
 and a terminal SSE error actively releases the response reader.
 
+Use the sidebar `Agent` control to open the read-only Agent workspace. It only
+lists Registry models that advertise Tool support. A synchronous run displays
+its final answer, status/error, ToolCall arguments, result summary, latency, and
+AgentRun/Conversation/Provider-call/database IDs. The run UUID is stored in the
+URL so refresh can reload the persisted run and ToolCalls. There is no Agent run
+list, polling, streaming, cancel/resume, or automatic retry in the current UI.
+
 Frontend checks:
 
 ```powershell
@@ -289,8 +302,10 @@ on backend `LLMCall` records but are not displayed in the frontend. The current
 editable-install workflow also leaves `models.json` out of future wheel/sdist
 package data. Provider retry/fallback, failed-call audit rows, conversation
 management extensions, Markdown rendering, and later-Plan features remain
-deferred. See the [Plan 1 foundation release](docs/02-plan-1-foundation.md) for
-the complete limitation list.
+deferred. Agent execution is synchronous/non-streaming and has no run list,
+polling, cancel/resume/retry, strict persisted ToolCall sequence, or live
+Provider acceptance. See the [Plan 1 foundation release](docs/02-plan-1-foundation.md)
+and [Agent API](docs/12-agent-api.md) for the complete current boundaries.
 
 ## Roadmap
 

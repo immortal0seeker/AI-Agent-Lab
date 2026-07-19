@@ -36,8 +36,8 @@ The project emphasizes:
 ## Current Stage
 
 Current release: Plan 1 is complete as the `v0.1.0` foundation release.
-Current development stage: Plan 2 M4 backend API work is complete through
-`P2-M4-S3`.
+Current development stage: Plan 2 M4 Agent API and frontend workspace are
+complete through `P2-M4-S6`.
 
 The repository has completed `P1-M1-S1` through `P1-M4-S8`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 added:
 
@@ -122,10 +122,16 @@ API schemas and the plural `/api/v1/agents/runs` resource. POST waits for a
 completed or structured failed run, commits either normal result, and returns
 final answer, status, error, and executed ToolCalls with HTTP 201. Separate
 AgentRun and ToolCall GET endpoints use deterministic query order and do not
-initialize Provider configuration. The frontend Agent API wrapper and
-Agent/ToolCall views remain scheduled for `P2-M4-S4` through `P2-M4-S6`.
+initialize Provider configuration. `P2-M4-S4` through `P2-M4-S6` add a typed
+frontend Agent API wrapper and a dedicated responsive Agent workspace. The
+workspace filters the Registry to `supports_tools=true`, submits synchronous
+runs, displays final and structured failed results, and renders bounded
+ToolCall audit cards with status, arguments, latency, summaries, safe errors,
+and traceable IDs. URL-backed run restoration reads the AgentRun and ToolCalls
+without adding polling or an Agent run list. The tracked example model remains
+tools-disabled and browser acceptance is fully mocked.
 
-The next batch is `P2-M4-S4` through `P2-M4-S6`. See the
+The next batch is `P2-M5-S1` through `P2-M5-S3`. See the
 [Tool Calling design](10-tool-calling-design.md),
 [Simple Agent Loop](11-simple-agent-loop.md),
 [Agent API](12-agent-api.md),

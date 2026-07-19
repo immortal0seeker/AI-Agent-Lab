@@ -25,8 +25,8 @@ Plan 1 覆盖：
 
 已完成范围：`P1-M1-S1` 到 `P1-M4-S8`。
 
-当前开发阶段：Plan 2 M4 后端 API 批次已完成。已完成的 Plan 2 范围为
-`P2-M1-S1` 到 `P2-M4-S3`。
+当前开发阶段：Plan 2 M4 Agent API 与前端工作台已完成。已完成的 Plan 2 范围为
+`P2-M1-S1` 到 `P2-M4-S6`。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -47,9 +47,14 @@ Tool Call delta，因此带 tools 的流式请求会在 HTTP 前本地失败。`
 才能运行此 service。`P2-M4-S1` 到 `P2-M4-S3` 新增经过校验的 Agent 请求/响应
 schema、`POST /api/v1/agents/runs` 以及 AgentRun/ToolCall 查询接口。completed 与
 结构化 failed 运行都会提交并返回 HTTP 201；只读查询不会初始化 Provider 配置。
-前端 Agent/ToolCall 视图仍未实现。
+`P2-M4-S4` 到 `P2-M4-S6` 新增独立 Agent 工作台、强类型 Agent API client 和有界
+ToolCall 卡片/时间线。侧栏可在 Chat 与 Agent 之间切换而不改变 Chat 流程。Agent
+只列出 Registry 中 `supports_tools=true` 的模型；completed 与结构化 failed 运行
+都会展示最终结果、ToolCall 审计字段和可追踪 ID。URL
+`?workspace=agent&run=<uuid>` 可恢复已持久化的运行及 ToolCalls。tracked 示例模型
+仍关闭 Tool 能力，因此浏览器验收只使用本地 Mock，不证明真实 Provider 连通性。
 
-下一批：`P2-M4-S4` 到 `P2-M4-S6`。
+下一批：`P2-M5-S1` 到 `P2-M5-S3`。
 
 ## v0.1.0 演示
 
@@ -233,6 +238,12 @@ API 区域显示 `Checking API`、`API connected` 或 `API unavailable`。
 停止生成会在前端保留已有部分文本，但不会持久化被中断的本轮消息。迟到的历史
 消息和会话列表刷新响应不会覆盖较新状态；终止 SSE 错误也会主动释放响应 reader。
 
+通过侧栏 `Agent` 控件可进入只读 Agent 工作台。模型选择器只列出声明 Tool 能力的
+Registry 模型；同步运行会展示最终回答、状态/错误、ToolCall 参数、结果摘要、耗时，
+以及 AgentRun、Conversation、Provider call 和数据库 ID。运行 UUID 会写入 URL，
+刷新后可重新加载已持久化的 AgentRun 与 ToolCalls。当前 UI 不提供 Agent 运行列表、
+轮询、流式执行、取消/恢复或自动重试。
+
 前端检查：
 
 ```powershell
@@ -261,8 +272,10 @@ npm run build
 Token、预估成本和延迟保存在后端 `LLMCall` 中，但当前前端尚不展示。
 当前 editable install 工作流也没有把 `models.json` 声明为未来 wheel/sdist
 的 package data。Provider retry/fallback、失败调用审计记录、会话管理扩展、
-Markdown 渲染以及后续 Plan 能力仍然延后。完整限制见
-[Plan 1 工程底座封版说明](docs/02-plan-1-foundation.md)。
+Markdown 渲染以及后续 Plan 能力仍然延后。Agent 执行仍为同步非流式，不提供运行
+列表、轮询、cancel/resume/retry、严格持久化 ToolCall sequence 或真实 Provider
+验收。完整限制见 [Plan 1 工程底座封版说明](docs/02-plan-1-foundation.md)和
+[Agent API](docs/12-agent-api.md)。
 
 ## Roadmap
 

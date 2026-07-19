@@ -61,7 +61,7 @@ blocked
 | Batch 8 | P2-M3-S4～S6 | 实现 Simple Agent Loop | Agent mock 测试 | 已完成 |
 | Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex review M3 | 已完成 |
 | Batch 10 | P2-M4-S1～S3 | 实现 Agent API 和 Tool Call 查询 | API 测试 | 已完成 |
-| Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 | 未完成 |
+| Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 | 已完成 |
 | Batch 12 | P2-M5-S1～S3 | 补 Tool / Agent 测试 | 后端测试 | 未完成 |
 | Batch 13 | P2-M5-S4～S6 | 补文档、README、截图和限制说明 | 文档 review | 未完成 |
 | Batch 14 | P2-M5-S7～S8 | 最终 review、修复、v0.2.0 封版 | Codex final review | 未完成 |
@@ -379,9 +379,9 @@ feat(agent): add bounded agent loop runtime policy
 | P2-M4-S1 | 实现 Agent API 请求 / 响应 schema | Codex | `backend/app/schemas/agent.py` | schema 测试通过 | Codex（done） |
 | P2-M4-S2 | 实现 `POST /api/v1/agents/runs` | Codex | `backend/app/api/v1/agents.py` | API 测试可启动 Agent Run | Codex（done） |
 | P2-M4-S3 | 实现 Agent Run 查询和 Tool Call 查询接口 | Codex | `GET /agents/runs/{id}`、`GET /agents/runs/{id}/tool-calls` | API 测试通过 | Codex（done） |
-| P2-M4-S4 | 创建前端 agent API 封装和类型 | Cursor | `frontend/src/api/agent.ts`、`types/agent.ts` | TypeScript 检查通过 | Codex |
-| P2-M4-S5 | 实现 Tool Call 展示组件 | Cursor | `ToolCallCard.tsx`、`ToolCallTimeline.tsx` | 组件可展示 pending / success / error | Codex |
-| P2-M4-S6 | 在 Chat 页面或 Agent 页面接入 Agent Run 展示 | Cursor + Codex | Agent 任务输入、结果展示、工具调用过程 | 浏览器手测 README 总结场景 | Codex review |
+| P2-M4-S4 | 创建前端 agent API 封装和类型 | Cursor | `frontend/src/api/agent.ts`、`types/agent.ts` | TypeScript 检查通过 | Codex（done） |
+| P2-M4-S5 | 实现 Tool Call 展示组件 | Cursor | `ToolCallCard.tsx`、`ToolCallTimeline.tsx` | 组件可展示 pending / success / error | Codex（done） |
+| P2-M4-S6 | 在 Chat 页面或 Agent 页面接入 Agent Run 展示 | Cursor + Codex | Agent 任务输入、结果展示、工具调用过程 | 浏览器手测 README 总结场景 | Codex（done） |
 
 ### P2-M4-S1～S3 Agent API 验收记录（2026-07-19）
 
@@ -405,10 +405,25 @@ S1～S3 建议 commit：
 feat(agent): add agent run api
 ```
 
+### P2-M4-S4～S6 Agent/ToolCall 前端验收记录（2026-07-19）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 前端契约与导航 | 新增与公开 Agent API 一致的 TypeScript 类型、只调用复数 `/agents/runs` 的 API wrapper、安全 `AgentApiError`，以及保留其他查询参数的 Chat/Agent/run URL helper。`App` 使用轻量 URL 状态切换工作台，不引入 Router 或新状态库；Chat 页面只增加导航入口。 |
+| Agent 工作台 | 独立 Agent 页面只列出 `supports_tools=true` 的 Registry 模型，覆盖 workspace/model loading、empty、no-model、completed、结构化 failed 201、transport error 与 URL restore。同步提交完成后显示 final answer/status/error、AgentRun/Conversation ID，并并行读取已持久化 AgentRun 与 ToolCalls。 |
+| ToolCall 展示 | `ToolCallCard`/`ToolCallTimeline` 按 API 顺序展示 pending/running/success/failed/timeout/blocked，保留 Tool 名、参数、状态、耗时、结果摘要、安全错误、Provider call ID 和数据库 ID；JSON 确定性排序，结果摘要默认限制 600 字符，React 文本转义测试覆盖脚本字符串。 |
+| TDD 与自审修复 | API、URL、格式化、组件、表单、页面和真实 App 导航均先验证 RED 再实现 GREEN。Codex self-review 额外发现离开 Agent 页面后迟到响应可能改写 Chat URL；回归测试先得到 `1 failed, 4 passed`，加入 request gate 后聚焦验证为 `2 files / 7 tests`，最终前端为 `16 files / 79 tests`。 |
+| Mock 浏览器验收 | 未调用真实 Provider。桌面 1280px 与移动 390×844 均无横向溢出；README 总结场景显示 final answer、`read_file`、`README.md` 参数、success、25ms 和全部追踪 ID，URL 写入 run UUID。另验收默认 Chat、Tools 模型过滤、loading、no-model、结构化 failed 201、安全 HTTP 503 + Request ID、GET restore；临时截图/浏览器目录和本批 Vite 进程均已清理，未提前创建 M5 release asset。 |
+| 完整验证 | Backend `443 passed, 1 warning`，warning 是已知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损依赖。Frontend typecheck、`16 files / 79 tests`、production build（1812 modules transformed）通过。所有 Provider/API 浏览器响应均为本地 Mock。 |
+| 文档、安全与边界 | README 中英文、CHANGELOG、overview、architecture、Agent API 和执行表同步至 M4 S6。69 个 Markdown 文件中的 45 个本地链接/图片均存在；31 个本批变更路径的真实 secret 模式命中为 0。没有 backend/model/migration/provider/tool 改动，没有 tracked 生成物、数据库或 `.env`，也没有单数 Agent 路由、真实 Provider host、`web_fetch` 或后续 Plan runtime 表面。 |
+| Codex self-review | 必须修：迟到响应边界已按 TDD 修复。后续 Step：正式 release 截图仍按 M5-S6 生成。记录限制：同步非流式、无 run list/polling/cancel/resume/retry、无严格持久化 ToolCall sequence、tracked 示例模型 `supports_tools=false`、无真实 Provider 验收。无剩余阻塞项。 |
+
+**结论：** `P2-M4-S4`～`S6`、Batch 11 和 Plan 2 M4 已完成，Codex self-review 与完整验证无阻塞问题。下一批可以进入 `P2-M5-S1`～`S3`，但本批没有实现 M5、Plan 3 或后续能力。没有使用 Claude Code、Fable 5、子代理或外部复审。
+
 M4 完成后建议 commit：
 
 ```text
-feat(agent): add agent api and tool call UI
+feat(frontend): show agent tool calls
 ```
 
 ---
@@ -531,10 +546,10 @@ Codex review 后：
 | Simple Agent Loop 可用 | done（M3 S4～S8，后端非流式 service） | 直接回答、多轮 Tool、最大步数、超时、失败和持久化测试 |
 | Agent API 可用 | done（M4 S1～S3，后端同步 API） | create/query、Tool round、结构化失败、错误与事务测试 |
 | 工具调用记录可保存 | done（M1 schema / M3 S6～S8 execution） | AgentRun/ToolCall ORM、迁移、执行状态和 commit/reload 测试 |
-| 前端能展示 Tool Call | pending | 页面截图 |
+| 前端能展示 Tool Call | done（M4 S4～S6） | 组件测试与 mock 桌面/移动浏览器验收；正式 release 截图仍属于 M5-S6 |
 | 工具失败不会导致系统崩溃 | done（M1/M2/M3 S7） | Tool validation、内置 Tool、timeout 和安全 observation 测试 |
-| README 已更新 | done（through M4 S3） | README / README_CN 当前范围、Agent API 与限制说明 |
-| docs 已更新 | done（through M4 S3） | Provider、Tool Calling、Simple Agent、Agent API、架构文档与验收记录 |
+| README 已更新 | done（through M4 S6） | README / README_CN 当前范围、Agent 工作台与限制说明 |
+| docs 已更新 | done（through M4 S6） | Provider、Tool Calling、Simple Agent、Agent API、架构文档与验收记录 |
 | 已创建 v0.2.0 tag | pending | `git tag --list` 输出 |
 
 ---

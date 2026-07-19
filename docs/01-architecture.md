@@ -11,7 +11,7 @@ conversation navigation, refresh recovery, successful-call usage persistence,
 structured errors, request-linked logging, focused regression coverage,
 recoverable frontend initialization states, clean-start documentation, release
 materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
-completed `P2-M1-S1` through `P2-M4-S3`: Tool contracts, Registry, validation,
+completed `P2-M1-S1` through `P2-M4-S6`: Tool contracts, Registry, validation,
 read-only path policy, AgentRun/ToolCall persistence, and the executable
 `read_file` and `list_dir` builtins are available. The Provider contract now
 accepts typed Tool definitions and normalizes non-streaming Tool Calls; an
@@ -20,8 +20,9 @@ OpenAI-compatible adapter maps `tools` without leaking vendor payloads into
 services. `web_fetch` remains deferred. A backend-only `SimpleAgentService`
 now owns a bounded multi-step loop, observation backfill, per-Tool timeout,
 structured failure results, observation compaction, and AgentRun/ToolCall
-persistence. Validated plural Agent create/query routes now expose that service;
-no network Tool or frontend Agent view is implemented at this stage.
+persistence. Validated plural Agent create/query routes expose that service. A
+dedicated frontend Agent workspace consumes the synchronous API and renders
+bounded ToolCall audit details; no network Tool is implemented at this stage.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -266,9 +267,9 @@ reassessment must define SSRF-safe address and redirect validation, DNS-
 rebinding resistance, bounded streaming, content policy, text extraction,
 safe errors, and mock acceptance coverage before exposing a network Tool.
 
-The plural `/api/v1/agents/runs` POST and query routes are implemented. Frontend
-Agent/ToolCall visualization remains scheduled for `P2-M4-S4～S6`. Agent
-Provider calls are not yet linked to `LLMCall`, and the existing ToolCall table
+The plural `/api/v1/agents/runs` POST and query routes and frontend Agent/ToolCall
+visualization are implemented. Agent Provider calls are not yet linked to
+`LLMCall`, and the existing ToolCall table
 has no explicit sequence column; runtime results preserve Provider order while
 queries use `created_at, id`, but a strict persisted step timeline belongs to
 later AgentStep/Trace design. See [Tool Calling Design](10-tool-calling-design.md)
@@ -290,13 +291,25 @@ Expected Plan 1 frontend areas:
 
 The UI should feel like an engineering workspace: quiet, dense, readable, and practical. It should not become a marketing landing page.
 
-The frontend includes typed health, Models, Conversations, Messages, and Chat
-API wrappers, an SSE parser, Zustand workspace state, page/component
+The frontend includes typed health, Models, Conversations, Messages, Chat, and
+Agent API wrappers, an SSE parser, Zustand Chat state, page/component
 boundaries, and a responsive Chat workspace. The store guards stale stream and
 history callbacks, preserves partial output after Stop, and replaces temporary
 messages with canonical backend data after a successful `done` event. It loads
 Registry models and recent conversations independently, while
 `?conversation=<uuid>` preserves the selected conversation across refreshes.
+
+`App` uses small URL helpers to select the Chat or Agent workspace without
+introducing a router or moving the existing Chat state. `AgentPage` independently
+loads health and Registry models, filters to `supports_tools=true`, and owns the
+synchronous create/restore flow. The controlled task form, result panel, and
+ToolCall timeline/card components render loading, empty, no-model, completed,
+structured failed, and transport-error states. Deterministic JSON plus bounded
+result summaries keep the audit cards readable, while full
+AgentRun, Conversation, Provider ToolCall, and database IDs remain visible.
+`?workspace=agent&run=<uuid>` restores a persisted run through parallel AgentRun
+and ToolCall reads. A request gate prevents a late POST response from mutating
+state or URL after the Agent page unmounts.
 
 `ChatPage` separates workspace initialization from ready-state message
 rendering through `WorkspaceStatusPanel`:

@@ -14,8 +14,13 @@ import {
   buildConversationUrl,
   readConversationId,
 } from "../utils/conversationUrl";
+import type { WorkspaceView } from "../utils/agentUrl";
 
-export default function ChatPage() {
+type ChatPageProps = {
+  onSelectWorkspace: (workspace: WorkspaceView) => void;
+};
+
+export default function ChatPage({ onSelectWorkspace }: ChatPageProps) {
   const [health, setHealth] = useState<ApiHealth>({ status: "checking" });
   const messages = useChatStore((state) => state.messages);
   const models = useChatStore((state) => state.models);
@@ -88,6 +93,7 @@ export default function ChatPage() {
   return (
     <main className="workspace-shell">
       <WorkspaceSidebar
+        activeWorkspace="chat"
         health={health}
         conversations={conversations}
         selectedConversationId={conversationId}
@@ -95,6 +101,7 @@ export default function ChatPage() {
         navigationDisabled={isStreaming || isConversationLoading}
         onNewChat={newChat}
         onSelectConversation={(id) => void selectConversation(id)}
+        onSelectWorkspace={onSelectWorkspace}
       />
       <section className="chat-workspace">
         <ChatHeader

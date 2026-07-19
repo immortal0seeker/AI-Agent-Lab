@@ -148,12 +148,38 @@ acceptance uses a tools-capable Mock Registry, Mock Providers, temporary SQLite,
 and temporary workspace files. It proves the local API contract, not live or
 paid Provider connectivity.
 
+## Frontend Agent Workspace
+
+Plan 2 M4 S4～S6 adds a dedicated Agent workspace reached through the existing
+sidebar. The frontend uses typed wrappers for only the plural Agent endpoints.
+It loads Registry models independently and only offers entries with
+`supports_tools=true`; when none exist, the task controls stay disabled with an
+explicit no-model state.
+
+Submitting a task waits for the synchronous POST response. The result panel
+distinguishes completed runs, structured failed HTTP 201 runs, transport errors,
+loading, and empty states. Each ToolCall card shows the Tool name, validated
+arguments, status, latency, bounded result content/data/metadata, safe error, and
+the Provider correlation ID plus database ID. AgentRun and Conversation IDs are
+also visible so the UI remains an audit surface rather than hiding persistence
+identity.
+
+The URL uses `workspace=agent` and an optional `run=<uuid>`. A valid run UUID is
+restored with parallel AgentRun and ToolCall GET requests; invalid UUID values
+are ignored. There is intentionally no AgentRun list, polling, streaming,
+cancel/resume, or automatic retry. Leaving the workspace invalidates the active
+frontend request so a late response cannot rewrite the Chat URL.
+
+Mocked browser acceptance covers the default Chat regression, tools-capable
+model filtering, README summary success, mobile layout, no-model, structured
+failed 201, safe HTTP error with Request ID, loading, and URL restoration. It
+does not call or validate a live Provider.
+
 ## Current Limitations
 
-- No frontend Agent API wrapper, ToolCall card/timeline, or Agent page exists;
-  these belong to `P2-M4-S4～S6`.
 - Tool Calling is non-streaming and ToolCalls execute sequentially.
-- No automatic retry, user cancel/resume API, or persisted cancelled-run policy.
+- No AgentRun list, polling, automatic retry, user cancel/resume API, or
+  persisted cancelled-run policy.
 - Agent Provider calls are not linked to `LLMCall` usage/cost rows.
 - ToolCall has no strict persisted step sequence.
 - `web_fetch` remains deferred with no runtime or API surface.

@@ -30,7 +30,9 @@ describe("ChatPage workspace states", () => {
       messages: [],
     };
 
-    const html = renderToStaticMarkup(<ChatPage />);
+    const html = renderToStaticMarkup(
+      <ChatPage onSelectWorkspace={() => undefined} />,
+    );
 
     expect(html).toContain("Loading Chat workspace...");
     expect(html).toContain(">Loading<");
@@ -46,12 +48,31 @@ describe("ChatPage workspace states", () => {
       messages: [],
     };
 
-    const html = renderToStaticMarkup(<ChatPage />);
+    const html = renderToStaticMarkup(
+      <ChatPage onSelectWorkspace={() => undefined} />,
+    );
 
     expect(html.match(new RegExp(message, "g"))).toHaveLength(1);
     expect(html).toContain(">Retry<");
     expect(html).toContain(">Unavailable<");
     expect(html).not.toContain(">Ready<");
     expect(html).not.toContain("Start a conversation");
+  });
+
+  it("shows Chat and Agent workspace navigation without changing Chat content", () => {
+    storeHarness.overrides = {
+      workspaceStatus: "ready",
+      workspaceError: null,
+      messages: [],
+    };
+
+    const html = renderToStaticMarkup(
+      <ChatPage onSelectWorkspace={() => undefined} />,
+    );
+
+    expect(html).toContain("Chat workspace");
+    expect(html).toContain("Agent workspace");
+    expect(html).toContain('aria-current="page"');
+    expect(html).toContain("Start a conversation");
   });
 });
