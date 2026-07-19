@@ -10,7 +10,11 @@ through `P2-M3-S8` add typed non-streaming Provider Tool definitions and Tool
 Calls, a Registry-to-Provider adapter, safe OpenAI-compatible request/response
 mapping, and a backend-only bounded Simple Agent loop with Tool timeouts,
 structured failures, bounded observations, and AgentRun/ToolCall persistence.
-No Agent API or frontend view exists yet.
+`P2-M4-S1` through `P2-M4-S6` expose the loop through the plural Agent API and
+a dedicated read-only frontend workspace with bounded ToolCall audit cards.
+`P2-M5-S1` through `P2-M5-S6` harden standard-JSON and `.env*` validation,
+lock the `web_fetch` deferral with regression coverage, refresh frontend
+verification, and prepare sanitized release-candidate documentation.
 
 ## Tool Boundary
 
@@ -161,7 +165,7 @@ ToolCalls.
 and one ToolCall row before each attempted lookup/validation/execution. Safe
 success, failure, or timeout outcomes determine terminal ToolCall fields. The
 service flushes but never commits; completed and structured failed results are
-both committable, and the future Agent API owns that transaction boundary. It
+both committable, and the Agent API owns that transaction boundary. It
 does not create LLMCall rows because those rows currently have no AgentRun
 association.
 
@@ -230,6 +234,23 @@ configured character limit while full ToolResult JSON remains persisted. The
 existing Plan 1 text Chat path still sends no Tool definitions and rejects
 Tool-only responses.
 
+## API And Frontend Audit Surface
+
+The synchronous plural `/api/v1/agents/runs` POST and query routes expose
+completed and structured failed AgentRuns plus their ToolCalls. The frontend
+Agent workspace filters Registry entries to `supports_tools=true`, submits one
+goal at a time, and displays final answer/status/error, bounded ToolCall
+arguments/results, latency, and AgentRun/Conversation/Provider/database IDs.
+`?workspace=agent&run=<uuid>` restores one persisted result through AgentRun and
+ToolCall GET requests. Safe transport errors retain only the structured request
+ID.
+
+This is an audit view, not a later runtime console. It has no AgentRun list,
+polling, streaming, cancellation, resume, retry, approval, or strict persisted
+ToolCall sequence. The tracked example model remains `supports_tools=false`,
+so release acceptance uses local Mock data and does not assert a live model can
+execute Tools.
+
 ## Verification and Security Boundary
 
 Tests use Mock Tools, `tmp_path`, the tracked repository `README.md`, and
@@ -249,5 +270,5 @@ complete service contract.
 - `web_fetch` reassessment, no earlier than Plan 4 or Plan 6
 - streaming Provider Tool Call aggregation
 - automatic retry/cancel/resume and broader Runtime Policy
-- Agent APIs and frontend ToolCall visualization
+- AgentRun list/polling and strict AgentStep/ToolCall replay ordering
 - Plan 4 Trace, replay, and evaluation

@@ -11,7 +11,8 @@ conversation navigation, refresh recovery, successful-call usage persistence,
 structured errors, request-linked logging, focused regression coverage,
 recoverable frontend initialization states, clean-start documentation, release
 materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
-completed `P2-M1-S1` through `P2-M4-S6`: Tool contracts, Registry, validation,
+completed implementation and release-candidate preparation through
+`P2-M5-S6`: Tool contracts, Registry, validation,
 read-only path policy, AgentRun/ToolCall persistence, and the executable
 `read_file` and `list_dir` builtins are available. The Provider contract now
 accepts typed Tool definitions and normalizes non-streaming Tool Calls; an
@@ -22,7 +23,10 @@ now owns a bounded multi-step loop, observation backfill, per-Tool timeout,
 structured failure results, observation compaction, and AgentRun/ToolCall
 persistence. Validated plural Agent create/query routes expose that service. A
 dedicated frontend Agent workspace consumes the synchronous API and renders
-bounded ToolCall audit details; no network Tool is implemented at this stage.
+bounded ToolCall audit details. M5 adds safety regression coverage plus
+sanitized desktop/mobile release-candidate evidence without changing runtime
+states or API schemas; no network Tool is implemented at this stage. The final
+Plan 2 review and `v0.2.0` tag remain pending in S7～S8.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -480,10 +484,12 @@ Do not write secrets to:
 
 ## Deferred Capabilities
 
-The following are outside Plan 1:
+The Plan 2 release candidate includes read-only Tool execution and the bounded
+Simple Agent loop. The following remain outside the current architecture:
 
-- Tool execution
-- Agent runtime loops
+- `web_fetch` or another network Tool
+- streaming Tool Calling
+- Agent Runtime v2, Planner, Human Approval, cancel/resume/retry, and replay
 - RAG pipelines
 - Embedding providers
 - Memory systems

@@ -63,7 +63,7 @@ blocked
 | Batch 10 | P2-M4-S1～S3 | 实现 Agent API 和 Tool Call 查询 | API 测试 | 已完成 |
 | Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 | 已完成 |
 | Batch 12 | P2-M5-S1～S3 | 补 Tool / Agent 测试 | 后端测试 | 已完成 |
-| Batch 13 | P2-M5-S4～S6 | 补文档、README、截图和限制说明 | 文档 review | 未完成 |
+| Batch 13 | P2-M5-S4～S6 | 补文档、README、截图和限制说明 | 文档 review | 已完成 |
 | Batch 14 | P2-M5-S7～S8 | 最终 review、修复、v0.2.0 封版 | Codex final review | 未完成 |
 
 ---
@@ -452,9 +452,9 @@ feat(frontend): show agent tool calls
 | P2-M5-S1 | 补 Tool 抽象、Registry、校验、安全边界测试 | Codex | 后端测试 | `pytest` 对应测试通过 | Codex（done） |
 | P2-M5-S2 | 补 read_file / list_dir / web_fetch 测试 | Codex | builtin tools 测试 | 正常、失败、安全场景通过 | Codex（done） |
 | P2-M5-S3 | 补 Agent Loop / Agent API 测试 | Codex | Agent 测试 | mock 模型触发工具调用并返回最终答案 | Codex（done） |
-| P2-M5-S4 | 补前端 Tool Call 展示检查 | Cursor | 前端类型检查、基础 UI 验证记录 | `npm run build` 或前端检查通过 | Codex |
-| P2-M5-S5 | 更新 README 和 Plan 2 文档 | Codex | README、`docs/10-tool-calling-design.md`、`docs/11-simple-agent-loop.md` | 文档说明工具限制和启动方式 | Codex |
-| P2-M5-S6 | 准备封版材料：截图、CHANGELOG、当前限制 | Cursor + Codex | Tool Call 截图、`CHANGELOG.md` | v0.2.0 功能边界清晰 | Codex |
+| P2-M5-S4 | 补前端 Tool Call 展示检查 | Cursor | 前端类型检查、基础 UI 验证记录 | `npm run build` 或前端检查通过 | Codex（done） |
+| P2-M5-S5 | 更新 README 和 Plan 2 文档 | Codex | README、`docs/10-tool-calling-design.md`、`docs/11-simple-agent-loop.md` | 文档说明工具限制和启动方式 | Codex（done） |
+| P2-M5-S6 | 准备封版材料：截图、CHANGELOG、当前限制 | Cursor + Codex | Tool Call 截图、`CHANGELOG.md` | v0.2.0 功能边界清晰 | Codex（done） |
 | P2-M5-S7 | Plan 2 全量 review 和修复 | Codex | review 记录、修复 commit | 后端测试和前端检查通过 | Codex final review |
 | P2-M5-S8 | 创建 v0.2.0 tag 并记录进入 Plan 3 的桥接状态 | Codex | `v0.2.0` tag、桥接检查表 | `git tag --list` 包含 v0.2.0 | Codex final review |
 
@@ -477,6 +477,27 @@ S1～S3 建议 commit：
 
 ```text
 test(agent): harden plan 2 tool and agent coverage
+```
+
+### P2-M5-S4～S6 前端检查与封版候选材料验收记录（2026-07-19）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 验收缺口矩阵 | 先建立“计划要求 → 已有证据 → 当前缺口 → 最小补充”矩阵。S4 只刷新现有 ToolCall UI 自动化/浏览器证据，S5 修正 README 与 `docs/10`/`docs/11` 的 M4 过期措辞，S6 补正式脱敏截图、CHANGELOG 和限制；默认不改 runtime，不提前执行 S7 最终 review、S8 tag 或 Plan 3。 |
+| S4 自动化检查 | Frontend typecheck 通过，完整 Vitest 为 `16 files / 79 tests`，production build 为 1812 modules transformed。未发现可复现的前端行为缺陷，因此 TDD 与 `frontend/src` 修改不适用，没有为了测试数新增重复用例。 |
+| S4 Mock 浏览器验收 | 仅启动本地 Vite 与临时 Python 标准库 Mock API；未启动项目 backend、Provider 或 SQLite。合成 tools-capable 模型完成 `read_file("README.md")`，POST 返回 completed 201 并由 UI 写入 run UUID；刷新后 AgentRun/ToolCall 两个 GET 可恢复结果。1280×900 与 390×844 的 `documentElement.scrollWidth <= innerWidth` 均为 true；页面展示 final answer、Success、25ms、参数、结果摘要及 AgentRun/Conversation/Provider/database IDs。浏览器唯一 error 是现有开发页 `favicon.ico` 404，不影响功能或截图。 |
+| S5 文档同步 | README/README_CN、overview、architecture、Tool Calling、Simple Agent 文档统一更新到 M5-S6；新增 `docs/13-plan-2-basic-agent.md` 汇总 pre-tag release boundary、启动/模型要求、安全、截图与限制。旧的“无 Agent API/前端”“下一批 M4/S1～S3”当前事实扫描为 0；正式版本仍写 `v0.1.0`，S7～S8 仍 pending。 |
+| S6 封版候选材料 | 新增 `docs/assets/plan2/agent-tool-call-desktop.png`（71,737 bytes）与 `agent-tool-call-mobile.png`（57,120 bytes）；两图经目视检查只含合成 UUID、Mock 模型、`README.md` 与 localhost API。响应式验收使用 1280×900/390×844，文档图仅提高到 1280×1200/390×1600 以完整展示 ToolCall audit。CHANGELOG 仍在 `[Unreleased]`，没有伪造 0.2.0 release heading/date/tag。临时脚本、浏览器目录、Vite/Mock 进程与端口均已清理。 |
+| 完整验证 | Backend `451 passed, 1 warning`，warning 是已知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损依赖。Frontend typecheck、`16 files / 79 tests`、production build（1812 modules transformed）通过。全新系统临时 SQLite 的 Alembic `upgrade head`、`current --check-heads`、`check` 通过，head 为 `20260718_0003`，临时目录已清理。 |
+| 文档、安全与 Plan 边界 | 74 个 Markdown 文件、60 个本地链接/图片、0 missing。最终 13 个变更路径的真实 secret 模式和行尾空白均为 0；`web_fetch` runtime/file、backend app、frontend src、依赖、用户数据库、staged path 与 `v0.2.0` tag 变更均为 0；无 Playwright 临时目录，`git diff --check` 通过，HEAD/origin/main 保持 `3154adb`。 |
+| Codex self-review | 必须修：`docs/10`/`docs/11` 与 README/overview 的 M4 过期阶段措辞已修正，未发现 runtime must-fix。后续 Step：S7 执行全 Plan 2 review/修复，S8 才创建 tag 与完成 Plan 3 bridge。接受限制：同步非流式、无 run list/polling/cancel/resume/retry/并行 Tool、无严格持久化 ToolCall sequence、无 Agent-linked `LLMCall` usage、tracked 模型 `supports_tools=false`、无真实 Provider 验收、`web_fetch` 继续延期；开发页无 favicon 仅产生 404。 不适用：production frontend/backend、migration、Provider 协议、Agent 状态和 API schema 均无需修改。无剩余阻塞项，未使用 Claude Code、Fable 5、子代理或外部复审。 |
+
+**结论：** `P2-M5-S4`～`S6` 与 Batch 13 已完成，Codex self-review 和完整验证无阻塞问题。下一批只能进入 `P2-M5-S7`～`S8`；当前没有执行最终 Plan review、创建 `v0.2.0` tag、完成 Plan 3 bridge 或实现后续能力。
+
+S4～S6 建议 commit：
+
+```text
+docs(plan2): prepare basic agent release materials
 ```
 
 M5 完成后建议 commit：
@@ -567,10 +588,10 @@ Codex review 后：
 | Simple Agent Loop 可用 | done（M3 S4～S8，后端非流式 service） | 直接回答、多轮 Tool、最大步数、超时、失败和持久化测试 |
 | Agent API 可用 | done（M4 S1～S3，后端同步 API） | create/query、Tool round、结构化失败、错误与事务测试 |
 | 工具调用记录可保存 | done（M1 schema / M3 S6～S8 execution） | AgentRun/ToolCall ORM、迁移、执行状态和 commit/reload 测试 |
-| 前端能展示 Tool Call | done（M4 S4～S6） | 组件测试与 mock 桌面/移动浏览器验收；正式 release 截图仍属于 M5-S6 |
+| 前端能展示 Tool Call | done（M4 S4～S6 / M5 S4～S6 evidence） | 组件测试、本地 mock 桌面/移动浏览器验收与正式脱敏 release-candidate 截图 |
 | 工具失败不会导致系统崩溃 | done（M1/M2/M3 S7） | Tool validation、内置 Tool、timeout 和安全 observation 测试 |
-| README 已更新 | done（through M4 S6） | README / README_CN 当前范围、Agent 工作台与限制说明 |
-| docs 已更新 | done（through M4 S6） | Provider、Tool Calling、Simple Agent、Agent API、架构文档与验收记录 |
+| README 已更新 | done（through M5 S6） | README / README_CN 当前范围、Agent 工作台、启动要求、截图与限制说明 |
+| docs 已更新 | done（through M5 S6） | Provider、Tool Calling、Simple Agent、Agent API、release candidate、架构文档与验收记录 |
 | 已创建 v0.2.0 tag | pending | `git tag --list` 输出 |
 
 ---

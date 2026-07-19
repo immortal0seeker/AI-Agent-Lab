@@ -25,8 +25,9 @@ Plan 1 covers:
 
 Completed scope: `P1-M1-S1` through `P1-M4-S8`.
 
-Current development stage: Plan 2 M4 Agent API and frontend workspace are complete.
-Completed Plan 2 scope: `P2-M1-S1` through `P2-M4-S6`.
+Current development stage: Plan 2 M5 release-candidate materials are complete
+through `P2-M5-S6`. The current tagged release remains `v0.1.0`; the Plan 2
+final review and `v0.2.0` tag remain pending in S7～S8.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -61,7 +62,18 @@ traceable IDs. `?workspace=agent&run=<uuid>` restores a persisted run and its
 ToolCalls. The tracked example model still has Tool support disabled, so browser
 acceptance uses local mocks rather than a live Provider.
 
-Next batch: `P2-M5-S1` through `P2-M5-S3`.
+`P2-M5-S1` through `P2-M5-S3` harden the Tool and Agent test boundary. Standard
+JSON validation now rejects non-finite numbers, `.env*` path protection includes
+`.envrc`, automated checks lock the `web_fetch` deferral to zero executable
+surface, and a Mock Provider plus temporary SQLite/workspace API test verifies a
+safe failed ToolCall can still lead to a completed final answer. `P2-M5-S4`
+through `P2-M5-S6` refresh frontend type/test/build and local mocked browser
+evidence, synchronize the current Tool/Agent documents, and add sanitized Plan 2
+desktop/mobile release-candidate screenshots. No frontend runtime behavior was
+changed for those checks.
+
+Next batch: `P2-M5-S7` through `P2-M5-S8` for the final Plan 2 review, fixes,
+tag, and Plan 3 bridge decision.
 
 ## v0.1.0 Demo
 
@@ -71,6 +83,16 @@ Next batch: `P2-M5-S1` through `P2-M5-S3`.
 
 These are sanitized mock demonstrations. No live Provider, real API key, or
 user-local conversation database was used to create them.
+
+## Plan 2 Release Candidate Demo
+
+![Desktop Agent ToolCall workspace](docs/assets/plan2/agent-tool-call-desktop.png)
+
+![Mobile Agent ToolCall workspace](docs/assets/plan2/agent-tool-call-mobile.png)
+
+These are sanitized local Mock demonstrations with synthetic IDs and no project
+backend database. They prepare the `v0.2.0` materials but do not claim that the
+S7～S8 final review or tag has already happened.
 
 ## Non-Goals For Plan 1
 
@@ -271,6 +293,11 @@ its final answer, status/error, ToolCall arguments, result summary, latency, and
 AgentRun/Conversation/Provider-call/database IDs. The run UUID is stored in the
 URL so refresh can reload the persisted run and ToolCalls. There is no Agent run
 list, polling, streaming, cancel/resume, or automatic retry in the current UI.
+The tracked example Registry model intentionally remains
+`supports_tools=false`, so the Agent form has no runnable model until a local
+operator explicitly configures a tools-capable Registry entry and Provider.
+Keep real Provider credentials only in an untracked `backend/.env` or process
+environment; never place them in Registry JSON or frontend `VITE_*` variables.
 
 Frontend checks:
 
@@ -290,6 +317,7 @@ Release documentation:
 - [Tool Calling design](docs/10-tool-calling-design.md)
 - [Simple Agent Loop](docs/11-simple-agent-loop.md)
 - [Agent API](docs/12-agent-api.md)
+- [Plan 2 basic Agent release candidate](docs/13-plan-2-basic-agent.md)
 - [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
@@ -304,8 +332,13 @@ package data. Provider retry/fallback, failed-call audit rows, conversation
 management extensions, Markdown rendering, and later-Plan features remain
 deferred. Agent execution is synchronous/non-streaming and has no run list,
 polling, cancel/resume/retry, strict persisted ToolCall sequence, or live
-Provider acceptance. See the [Plan 1 foundation release](docs/02-plan-1-foundation.md)
-and [Agent API](docs/12-agent-api.md) for the complete current boundaries.
+Provider acceptance. The tracked model is not enabled for Tools, Agent Provider
+calls are not linked to `LLMCall` usage/cost rows, and `web_fetch` remains
+explicitly deferred with no runtime surface. See the
+[Plan 1 foundation release](docs/02-plan-1-foundation.md),
+[Agent API](docs/12-agent-api.md), and
+[Plan 2 release candidate](docs/13-plan-2-basic-agent.md) for the complete
+current boundaries.
 
 ## Roadmap
 
