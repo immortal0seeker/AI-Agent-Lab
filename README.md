@@ -25,8 +25,8 @@ Plan 1 covers:
 
 Completed scope: `P1-M1-S1` through `P1-M4-S8`.
 
-Current development stage: the first two Plan 2 M3 batches are complete.
-Completed Plan 2 scope: `P2-M1-S1` through `P2-M3-S6`.
+Current development stage: Plan 2 M3 is complete.
+Completed Plan 2 scope: `P2-M1-S1` through `P2-M3-S8`.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -42,15 +42,16 @@ definitions and Tool Calls, a defensive Registry-to-Provider schema adapter,
 and safe OpenAI-compatible `tools` request/response mapping. The tracked
 example model remains `supports_tools=false`, and streaming Tool Calls fail
 locally before HTTP because the current implementation does not aggregate Tool
-Call deltas. `P2-M3-S4` through `P2-M3-S6` add a backend-only Simple Agent
-service. It can return a direct answer or execute one ordered Tool round,
-backfill correlated observations, make one final Provider call, and persist
-AgentRun/ToolCall audit rows. The tracked model therefore cannot run this path
-without an explicit tools-capable local configuration. General max-step,
-timeout, retry, and comprehensive failure-return policy, Agent APIs, and
-frontend Agent/ToolCall views are not yet implemented.
+Call deltas. `P2-M3-S4` through `P2-M3-S8` add a backend-only Simple Agent
+service. It can return a direct answer or run a bounded non-streaming loop with
+ordered Tool Calls, correlated observations, per-Tool timeouts, bounded
+Provider observations, structured failed results, and AgentRun/ToolCall audit
+rows. One Provider decision is one step; `max_steps` defaults to 3 and is
+limited to 10. There is no automatic retry. The tracked model therefore cannot
+run this path without an explicit tools-capable local configuration. Agent APIs
+and frontend Agent/ToolCall views are not yet implemented.
 
-Next batch: `P2-M3-S7` through `P2-M3-S8`.
+Next batch: `P2-M4-S1` through `P2-M4-S3`.
 
 ## v0.1.0 Demo
 

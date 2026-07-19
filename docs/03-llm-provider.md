@@ -3,7 +3,7 @@
 ## Implemented Scope
 
 Plan 1 Milestone 2 provides the backend foundation for model access, and
-`P2-M3-S1` through `P2-M3-S6` extend its non-streaming protocol boundary and
+`P2-M3-S1` through `P2-M3-S8` extend its non-streaming protocol boundary and
 add its first backend Agent consumer:
 
 - vendor-neutral asynchronous chat and stream contracts
@@ -19,7 +19,8 @@ add its first backend Agent consumer:
 - a defensive Tool Registry-to-Provider schema adapter
 - OpenAI-compatible non-streaming `tools` serialization and `tool_calls` parsing
 - Provider-neutral assistant Tool Call and correlated Tool observation messages
-- a backend-only single-round Agent service with AgentRun/ToolCall persistence
+- a backend-only bounded Agent loop with AgentRun/ToolCall persistence,
+  per-Tool timeouts, and structured failure results
 
 The Provider layer is consumed by both `POST /api/v1/chat/completions` and
 `POST /api/v1/chat/stream`. `GET /api/v1/models` exposes read-only Registry
@@ -182,7 +183,7 @@ Each model defines:
 Capability labels describe project behavior for a configured model, not every
 feature offered by an upstream endpoint. The tracked example marks streaming as
 supported and leaves Tool Calling and JSON mode disabled. `P2-M3-S1` through
-`P2-M3-S6` prove the non-streaming adapter and Agent service with mocks; they do
+`P2-M3-S8` prove the non-streaming adapter and Agent service with mocks; they do
 not verify that the example model supports tools. The backend service rejects a
 model unless its selected Registry entry explicitly sets `supports_tools=true`,
 so the tracked example cannot run the Agent path without an intentional local
@@ -231,10 +232,12 @@ intercepts health, Registry, conversation, and stream requests; it does not
 require a real API key.
 
 Simple Agent tests inject a tools-capable Mock Registry and disposable SQLite.
-They cover direct answers, existing history, one/multiple ordered Tool Calls,
+They cover direct answers, existing history, multiple ordered Tool rounds,
 exact observation correlation, safe unknown/invalid/failed/malformed Tool
-results, the two-Provider-call bound, and AgentRun/ToolCall commit/reload. They
-use only temporary workspace files and never initialize a real Provider.
+results, maximum-step non-execution, cross-round ID reuse, finite Tool timeout,
+bounded escaped observations, structured Provider failures, cancellation
+propagation, and AgentRun/ToolCall commit/reload. They use only temporary
+workspace files and never initialize a real Provider.
 
 ## Known Limitations
 
@@ -242,7 +245,8 @@ use only temporary workspace files and never initialize a real Provider.
 - Registry validation exceptions may still contain Pydantic field context internally. `models.json` must not contain credentials or other sensitive values; API errors and logs intentionally expose only a fixed safe message and exception type.
 - Agent Provider calls are not yet represented by Agent-linked `LLMCall` rows, so their usage/cost is not persisted in this batch.
 - The current ToolCall table has no explicit sequence column. Runtime results preserve Provider order; strict persisted step ordering belongs to later AgentStep/Trace work.
-- The Agent service flushes but does not commit. Provider/terminal failures propagate for caller-owned rollback; comprehensive persisted failure returns belong to `P2-M3-S7`.
+- The Agent service flushes but does not commit. Completed and structured failed results remain committable; M4 API code owns the transaction and response mapping. Database errors and task cancellation still propagate for caller-owned rollback.
+- The Simple Agent has no separate total Tool-call-count limit inside one Provider decision. Calls remain sequential and the current registered set is read-only; a broader Runtime Policy belongs to later Plans.
 
 ## Deferred Work
 
@@ -251,6 +255,6 @@ use only temporary workspace files and never initialize a real Provider.
 - Provider retries and fallback policy
 - persistent Trace, Timeline, and replay
 - streaming Tool Call delta aggregation
-- general Agent max steps, Tool timeouts, retries, and failure-return policy
+- Agent automatic retry/cancel/resume policy and a broader Runtime Policy
 - Agent APIs and frontend views
 - all later-plan capabilities

@@ -1,3 +1,4 @@
+import math
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
@@ -63,6 +64,8 @@ class Tool(ABC):
             (int, float),
         ):
             raise TypeError("timeout_seconds must be a number")
+        if not math.isfinite(timeout_seconds):
+            raise ValueError("timeout_seconds must be finite")
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be greater than zero")
         self._parameters_schema = deepcopy(dict(parameters_schema))

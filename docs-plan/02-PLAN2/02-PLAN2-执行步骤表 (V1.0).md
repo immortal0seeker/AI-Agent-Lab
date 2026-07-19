@@ -59,7 +59,7 @@ blocked
 | Batch 6 | P2-M2-S7 | 可选实现 web_fetch 或明确延期记录 | Codex review M2 | 已完成（deferred） |
 | Batch 7 | P2-M3-S1～S3 | 扩展 LLM Provider 支持 tools | Provider mock 测试 | 已完成 |
 | Batch 8 | P2-M3-S4～S6 | 实现 Simple Agent Loop | Agent mock 测试 | 已完成 |
-| Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex review M3 | 未完成 |
+| Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex review M3 | 已完成 |
 | Batch 10 | P2-M4-S1～S3 | 实现 Agent API 和 Tool Call 查询 | API 测试 | 未完成 |
 | Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 | 未完成 |
 | Batch 12 | P2-M5-S1～S3 | 补 Tool / Agent 测试 | 后端测试 | 未完成 |
@@ -289,8 +289,8 @@ feat(tools): add read only builtin tools
 | P2-M3-S4 | 创建 Simple Agent Loop 基础流程 | Codex | `backend/app/agents/simple_agent.py` | 无工具任务直接返回答案 | Codex（done） |
 | P2-M3-S5 | 接入工具选择、执行和 observation 回填 | Codex | Agent 调用 Tool Registry | 固定 mock 模型触发 read_file 后生成最终答案 | Codex（done） |
 | P2-M3-S6 | 持久化 AgentRun 和 ToolCall | Codex | Agent run service | 每次工具调用都有数据库记录 | Codex（done） |
-| P2-M3-S7 | 实现最大步数、超时、失败返回 | Codex | runtime policy 常量或配置 | 超过最大步数返回可读错误 | Codex |
-| P2-M3-S8 | 完成 M3 review 和 Agent Loop 文档 | Codex | `docs/11-simple-agent-loop.md` | 文档解释 Agent Loop 流程和限制 | Codex review |
+| P2-M3-S7 | 实现最大步数、超时、失败返回 | Codex | runtime policy 常量或配置 | 超过最大步数返回可读错误 | Codex（done） |
+| P2-M3-S8 | 完成 M3 review 和 Agent Loop 文档 | Codex | `docs/11-simple-agent-loop.md` | 文档解释 Agent Loop 流程和限制 | Codex review（done） |
 
 ### P2-M3-S1～S3 Provider tools 验收记录（2026-07-18）
 
@@ -328,9 +328,31 @@ feat(agent): add simple tool calling loop
 | S6 持久化 | 每次尝试的 Tool Call 在 lookup/validation 前创建 ORM 行，结束后保存 arguments、完整 ToolResult、success/failed 状态、安全 error、开始/结束时间和 latency。成功运行的 AgentRun 保存 goal、用户消息关联、final answer 和计时；commit/expire/reload 证明 SQLite round-trip。未新增 migration 或状态。 |
 | TDD 证据 | Provider message RED 为 `5 failed, 22 passed`，GREEN 为 `27 passed`；wire RED 为 `1 failed, 36 passed`，Provider/Chat GREEN 为 `75 passed, 1 warning`。Agent module RED 为 collection error，Gate GREEN 为 `9 passed`；S4 RED 为 `3 failed, 9 passed`，GREEN 联合回归为 `50 passed, 1 warning`；read_file RED 为 `1 failed, 12 passed`，GREEN 为 `13 passed`；安全边界 RED 为 `4 failed, 16 passed`，Agent/Tool GREEN 为 `97 passed`；S6 RED 为 `1 failed, 20 passed`，GREEN 为 `21 passed`。Codex 自审补充非标准 JSON ToolResult 回归，先 `1 failed, 3 passed`，修复后 `4 passed`，Agent/Tool 为 `100 passed`。 |
 | 完整验证 | 功能聚焦 `220 passed, 1 warning`；Backend `378 passed, 1 warning`，`pip check` 无破损依赖。Frontend typecheck、8 files / 37 tests 和 production build（1804 modules transformed）通过；首次 build 的 `dist/assets` EPERM 为受管沙箱限制，按已批准 `npm run build` 权限重跑成功。FastAPI smoke 为 health 200、OpenAPI 200、服务端 request ID UUID，未初始化真实 Provider。61 个 committed-scope Markdown 文件中的 31 个本地链接全部存在，疑似真实秘密命中为 0。 |
-| 当前限制与边界 | 本批没有 Agent API/UI、streaming Tool Calls、通用 max_steps、Tool timeout、retry/cancel 或完整失败返回；这些分别属于 S7～S8 或后续 Milestone。Agent Provider 调用尚未关联 LLMCall，数据库没有显式 ToolCall sequence 字段，失败运行的最终事务策略仍由 S7/API 调用方定义。tracked 示例模型保持 `supports_tools=false`；测试注入 tools-capable Mock Registry。无真实 Provider、网络 Tool、用户数据库、migration、`web_fetch` runtime 或后续 Plan 代码。仅执行 Codex self-review，不使用 Claude Code；Fable 5 只在六个 Plan 全部完成后由用户决定。 |
+| 当时限制与边界（S4～S6 历史记录） | 本批没有 Agent API/UI、streaming Tool Calls、通用 max_steps、Tool timeout、retry/cancel 或完整失败返回；这些分别属于 S7～S8 或后续 Milestone。Agent Provider 调用尚未关联 LLMCall，数据库没有显式 ToolCall sequence 字段，失败运行的最终事务策略仍由 S7/API 调用方定义。tracked 示例模型保持 `supports_tools=false`；测试注入 tools-capable Mock Registry。无真实 Provider、网络 Tool、用户数据库、migration、`web_fetch` runtime 或后续 Plan 代码。仅执行 Codex self-review，不使用 Claude Code；Fable 5 只在六个 Plan 全部完成后由用户决定。 |
 
 **结论：** `P2-M3-S4`～`S6` 与 Batch 8 已完成。下一批为 `P2-M3-S7`～`S8`；当前 Simple Agent 是有意限制为一次 Tool round 的后端 service，不代表 M3 review 或 Agent API 已完成。
+
+### P2-M3-S7～S8 有界循环、失败策略与 M3 review 验收记录（2026-07-19）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 最大步数 | `SimpleAgentRequest.max_steps` 是严格整数，默认 3、范围 `1..10`；一次 Provider 决策计一步，同一响应多个 Tool Call 只计一步。默认允许两轮 Tool 决策后在第三步返回文本；最后允许步骤仍请求 Tool 时不执行、不建 ToolCall 行、不额外调用 Provider，并返回 failed AgentRun。 |
+| Tool timeout | Agent 只在 lookup/参数校验成功后按 Tool 的有限正数 `timeout_seconds` 包裹 `tool.run()`；超时记录 `ToolCall.status=timeout` 和固定 `Tool execution timed out` observation，同轮后续调用与下一次 Provider 决策继续。异步取消是协作式的，没有自动 retry。 |
+| 结构化失败 | AgentRun 创建后的最大步数、Provider timeout、其他 Provider/无效返回和空白终态均返回 `assistant_message=None` 的 `SimpleAgentResult`，保存固定安全 error、结束时间和 latency，调用方可以 commit/reload。前置配置错误仍在持久化前抛出；数据库错误与任务取消继续传播供调用方回滚。 |
+| Observation 上限 | Provider observation 默认最多 32,000 字符、构造下限 1,024；超限副本按 JSON 转义后的实际长度压缩 content/error，丢弃 data 并记录 truncation metadata。数据库仍保存完整 ToolResult，且测试证明原对象未突变。 |
+| TDD 证据 | Request policy RED 为 `1 failed, 10 passed`；多步 RED 为 `1 failed, 1 passed`，终态失败 RED 为 `3 failed`；Provider failure RED 为 `4 failed`；Tool timeout RED 为 `1 failed`；observation RED 为 `3 failed, 5 passed`。每项最小实现后聚焦回归依次达到 `27`、`93`、`120` 和 Agent/Tool `220 passed`。 |
+| Codex M3 self-review | 发现 4 个必须修项：跨轮重复 Tool Call ID 撞唯一约束、转义字符使压缩 envelope 超限、`NaN/Infinity` Tool timeout 绕过期限、Provider 返回错误类型逃逸边界。分别先得到 `2 failed`、`3 failed` 和 `1 failed, 1 passed` 的回归红灯，再修复为绿色；最终 M3/Tool 聚焦为 `196 passed, 1 warning`。无剩余阻塞项。 |
+| 完整验证 | Backend `402 passed, 1 warning`；warning 是已知 Starlette TestClient/httpx 弃用提示。`pip check` 无破损依赖。Frontend typecheck、8 files / 37 tests、production build（1804 modules transformed）通过。全新系统临时 SQLite 上 Alembic `upgrade head`、`current --check-heads`、`check` 通过且临时库已删除。FastAPI smoke 为 health 200、OpenAPI 200、服务端 request ID UUID，未初始化真实 Provider。 |
+| 文档、安全与边界 | 新增 `docs/11-simple-agent-loop.md` 并同步 README 中英文、CHANGELOG、overview、architecture、Provider 和 Tool Calling 文档。64 个 Markdown 文件中的 34 个本地链接/图片均存在；187 个 tracked/本批文本路径的真实 secret 模式命中为 0。没有 migration、Agent API、frontend source、tracked model、`web_fetch` runtime、RAG、Memory、MCP、Shell/write/delete Tool 或真实 Provider/用户数据库操作。 |
+| 已接受限制 | Agent service 只 flush、不 commit；M4 API 负责成功/失败结果提交与映射。无自动 retry/cancel/resume、流式 Tool Calls、并行 Tool、单步总 Tool Call 数上限、Agent-linked LLMCall 或显式数据库 sequence。tracked 示例模型继续为 `supports_tools=false`。 |
+
+**结论：** `P2-M3-S7`～`S8`、Batch 9 和 Plan 2 M3 已完成，Codex self-review 与完整验证无阻塞问题。下一批可以进入 `P2-M4-S1`～`S3`，但本批没有实现 Agent API、前端或任何 M4/后续 Plan 能力。没有使用 Claude Code；Fable 5 仍只在全部六个 Plan 完成后由用户决定。
+
+S7～S8 建议 commit：
+
+```text
+feat(agent): add bounded agent loop runtime policy
+```
 
 ---
 
@@ -484,13 +506,13 @@ Codex review 后：
 | 工具参数校验可用 | done（M1） | Draft 2020-12、object 根和参数错误测试 |
 | 工具安全边界可用 | done（M1/M2 audit fix） | 路径、凭据名称、symlink/junction 测试 |
 | LLM Provider 支持 tools | done（M3 S1～S3，非流式协议） | Provider contract、schema adapter、OpenAI-compatible mock 测试；真实模型能力仍为 false |
-| Simple Agent Loop 可用 | pending | Agent Loop 测试 |
+| Simple Agent Loop 可用 | done（M3 S4～S8，后端非流式 service） | 直接回答、多轮 Tool、最大步数、超时、失败和持久化测试 |
 | Agent API 可用 | pending | API 测试 |
-| 工具调用记录可保存 | done（M1 schema） | AgentRun/ToolCall ORM、迁移与约束测试；执行服务仍属于后续 Step |
+| 工具调用记录可保存 | done（M1 schema / M3 S6～S8 execution） | AgentRun/ToolCall ORM、迁移、执行状态和 commit/reload 测试 |
 | 前端能展示 Tool Call | pending | 页面截图 |
-| 工具失败不会导致系统崩溃 | done（M1/M2） | Tool validation、read_file、list_dir 固定失败结果测试 |
-| README 已更新 | done（M1/M2/M3 S1～S3） | README / README_CN 当前范围与限制说明 |
-| docs 已更新 | done（M1/M2/M3 S1～S3） | Provider、Tool Calling、架构文档与验收记录 |
+| 工具失败不会导致系统崩溃 | done（M1/M2/M3 S7） | Tool validation、内置 Tool、timeout 和安全 observation 测试 |
+| README 已更新 | done（through M3 S8） | README / README_CN 当前范围与限制说明 |
+| docs 已更新 | done（through M3 S8） | Provider、Tool Calling、Simple Agent、架构文档与验收记录 |
 | 已创建 v0.2.0 tag | pending | `git tag --list` 输出 |
 
 ---
@@ -501,11 +523,11 @@ Codex review 后：
 
 | 桥接项 | 状态 | 说明 |
 |---|---|---|
-| Tool Registry 可以稳定注册后续 `search_knowledge_base` 工具 | pending | Plan 3 不需要重写工具体系 |
-| ToolResult 结构能表达 success、content、error、metadata | pending | RAG 工具需要返回来源和检索 metadata |
-| 工具调用日志能关联 conversation_id 或 agent_run_id | pending | Plan 3 的 RAG Tool 可以被追踪 |
-| read_file / list_dir 的路径安全规则已经固定 | pending | 文档解析和项目文件读取共用安全边界 |
-| Simple Agent Loop 有最大步数、超时和失败返回 | pending | 后续 RAG Tool 失败时不会拖垮 Agent |
+| Tool Registry 可以稳定注册后续 `search_knowledge_base` 工具 | done（M1/M2/M3 review） | caller-owned Registry、顺序、schema adapter 与重复/原子失败测试稳定；Plan 3 不需要重写工具体系 |
+| ToolResult 结构能表达 success、content、error、metadata | done（M1/M3 review） | 成功、失败、结构化 data/metadata、标准 JSON 和 observation 压缩测试 |
+| 工具调用日志能关联 conversation_id 或 agent_run_id | done（M1/M3 execution） | ToolCall 复合外键、AgentRun/Conversation 归属和 commit/reload 测试 |
+| read_file / list_dir 的路径安全规则已经固定 | done（M1/M2 audit） | traversal、敏感名称、symlink/junction、大小/深度/条目限制与正式文档 |
+| Simple Agent Loop 有最大步数、超时和失败返回 | done（M3 S7～S8） | 默认 3 步、Tool timeout、结构化 failed AgentRun 和完整回归 |
 
 ---
 

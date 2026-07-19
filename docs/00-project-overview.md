@@ -36,8 +36,7 @@ The project emphasizes:
 ## Current Stage
 
 Current release: Plan 1 is complete as the `v0.1.0` foundation release.
-Current development stage: the first two Plan 2 M3 batches are complete through
-`P2-M3-S6`.
+Current development stage: Plan 2 M3 is complete through `P2-M3-S8`.
 
 The repository has completed `P1-M1-S1` through `P1-M4-S8`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 added:
 
@@ -105,18 +104,21 @@ remains `supports_tools=false`. At the S1～S3 transport boundary, Tool
 execution, the Agent Loop, persistence services, Agent APIs, and frontend
 Agent/ToolCall views were still deferred.
 
-`P2-M3-S4` through `P2-M3-S6` add a backend-only `SimpleAgentService`. It
+`P2-M3-S4` through `P2-M3-S8` add a backend-only `SimpleAgentService`. It
 validates an explicitly tools-capable model, creates or reuses a Conversation,
 persists the user Message and AgentRun, and either completes from one Provider
-text response or executes one ordered Tool round. Tool results are correlated
-back into Provider-neutral observation messages, a second and final Provider
-call supplies the answer, and each attempted Tool Call receives a terminal
-audit row. Agent API/UI, general max-step/timeout/retry/failure policy, strict
-persisted parallel-call ordering, and Agent-linked LLM usage records remain
-deferred.
+text response or runs a bounded loop. One Provider decision consumes one step;
+`max_steps` defaults to 3 and is limited to 10. Each Tool response executes
+calls sequentially, enforces the Tool's finite timeout, persists terminal audit
+rows, and returns correlated observations. Oversized Provider observations are
+compacted without changing the persisted ToolResult. Maximum-step, Provider,
+invalid-response, and blank-terminal failures return a committable failed
+AgentRun. Automatic retry, Agent API/UI, strict persisted call ordering, and
+Agent-linked LLM usage records remain deferred.
 
-The next batch is `P2-M3-S7` through `P2-M3-S8`. See the
+The next batch is `P2-M4-S1` through `P2-M4-S3`. See the
 [Tool Calling design](10-tool-calling-design.md),
+[Simple Agent Loop](11-simple-agent-loop.md),
 [Plan 1 foundation release](02-plan-1-foundation.md), and root
 [changelog](../CHANGELOG.md) for the current boundaries and limitations.
 

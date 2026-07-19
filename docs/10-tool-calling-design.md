@@ -6,10 +6,11 @@ Plan 2 M1 establishes Tool contracts, discovery, validation, read-only security,
 and persistence models. `P2-M2-S1` through `P2-M2-S7` complete M2 with two
 executable read-only builtins, `read_file` and `list_dir`, plus caller-controlled
 Registry initialization and an explicit `web_fetch` deferral. `P2-M3-S1`
-through `P2-M3-S6` add typed non-streaming Provider Tool definitions and Tool
+through `P2-M3-S8` add typed non-streaming Provider Tool definitions and Tool
 Calls, a Registry-to-Provider adapter, safe OpenAI-compatible request/response
-mapping, and a backend-only Simple Agent service that executes one Tool round
-and persists AgentRun/ToolCall rows. No Agent API or frontend view exists yet.
+mapping, and a backend-only bounded Simple Agent loop with Tool timeouts,
+structured failures, bounded observations, and AgentRun/ToolCall persistence.
+No Agent API or frontend view exists yet.
 
 ## Tool Boundary
 
@@ -18,7 +19,8 @@ timeout, and asynchronous `run(arguments) -> ToolResult`. Definition metadata
 is read-only after construction, and each parameter-schema read returns a deep
 copy so a registered Tool cannot drift from its Registry key or exported
 schema. Tool names are at most 64 ASCII letters, digits, underscores, or
-hyphens. `ToolResult` keeps success, content, structured data, error, and
+hyphens. Tool timeouts must be finite and positive. `ToolResult` keeps success,
+content, structured data, error, and
 metadata consistent. ToolCall transport schemas keep Provider correlation IDs
 separate from ORM identities.
 
@@ -157,9 +159,10 @@ ToolCalls.
 
 `SimpleAgentService` now creates the AgentRun, user/final assistant Messages,
 and one ToolCall row before each attempted lookup/validation/execution. Safe
-success or failure ToolResults determine terminal ToolCall fields. The service
-flushes but never commits; the future Agent API owns that transaction boundary.
-It does not create LLMCall rows because those rows currently have no AgentRun
+success, failure, or timeout outcomes determine terminal ToolCall fields. The
+service flushes but never commits; completed and structured failed results are
+both committable, and the future Agent API owns that transaction boundary. It
+does not create LLMCall rows because those rows currently have no AgentRun
 association.
 
 ## Status Values
@@ -202,26 +205,30 @@ SimpleAgentRequest
 -> Conversation + user Message + AgentRun
 -> provider.chat(history + Registry definitions)
    -> direct final text
-   -> ordered Tool Calls
-      -> Tool lookup + schema validation + sequential execution
+   -> ordered Tool Calls with another decision available
+      -> Tool lookup + schema validation + sequential timeout-bounded execution
       -> one ToolCall row and observation per call
-      -> provider.chat(assistant Tool Calls + observations)
-      -> final text
--> assistant Message + completed AgentRun
+      -> provider.chat(complete history + assistant Tool Calls + observations)
+   -> final text -> assistant Message + completed AgentRun
+   -> Tool Calls on final allowed decision -> failed AgentRun, no execution
+   -> Provider/blank response failure -> structured failed AgentRun
 ```
 
-The first Provider response may request multiple calls; they execute and return
-observations in Provider order. The second Provider response must contain
-non-blank final text and no further Tool Calls. A further call request ends with
-a fixed `AgentLoopIncompleteError` and no third Provider call. General
-`max_steps`, Tool timeout enforcement, retries, and comprehensive failure
-returns belong to `P2-M3-S7`.
+One Provider decision is one step. Multiple calls in one response execute and
+return observations in Provider order but consume one step. `max_steps`
+defaults to 3 and is constrained to `1..10`; a Tool request on the last step is
+not executed. Cross-round reused Tool Call IDs fail safely before they reach the
+database unique constraint. Each Tool uses its finite `timeout_seconds`; a
+timeout records `ToolCall.status="timeout"` and becomes a failed observation so
+the loop can still obtain final text. M3 performs no automatic retry.
 
 Unknown Tools, argument failures, failed ToolResults, exceptions, mismatched
 Tool names, and non-standard JSON Tool results become safe failed observations.
 Raw exception text and rejected argument values do not enter the observation or
-ToolCall error. The existing Plan 1 text Chat path still sends no Tool
-definitions and rejects Tool-only responses.
+ToolCall error. Provider observations are deterministically compacted above the
+configured character limit while full ToolResult JSON remains persisted. The
+existing Plan 1 text Chat path still sends no Tool definitions and rejects
+Tool-only responses.
 
 ## Verification and Security Boundary
 
@@ -229,15 +236,18 @@ Tests use Mock Tools, `tmp_path`, the tracked repository `README.md`, and
 disposable SQLite databases. They do not read a real `.env`, user database,
 credential, private key, or call a real Provider.
 
-The Agent suite additionally verifies direct and read_file loops, multiple-call
-ordering, observation correlation, safe failures, two-call boundedness, and
-AgentRun/ToolCall commit/reload. The database does not have an explicit ToolCall
-sequence field, so only the runtime result promises strict order in this batch.
+The Agent suite additionally verifies direct and multi-round loops,
+multiple-call ordering, observation correlation, maximum-step non-execution,
+cross-round ID safety, Tool timeout, structured Provider failures, escaped JSON
+compaction, and AgentRun/ToolCall commit/reload. The database does not have an
+explicit ToolCall sequence field, so only the runtime result promises strict
+order in this batch. See [Simple Agent Loop](11-simple-agent-loop.md) for the
+complete service contract.
 
 ## Deferred Work
 
 - `web_fetch` reassessment, no earlier than Plan 4 or Plan 6
 - streaming Provider Tool Call aggregation
-- general Agent max steps, Tool timeouts, retries, and failure-return policy
+- automatic retry/cancel/resume and broader Runtime Policy
 - Agent APIs and frontend ToolCall visualization
 - Plan 4 Trace, replay, and evaluation

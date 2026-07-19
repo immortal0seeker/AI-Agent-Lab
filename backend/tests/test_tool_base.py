@@ -88,6 +88,15 @@ def test_tool_rejects_non_positive_timeout(timeout_seconds: int) -> None:
         build_tool(timeout_seconds=timeout_seconds)
 
 
+@pytest.mark.parametrize(
+    "timeout_seconds",
+    [float("nan"), float("inf"), float("-inf")],
+)
+def test_tool_rejects_non_finite_timeout(timeout_seconds: float) -> None:
+    with pytest.raises(ValueError, match="timeout_seconds must be finite"):
+        build_tool(timeout_seconds=timeout_seconds)
+
+
 def test_tool_copies_parameter_schema_from_caller() -> None:
     parameter_schema = {
         "type": "object",

@@ -7,8 +7,10 @@ All notable changes to AI Agent Lab are documented in this file.
 ### Added
 
 - Added Provider-neutral assistant Tool Call and Tool observation messages with exact OpenAI-compatible serialization.
-- Added a backend-only Simple Agent service for direct answers or one ordered Tool round followed by a final model answer.
-- Added AgentRun and ToolCall execution persistence with safe Tool failure observations, correlated results, and timing metadata.
+- Added a backend-only Simple Agent service for direct answers or a bounded non-streaming loop with 1～10 Provider decisions and a default of 3.
+- Added per-Tool timeout enforcement, ordered multi-round observations, and bounded Provider observation JSON without truncating persisted ToolResult data.
+- Added structured persisted Agent failures for maximum steps, Provider failures, invalid Provider results, and missing final text.
+- Added AgentRun and ToolCall execution persistence with safe Tool failure observations, correlated results, timeout status, and timing metadata.
 
 ### Fixed
 
@@ -16,6 +18,7 @@ All notable changes to AI Agent Lab are documented in this file.
 - Blocked common credential files and directories such as `.npmrc`, `.netrc`, `.git-credentials`, `.aws`, `.kube`, and cloud credential JSON files from read-only tools.
 - Made registered Tool definitions immutable and required Provider-exported parameter schemas to have a JSON-serializable object root.
 - Enforced that an AgentRun's optional user Message belongs to the same Conversation through an additive Alembic migration.
+- Rejected non-finite Tool timeouts, cross-round duplicate Tool Call IDs, and oversized escaped observation envelopes before they can break an Agent transaction.
 
 ## [0.1.0] - 2026-07-13
 

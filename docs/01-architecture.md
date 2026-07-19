@@ -11,16 +11,17 @@ conversation navigation, refresh recovery, successful-call usage persistence,
 structured errors, request-linked logging, focused regression coverage,
 recoverable frontend initialization states, clean-start documentation, release
 materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
-completed `P2-M1-S1` through `P2-M3-S6`: Tool contracts, Registry, validation,
+completed `P2-M1-S1` through `P2-M3-S8`: Tool contracts, Registry, validation,
 read-only path policy, AgentRun/ToolCall persistence, and the executable
 `read_file` and `list_dir` builtins are available. The Provider contract now
 accepts typed Tool definitions and normalizes non-streaming Tool Calls; an
 independent adapter converts the Registry in stable order, and the
 OpenAI-compatible adapter maps `tools` without leaking vendor payloads into
 services. `web_fetch` remains deferred. A backend-only `SimpleAgentService`
-now owns one bounded Tool round, observation backfill, and AgentRun/ToolCall
+now owns a bounded multi-step loop, observation backfill, per-Tool timeout,
+structured failure results, observation compaction, and AgentRun/ToolCall
 persistence. No network Tool, Agent API, or frontend Agent view is implemented
-at this stage; general step/timeout/failure policy remains in the next batch.
+at this stage.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -222,18 +223,25 @@ SimpleAgentRequest
 -> Conversation + user Message + AgentRun(running)
 -> provider.chat(history + Tool definitions)
    -> direct text -> assistant Message + AgentRun(completed)
-   -> ordered Tool Calls -> validation + execution + ToolCall rows
+   -> ordered Tool Calls with another step available
+      -> validation + timeout-bounded execution + ToolCall rows
       -> assistant Tool Call message + correlated Tool observations
-      -> one final provider.chat() -> assistant Message + AgentRun(completed)
+      -> next provider.chat()
+   -> Tool Calls on final allowed step -> AgentRun(failed), no execution
+   -> Provider/blank terminal failure -> structured AgentRun(failed)
 ```
 
-One first response may contain multiple Tool Calls, which run sequentially in
-Provider order. The second response must be non-blank final text without more
-Tool Calls. A further Tool request fails locally instead of starting a third
-call; `P2-M3-S7` will generalize this into an explicit max-step/timeout/failure
-policy. Intermediate Tool protocol messages remain in-process because the
-current Message table cannot losslessly represent correlation fields. The
-ToolCall audit rows retain arguments, full safe results, status, and timing.
+One Provider decision is one step; multiple Tool Calls in the same response run
+sequentially in Provider order and still consume one step. `max_steps` defaults
+to 3 and is limited to 10. The last allowed response cannot start Tool work.
+Each Tool's finite timeout maps to the existing `timeout` ToolCall status, while
+the failed observation lets a later Provider decision finish normally.
+Intermediate Tool protocol messages remain in-process because the current
+Message table cannot losslessly represent correlation fields. ToolCall rows
+retain arguments, complete validated results, status, and timing; only the
+Provider observation is compacted when it exceeds the configured character
+bound. Runtime failure results remain committable because the service flushes
+but does not commit.
 
 `web_fetch` is intentionally absent from this architecture. A future
 reassessment must define SSRF-safe address and redirect validation, DNS-
@@ -246,6 +254,8 @@ calls are not yet linked to `LLMCall`, and the existing ToolCall table has no
 explicit sequence column; runtime results preserve Provider order, while a
 strict persisted step timeline belongs to later AgentStep/Trace design. See
 [Tool Calling Design](10-tool-calling-design.md) for the detailed boundary.
+See also [Simple Agent Loop](11-simple-agent-loop.md) for step counting,
+timeouts, failure results, and the M4 service contract.
 
 ## Frontend Boundaries
 
