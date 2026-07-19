@@ -62,7 +62,7 @@ blocked
 | Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex review M3 | 已完成 |
 | Batch 10 | P2-M4-S1～S3 | 实现 Agent API 和 Tool Call 查询 | API 测试 | 已完成 |
 | Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 | 已完成 |
-| Batch 12 | P2-M5-S1～S3 | 补 Tool / Agent 测试 | 后端测试 | 未完成 |
+| Batch 12 | P2-M5-S1～S3 | 补 Tool / Agent 测试 | 后端测试 | 已完成 |
 | Batch 13 | P2-M5-S4～S6 | 补文档、README、截图和限制说明 | 文档 review | 未完成 |
 | Batch 14 | P2-M5-S7～S8 | 最终 review、修复、v0.2.0 封版 | Codex final review | 未完成 |
 
@@ -449,14 +449,35 @@ feat(frontend): show agent tool calls
 
 | Step ID | 任务 | 建议工具 | 交付物 | 验证方式 | Review |
 |---|---|---|---|---|---|
-| P2-M5-S1 | 补 Tool 抽象、Registry、校验、安全边界测试 | Codex | 后端测试 | `pytest` 对应测试通过 | Codex |
-| P2-M5-S2 | 补 read_file / list_dir / web_fetch 测试 | Codex | builtin tools 测试 | 正常、失败、安全场景通过 | Codex |
-| P2-M5-S3 | 补 Agent Loop / Agent API 测试 | Codex | Agent 测试 | mock 模型触发工具调用并返回最终答案 | Codex |
+| P2-M5-S1 | 补 Tool 抽象、Registry、校验、安全边界测试 | Codex | 后端测试 | `pytest` 对应测试通过 | Codex（done） |
+| P2-M5-S2 | 补 read_file / list_dir / web_fetch 测试 | Codex | builtin tools 测试 | 正常、失败、安全场景通过 | Codex（done） |
+| P2-M5-S3 | 补 Agent Loop / Agent API 测试 | Codex | Agent 测试 | mock 模型触发工具调用并返回最终答案 | Codex（done） |
 | P2-M5-S4 | 补前端 Tool Call 展示检查 | Cursor | 前端类型检查、基础 UI 验证记录 | `npm run build` 或前端检查通过 | Codex |
 | P2-M5-S5 | 更新 README 和 Plan 2 文档 | Codex | README、`docs/10-tool-calling-design.md`、`docs/11-simple-agent-loop.md` | 文档说明工具限制和启动方式 | Codex |
 | P2-M5-S6 | 准备封版材料：截图、CHANGELOG、当前限制 | Cursor + Codex | Tool Call 截图、`CHANGELOG.md` | v0.2.0 功能边界清晰 | Codex |
 | P2-M5-S7 | Plan 2 全量 review 和修复 | Codex | review 记录、修复 commit | 后端测试和前端检查通过 | Codex final review |
 | P2-M5-S8 | 创建 v0.2.0 tag 并记录进入 Plan 3 的桥接状态 | Codex | `v0.2.0` tag、桥接检查表 | `git tag --list` 包含 v0.2.0 | Codex final review |
+
+### P2-M5-S1～S3 Tool / Agent 测试加固验收记录（2026-07-19）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 测试缺口矩阵 | 先建立“计划验收要求 → 已有测试 → 缺口 → 最小新测试”矩阵。Tool 抽象、Registry、read_file/list_dir 主路径、多轮 Agent Loop 和 Agent API 已有覆盖不重复新增；本批只补标准 JSON 参数、`.envrc`、`web_fetch` 延期边界和 builtin 安全失败的 API 闭环。 |
+| S1 Tool / 参数 / 安全边界 | `validate_tool_arguments()` 现在以 `allow_nan=False` 拒绝 `NaN`/正负无穷，并返回不回显值的固定 `json` issue；共享路径策略按已记录的 `.env*` 边界拒绝 `.envrc`，read_file/list_dir 同步继承。 |
+| S2 builtin 与 web_fetch 延期 | read_file/list_dir 测试覆盖 `.envrc` 拒绝和过滤。新增延期回归证明不存在 `app.tools.builtin.web_fetch` 模块、`WebFetchTool`/`web_fetch` export，caller-owned Registry 和 Provider schema 仍严格只有 `read_file`、`list_dir`；未增加网络实现、依赖或真实请求。 |
+| S3 Agent Loop / API | 新增完整 Mock Provider + FastAPI + SimpleAgentService + builtin read_file + 临时 SQLite/工作区集成回归：读取合成 `.envrc` 被安全拒绝，failed ToolCall 与 observation 使用固定错误且不泄漏合成内容/绝对路径，Agent 随后返回最终文本并以 completed 201 持久化。 |
+| TDD 证据 | 生产代码修改前聚焦 RED 为 `8 failed, 152 passed`：3 个非有限数、4 个 `.envrc` 工具边界和 1 个 Agent API 闭环按预期失败，`web_fetch` 缺席测试已通过；最小修复后 GREEN 为 `160 passed, 1 warning`，完整 Tool/Agent 聚焦为 `252 passed, 1 warning`。 |
+| 完整验证 | Backend `451 passed, 1 warning`，warning 是已知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损依赖。Frontend typecheck、`16 files / 79 tests`、production build（1812 modules transformed）通过；首次 build 的 ignored `dist/assets` EPERM 为受管沙箱限制，按已批准 build 权限重跑成功。 |
+| SQLite 与边界检查 | 仅在新建系统临时目录使用 SQLite；Alembic `upgrade head`、`current --check-heads`、`check` 通过，head 为 `20260718_0003` 且临时目录已清理。70 个 Markdown 文件中的 45 个本地链接全部存在；11 个最终变更路径的真实 secret 模式、`web_fetch` runtime/file、依赖变更、用户数据库、tracked 生成物、后续 Plan runtime 和 staged path 均为 0；`git diff --check` 通过。 |
+| Codex self-review | 必须修：非标准 JSON 数值与 `.envrc` 两个边界缺口已按 RED/GREEN 修复。后续 Step：M5-S4～S6 负责前端检查、正式文档同步和 release 截图；`docs/10`/`docs/11` 中 M4 后遗留的前端现状措辞在 S5 统一修正。接受限制：非流式、无 run list/polling/cancel/resume/retry、无严格持久化 ToolCall sequence、tracked 示例模型 `supports_tools=false`、无真实 Provider 验收、`web_fetch` 继续延期。不适用：migration、Provider 协议、Agent 状态、API 路由和前端 runtime 均无需修改。无剩余阻塞项。未使用 Claude Code、Fable 5、子代理或外部复审。 |
+
+**结论：** `P2-M5-S1`～`S3` 与 Batch 12 已完成，Codex self-review 和完整验证无阻塞问题。下一批只能进入 `P2-M5-S4`～`S6`；本批没有开始 release 文档/截图、封版/tag、Plan 3 或后续能力。
+
+S1～S3 建议 commit：
+
+```text
+test(agent): harden plan 2 tool and agent coverage
+```
 
 M5 完成后建议 commit：
 

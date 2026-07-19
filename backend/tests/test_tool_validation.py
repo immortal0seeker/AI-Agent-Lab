@@ -117,6 +117,32 @@ def test_validate_tool_arguments_rejects_non_mapping_input() -> None:
     assert exc_info.value.issues[0].code == "type"
 
 
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_validate_tool_arguments_rejects_non_standard_json_numbers(
+    value: float,
+) -> None:
+    tool = build_tool(
+        {
+            "type": "object",
+            "properties": {"value": {"type": "number"}},
+            "required": ["value"],
+            "additionalProperties": False,
+        }
+    )
+
+    with pytest.raises(ToolArgumentValidationError) as exc_info:
+        validate_tool_arguments(tool, {"value": value})
+
+    assert len(exc_info.value.issues) == 1
+    assert exc_info.value.issues[0].path == ()
+    assert exc_info.value.issues[0].code == "json"
+    assert (
+        exc_info.value.issues[0].message
+        == "arguments must contain only standard JSON values"
+    )
+    assert repr(value) not in str(exc_info.value)
+
+
 def test_validate_tool_schema_rejects_invalid_schema_without_echoing_it() -> None:
     schema = {"type": "not-a-json-schema-type"}
 

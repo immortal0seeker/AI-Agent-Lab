@@ -218,7 +218,7 @@ def test_list_dir_returns_safe_failure_for_invalid_arguments(
 
 @pytest.mark.parametrize(
     "path",
-    ["../outside", ".env", ".git", "docs-local"],
+    ["../outside", ".env", ".envrc", ".git", "docs-local"],
 )
 def test_list_dir_rejects_unsafe_roots_without_echoing_them(
     tmp_path: Path,
@@ -247,6 +247,7 @@ def test_list_dir_filters_sensitive_entries_before_traversal(
     for name in [
         ".env",
         ".env.local",
+        ".envrc",
         ".npmrc",
         "id_rsa",
         "private.pem",

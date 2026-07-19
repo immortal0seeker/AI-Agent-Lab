@@ -68,6 +68,7 @@ def test_resolve_workspace_path_rejects_parent_traversal(
     "unsafe_path",
     [
         ".env",
+        ".envrc",
         ".env ",
         "config/.ENV.local",
         ".ssh/config",

@@ -105,6 +105,40 @@ class ToolRoundProvider(BaseLLMProvider):
         raise NotImplementedError
 
 
+class BlockedReadProvider(BaseLLMProvider):
+    def __init__(self) -> None:
+        self.requests: list[ChatRequest] = []
+
+    async def chat(self, request: ChatRequest) -> LLMResponse:
+        self.requests.append(request)
+        if len(self.requests) == 1:
+            return LLMResponse(
+                id="agent-blocked-read-request",
+                model="resolved-tools-model",
+                tool_calls=(
+                    LLMToolCall(
+                        tool_call_id="call-blocked-envrc",
+                        tool_name="read_file",
+                        arguments={"path": ".envrc"},
+                    ),
+                ),
+            )
+        return LLMResponse(
+            id="agent-blocked-read-answer",
+            model="resolved-tools-model",
+            content="The protected file was not read.",
+            finish_reason="stop",
+        )
+
+    async def stream_chat(
+        self,
+        request: ChatRequest,
+    ) -> AsyncIterator[ChatChunk]:
+        if False:
+            yield ChatChunk()
+        raise NotImplementedError
+
+
 class TimeoutAgentProvider(DirectAnswerProvider):
     async def chat(self, request: ChatRequest) -> LLMResponse:
         self.requests.append(request)
@@ -458,6 +492,59 @@ def test_agent_api_tool_round_returns_persists_and_queries_call(
         assert stored.status == "success"
         assert stored.result_json is not None
         assert stored.result_json["content"] == "Temporary workspace notes"
+
+
+def test_agent_api_persists_safe_builtin_rejection_and_completes(
+    agent_api_context: Any,
+    tmp_path: Path,
+) -> None:
+    client, factory, _, providers, _ = agent_api_context
+    synthetic_secret = "SYNTHETIC_ENVRC_VALUE_DO_NOT_EXPOSE"
+    (tmp_path / ".envrc").write_text(synthetic_secret, encoding="utf-8")
+    tool_registry = ToolRegistry()
+    register_builtin_tools(tool_registry, workspace_root=tmp_path)
+    provider = BlockedReadProvider()
+    providers["mock"] = provider
+    app.dependency_overrides[get_tool_registry] = lambda: tool_registry
+
+    response = client.post(
+        "/api/v1/agents/runs",
+        json={
+            "provider": "mock",
+            "model": "tools-model",
+            "input": "Read the protected environment file",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "completed"
+    assert body["final_answer"] == "The protected file was not read."
+    assert len(body["tool_calls"]) == 1
+    call = body["tool_calls"][0]
+    assert call["tool_call_id"] == "call-blocked-envrc"
+    assert call["tool_name"] == "read_file"
+    assert call["status"] == "failed"
+    assert call["error"] == "The requested path is not allowed"
+    assert call["result"]["success"] is False
+    assert call["result"]["error"] == "The requested path is not allowed"
+
+    observation = provider.requests[1].messages[-1]
+    assert observation.role == "tool"
+    assert observation.tool_call_id == "call-blocked-envrc"
+    assert json.loads(observation.content or "") == call["result"]
+    assert synthetic_secret not in response.text
+    assert synthetic_secret not in (observation.content or "")
+    assert str(tmp_path) not in response.text
+    assert str(tmp_path) not in (observation.content or "")
+
+    with factory() as session:
+        stored = session.scalar(select(ToolCall))
+        assert stored is not None
+        assert stored.status == "failed"
+        assert stored.error_message == "The requested path is not allowed"
+        assert stored.result_json == call["result"]
+        assert synthetic_secret not in json.dumps(stored.result_json)
 
 
 def test_agent_api_commits_structured_failed_run(

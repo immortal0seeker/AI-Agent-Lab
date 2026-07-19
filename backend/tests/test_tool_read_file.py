@@ -140,7 +140,10 @@ def test_read_file_returns_safe_failure_for_invalid_arguments(
     assert "do-not-leak" not in result.model_dump_json()
 
 
-@pytest.mark.parametrize("path", [".env", "../outside.txt", "id_rsa"])
+@pytest.mark.parametrize(
+    "path",
+    [".env", ".envrc", "../outside.txt", "id_rsa"],
+)
 def test_read_file_rejects_unsafe_paths_without_echoing_them(
     tmp_path: Path,
     path: str,

@@ -76,8 +76,7 @@ def is_sensitive_path_component(component: str) -> bool:
     return (
         normalized in _SENSITIVE_DIRECTORY_NAMES
         or normalized in _SENSITIVE_FILE_NAMES
-        or normalized == ".env"
-        or normalized.startswith(".env.")
+        or normalized.startswith(".env")
         or normalized in _PRIVATE_KEY_NAMES
         or normalized.endswith((".pem", ".key"))
     )

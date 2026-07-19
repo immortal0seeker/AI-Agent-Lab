@@ -105,6 +105,19 @@ def validate_tool_arguments(
         )
 
     payload = deepcopy(dict(arguments))
+    try:
+        json.dumps(payload, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise ToolArgumentValidationError(
+            tool.name,
+            [
+                ToolValidationIssue(
+                    (),
+                    "json",
+                    "arguments must contain only standard JSON values",
+                )
+            ],
+        ) from exc
     validator = Draft202012Validator(tool.parameters_schema)
     errors = sorted(
         validator.iter_errors(payload),
