@@ -60,7 +60,7 @@ blocked
 | Batch 7 | P2-M3-S1～S3 | 扩展 LLM Provider 支持 tools | Provider mock 测试 | 已完成 |
 | Batch 8 | P2-M3-S4～S6 | 实现 Simple Agent Loop | Agent mock 测试 | 已完成 |
 | Batch 9 | P2-M3-S7～S8 | 完成失败处理、最大步数、工具结果压缩雏形 | Codex review M3 | 已完成 |
-| Batch 10 | P2-M4-S1～S3 | 实现 Agent API 和 Tool Call 查询 | API 测试 | 未完成 |
+| Batch 10 | P2-M4-S1～S3 | 实现 Agent API 和 Tool Call 查询 | API 测试 | 已完成 |
 | Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 | 未完成 |
 | Batch 12 | P2-M5-S1～S3 | 补 Tool / Agent 测试 | 后端测试 | 未完成 |
 | Batch 13 | P2-M5-S4～S6 | 补文档、README、截图和限制说明 | 文档 review | 未完成 |
@@ -376,12 +376,34 @@ feat(agent): add bounded agent loop runtime policy
 
 | Step ID | 任务 | 建议工具 | 交付物 | 验证方式 | Review |
 |---|---|---|---|---|---|
-| P2-M4-S1 | 实现 Agent API 请求 / 响应 schema | Codex | `backend/app/schemas/agent.py` | schema 测试通过 | Codex |
-| P2-M4-S2 | 实现 `POST /api/v1/agent/runs` | Codex | `backend/app/api/v1/agent.py` | API 测试可启动 Agent Run | Codex |
-| P2-M4-S3 | 实现 Agent Run 查询和 Tool Call 查询接口 | Codex | `GET /agent/runs/{id}`、`GET /agent/runs/{id}/tool-calls` | API 测试通过 | Codex |
+| P2-M4-S1 | 实现 Agent API 请求 / 响应 schema | Codex | `backend/app/schemas/agent.py` | schema 测试通过 | Codex（done） |
+| P2-M4-S2 | 实现 `POST /api/v1/agents/runs` | Codex | `backend/app/api/v1/agents.py` | API 测试可启动 Agent Run | Codex（done） |
+| P2-M4-S3 | 实现 Agent Run 查询和 Tool Call 查询接口 | Codex | `GET /agents/runs/{id}`、`GET /agents/runs/{id}/tool-calls` | API 测试通过 | Codex（done） |
 | P2-M4-S4 | 创建前端 agent API 封装和类型 | Cursor | `frontend/src/api/agent.ts`、`types/agent.ts` | TypeScript 检查通过 | Codex |
 | P2-M4-S5 | 实现 Tool Call 展示组件 | Cursor | `ToolCallCard.tsx`、`ToolCallTimeline.tsx` | 组件可展示 pending / success / error | Codex |
 | P2-M4-S6 | 在 Chat 页面或 Agent 页面接入 Agent Run 展示 | Cursor + Codex | Agent 任务输入、结果展示、工具调用过程 | 浏览器手测 README 总结场景 | Codex review |
+
+### P2-M4-S1～S3 Agent API 验收记录（2026-07-19）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| API schema | 新增 `AgentRunCreate`、`AgentRunRead`、`AgentRunExecutionRead` 和 `ToolCallRead`。请求只接受 `input`，拒绝未知字段，`max_steps` 为严格整数 `1..10`、默认 3；API 使用 `arguments`、`result`、`error` 语义字段，不暴露 ORM JSON/message 字段名。 |
+| 路由与事务 | 只实现复数 `POST /api/v1/agents/runs`、`GET /api/v1/agents/runs/{run_id}` 和 `GET .../tool-calls`，不提供单数 alias。completed 与结构化 failed AgentRun 都走正常提交路径并返回 HTTP 201；preflight/数据库异常走 rollback，commit failure 测试证明不会返回伪 201。 |
+| 查询边界 | 未知 AgentRun 返回安全 `agent_run_not_found` 404，已存在但无 ToolCall 返回 `[]`；ToolCall 查询按 `created_at, id` 确定性排序但不宣称严格 sequence。两个 GET 只依赖 Session，测试用抛出私有诊断的 Provider dependency 证明查询不会解析 Provider 配置。 |
+| Tool 与错误安全 | POST 每请求构造只含 `read_file`/`list_dir` 的 Registry。临时目录 `read_file` Tool round 返回并持久化完整 ToolCall，不泄漏绝对路径；模型不存在、不支持 Tools、Provider 不可用、Conversation/AgentRun 不存在、请求和数据库错误均返回固定脱敏 envelope。 |
+| TDD 证据 | Schema RED 因 `app.schemas.agent` 不存在而 collection error，GREEN 为 10 passed；Service RED 因 `AgentRunNotFoundError` 不存在而 collection error，GREEN 为 6 passed；路由 RED 为 OpenAPI 缺失与 POST 404（2 failed），GREEN 为 2 passed。Tool、失败、查询和事务集成完成后 Agent API/service 为 41 passed。 |
+| Codex self-review | 发现 1 个必须修项：把 `AgentService` 加入 `app.services.__init__` 会形成 `agents.errors -> services package -> agent_service -> agents` 循环导入，首次 GREEN 以可重复 ImportError 暴露；移除该包级导出、改用明确模块入口后 service 6 passed、schema 10 passed，聚焦回归两次均为 322 passed, 1 warning。无剩余阻塞项。 |
+| 完整验证 | Backend `443 passed, 1 warning`，warning 是已知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损依赖。Frontend typecheck、8 files / 37 tests、production build（1804 modules transformed）通过。全新系统临时 SQLite 上 Alembic `upgrade head`、`current --check-heads`、`check` 通过，head 为 `20260718_0003` 且临时库已删除。FastAPI mock smoke 10 passed，覆盖 health、OpenAPI、服务端 request ID、Agent POST/GET 和无 Provider 查询。 |
+| 文档、安全与边界 | 新增 `docs/12-agent-api.md` 并同步 README 中英文、CHANGELOG、overview、architecture、Simple Agent 和执行表。67 个 Markdown 文件中的 43 个本地链接/图片均存在；189 个 tracked/本批文本路径的真实 secret 模式命中为 0。21 个变更路径均属于 S1～S3/文档，禁止目录、生成物/敏感产物、staged 文件、单数 runtime 路由和后续 Plan runtime 命中均为 0。 |
+| 已接受限制 | tracked 示例模型继续为 `supports_tools=false`；没有真实 Provider 验收。前端 Agent API/ToolCall 视图属于 S4～S6；流式 Tool Calls、自动 retry/cancel/resume、Agent-linked LLMCall 与严格持久化 sequence 仍未实现。 |
+
+**结论：** `P2-M4-S1`～`S3` 与 Batch 10 已完成，Codex self-review 和完整验证无阻塞问题。M4 尚未完成；下一批只能进入 `P2-M4-S4`～`S6`。没有使用 Claude Code、Fable 5 或子代理，也没有实现 M5、Plan 3 或后续能力。
+
+S1～S3 建议 commit：
+
+```text
+feat(agent): add agent run api
+```
 
 M4 完成后建议 commit：
 
@@ -507,12 +529,12 @@ Codex review 后：
 | 工具安全边界可用 | done（M1/M2 audit fix） | 路径、凭据名称、symlink/junction 测试 |
 | LLM Provider 支持 tools | done（M3 S1～S3，非流式协议） | Provider contract、schema adapter、OpenAI-compatible mock 测试；真实模型能力仍为 false |
 | Simple Agent Loop 可用 | done（M3 S4～S8，后端非流式 service） | 直接回答、多轮 Tool、最大步数、超时、失败和持久化测试 |
-| Agent API 可用 | pending | API 测试 |
+| Agent API 可用 | done（M4 S1～S3，后端同步 API） | create/query、Tool round、结构化失败、错误与事务测试 |
 | 工具调用记录可保存 | done（M1 schema / M3 S6～S8 execution） | AgentRun/ToolCall ORM、迁移、执行状态和 commit/reload 测试 |
 | 前端能展示 Tool Call | pending | 页面截图 |
 | 工具失败不会导致系统崩溃 | done（M1/M2/M3 S7） | Tool validation、内置 Tool、timeout 和安全 observation 测试 |
-| README 已更新 | done（through M3 S8） | README / README_CN 当前范围与限制说明 |
-| docs 已更新 | done（through M3 S8） | Provider、Tool Calling、Simple Agent、架构文档与验收记录 |
+| README 已更新 | done（through M4 S3） | README / README_CN 当前范围、Agent API 与限制说明 |
+| docs 已更新 | done（through M4 S3） | Provider、Tool Calling、Simple Agent、Agent API、架构文档与验收记录 |
 | 已创建 v0.2.0 tag | pending | `git tag --list` 输出 |
 
 ---
@@ -542,12 +564,12 @@ Codex review 后：
 | Tool 安全边界 | `backend/app/tools/security.py` |
 | 内置工具 | `backend/app/tools/builtin/` |
 | Agent Loop | `backend/app/agents/simple_agent.py` |
-| Agent API | `backend/app/api/v1/agent.py` |
+| Agent API | `backend/app/api/v1/agents.py` |
 | 数据模型 | `backend/app/models/agent_run.py`、`backend/app/models/tool_call.py` |
 | 后端测试 | `backend/tests/tools/`、`backend/tests/agents/` |
 | 前端 Agent API | `frontend/src/api/agent.ts` |
 | 前端 Tool Call 组件 | `frontend/src/components/agent/` 或 `frontend/src/components/chat/` |
-| 项目文档 | `docs/10-tool-calling-design.md`、`docs/11-simple-agent-loop.md` |
+| 项目文档 | `docs/10-tool-calling-design.md`、`docs/11-simple-agent-loop.md`、`docs/12-agent-api.md` |
 | 截图 | `docs/assets/plan2/` |
 
 ---

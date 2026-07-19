@@ -1,3 +1,10 @@
+from app.schemas.agent import (
+    AgentRunCreate,
+    AgentRunExecutionRead,
+    AgentRunRead,
+    AgentRunStatus,
+    ToolCallRead,
+)
 from app.schemas.chat import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -11,6 +18,10 @@ from app.schemas.model import ModelRead
 from app.schemas.tool import ToolCallRequest, ToolCallResponse, ToolCallStatus
 
 __all__ = [
+    "AgentRunCreate",
+    "AgentRunExecutionRead",
+    "AgentRunRead",
+    "AgentRunStatus",
     "ChatCompletionRequest",
     "ChatCompletionResponse",
     "ChatStreamDeltaResponse",
@@ -24,6 +35,7 @@ __all__ = [
     "MessageRead",
     "ModelRead",
     "ToolCallRequest",
+    "ToolCallRead",
     "ToolCallResponse",
     "ToolCallStatus",
 ]

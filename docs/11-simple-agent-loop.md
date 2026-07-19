@@ -2,10 +2,11 @@
 
 ## Scope
 
-Plan 2 M3 provides a backend-only `SimpleAgentService` that connects the
+Plan 2 M3 provides a backend `SimpleAgentService` that connects the
 Provider-neutral Tool protocol, caller-owned Tool Registry, read-only Tools,
 Conversation persistence, and AgentRun/ToolCall audit records. It supports a
-bounded non-streaming loop; no current API route or frontend view invokes it.
+bounded non-streaming loop. Plan 2 M4 S1～S3 now expose it through synchronous
+Agent create/query routes; no current frontend view invokes those routes.
 
 This document describes `P2-M3-S1` through `P2-M3-S8`. M3 does not add RAG,
 Embedding, Memory, MCP, Shell/file-writing Tools, a Planner, Human Approval, or
@@ -138,9 +139,10 @@ not swallowed. Database errors also propagate so callers can roll back a
 failed SQLAlchemy transaction.
 
 The service calls `flush()` but never `commit()`. A caller can commit both
-completed and structured failed results. M4 Agent API code must treat a failed
-result as a normal persistence outcome, commit it, and map AgentRun status/error
-to the API schema; M3 does not implement that route.
+completed and structured failed results. The M4 Agent API treats a failed
+result as a normal persistence outcome, commits it through the request-scoped
+database dependency, and maps AgentRun status/error to the API schema. Commit
+or other database failure still escapes and triggers rollback.
 
 ## Persistence
 
@@ -171,9 +173,10 @@ SQLite databases, and temporary workspace files. They do not call a real or
 paid Provider, access a network Tool, read a real `.env` or credential, or
 touch the user's SQLite database.
 
-## Current Limitations and M4 Handoff
+## API Integration and Current Limitations
 
-- No Agent API route or frontend Agent/ToolCall view exists.
+- The plural `/api/v1/agents/runs` create and query routes are available; no
+  frontend Agent/ToolCall view exists yet.
 - Tool Calling is non-streaming only.
 - Tool Calls execute sequentially; no parallel execution or automatic retry.
 - No user cancellation/resume API or persisted cancelled-run policy.
@@ -181,6 +184,7 @@ touch the user's SQLite database.
 - Observation compaction is character-based and lossy only for Provider context.
 - `web_fetch` remains explicitly deferred with no runtime surface.
 
-The next batch is `P2-M4-S1` through `P2-M4-S3`: define Agent API schemas,
-create the run endpoint, and add AgentRun/ToolCall query endpoints without
-changing the M3 loop contract.
+The next batch is `P2-M4-S4` through `P2-M4-S6`: add the frontend Agent API
+wrapper and AgentRun/ToolCall presentation without changing the M3 loop
+contract. See [Agent API](12-agent-api.md) for the implemented HTTP schemas,
+transaction behavior, error mapping, and query boundaries.

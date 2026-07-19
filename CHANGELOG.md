@@ -11,6 +11,8 @@ All notable changes to AI Agent Lab are documented in this file.
 - Added per-Tool timeout enforcement, ordered multi-round observations, and bounded Provider observation JSON without truncating persisted ToolResult data.
 - Added structured persisted Agent failures for maximum steps, Provider failures, invalid Provider results, and missing final text.
 - Added AgentRun and ToolCall execution persistence with safe Tool failure observations, correlated results, timeout status, and timing metadata.
+- Added validated Agent API schemas plus synchronous create, AgentRun query, and ToolCall query endpoints under `/api/v1/agents/runs`.
+- Added persistent HTTP 201 responses for structured failed Agent runs and Provider-independent history queries with safe 404/error envelopes.
 
 ### Fixed
 

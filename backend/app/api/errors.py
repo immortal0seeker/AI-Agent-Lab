@@ -7,6 +7,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 
+from app.agents import (
+    AgentModelNotFoundError,
+    AgentModelToolsUnsupportedError,
+    AgentProviderUnavailableError,
+    AgentRunNotFoundError,
+)
 from app.core.logging import safe_stack_locations
 from app.core.request_context import bind_request_id, get_request_id
 from app.providers.llm.base import (
@@ -42,6 +48,26 @@ class ErrorSpec:
 def error_spec_for_exception(exc: Exception) -> ErrorSpec:
     if isinstance(exc, RequestValidationError):
         return ErrorSpec(422, "validation_error", "Request validation failed")
+    if isinstance(exc, AgentModelNotFoundError):
+        return ErrorSpec(
+            400,
+            "model_not_found",
+            "The requested model is not available",
+        )
+    if isinstance(exc, AgentModelToolsUnsupportedError):
+        return ErrorSpec(
+            400,
+            "model_tools_unsupported",
+            "The requested model does not support tools",
+        )
+    if isinstance(exc, AgentProviderUnavailableError):
+        return ErrorSpec(
+            503,
+            "provider_unavailable",
+            "The requested provider is unavailable",
+        )
+    if isinstance(exc, AgentRunNotFoundError):
+        return ErrorSpec(404, "agent_run_not_found", "Agent run not found")
     if isinstance(exc, ConversationNotFoundError):
         return ErrorSpec(404, "conversation_not_found", "Conversation not found")
     if isinstance(exc, ChatModelNotFoundError):

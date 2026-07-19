@@ -25,8 +25,8 @@ Plan 1 covers:
 
 Completed scope: `P1-M1-S1` through `P1-M4-S8`.
 
-Current development stage: Plan 2 M3 is complete.
-Completed Plan 2 scope: `P2-M1-S1` through `P2-M3-S8`.
+Current development stage: Plan 2 M4 backend API batch is complete.
+Completed Plan 2 scope: `P2-M1-S1` through `P2-M4-S3`.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -48,10 +48,14 @@ ordered Tool Calls, correlated observations, per-Tool timeouts, bounded
 Provider observations, structured failed results, and AgentRun/ToolCall audit
 rows. One Provider decision is one step; `max_steps` defaults to 3 and is
 limited to 10. There is no automatic retry. The tracked model therefore cannot
-run this path without an explicit tools-capable local configuration. Agent APIs
-and frontend Agent/ToolCall views are not yet implemented.
+run this path without an explicit tools-capable local configuration.
+`P2-M4-S1` through `P2-M4-S3` add validated Agent request/response schemas,
+`POST /api/v1/agents/runs`, and AgentRun/ToolCall query endpoints. Completed and
+structured failed runs both commit and return HTTP 201; read-only queries do not
+initialize Provider configuration. Frontend Agent/ToolCall views are not yet
+implemented.
 
-Next batch: `P2-M4-S1` through `P2-M4-S3`.
+Next batch: `P2-M4-S4` through `P2-M4-S6`.
 
 ## v0.1.0 Demo
 
@@ -271,6 +275,8 @@ Release documentation:
 - [Architecture](docs/01-architecture.md)
 - [LLM Provider and Model Registry](docs/03-llm-provider.md)
 - [Tool Calling design](docs/10-tool-calling-design.md)
+- [Simple Agent Loop](docs/11-simple-agent-loop.md)
+- [Agent API](docs/12-agent-api.md)
 - [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`

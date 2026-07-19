@@ -4,6 +4,7 @@ from app.agents.errors import (
     AgentModelNotFoundError,
     AgentModelToolsUnsupportedError,
     AgentProviderUnavailableError,
+    AgentRunNotFoundError,
 )
 from app.agents.simple_agent import (
     SimpleAgentRequest,
@@ -17,6 +18,7 @@ __all__ = [
     "AgentModelNotFoundError",
     "AgentModelToolsUnsupportedError",
     "AgentProviderUnavailableError",
+    "AgentRunNotFoundError",
     "SimpleAgentRequest",
     "SimpleAgentResult",
     "SimpleAgentService",

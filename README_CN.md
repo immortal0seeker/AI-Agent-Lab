@@ -25,8 +25,8 @@ Plan 1 覆盖：
 
 已完成范围：`P1-M1-S1` 到 `P1-M4-S8`。
 
-当前开发阶段：Plan 2 M3 已完成。已完成的 Plan 2 范围为
-`P2-M1-S1` 到 `P2-M3-S8`。
+当前开发阶段：Plan 2 M4 后端 API 批次已完成。已完成的 Plan 2 范围为
+`P2-M1-S1` 到 `P2-M4-S3`。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -44,9 +44,12 @@ Tool Call delta，因此带 tools 的流式请求会在 HTTP 前本地失败。`
 单 Tool 超时、Provider observation 上限、结构化失败结果和 AgentRun/ToolCall
 审计记录。一次 Provider 决策计为一步；`max_steps` 默认 3、最大 10，且没有自动
 重试。tracked 模型没有声明 Tool 能力，因此需要显式的本地 tools-capable 配置
-才能运行此 service。Agent API 和前端 Agent/ToolCall 视图仍未实现。
+才能运行此 service。`P2-M4-S1` 到 `P2-M4-S3` 新增经过校验的 Agent 请求/响应
+schema、`POST /api/v1/agents/runs` 以及 AgentRun/ToolCall 查询接口。completed 与
+结构化 failed 运行都会提交并返回 HTTP 201；只读查询不会初始化 Provider 配置。
+前端 Agent/ToolCall 视图仍未实现。
 
-下一批：`P2-M4-S1` 到 `P2-M4-S3`。
+下一批：`P2-M4-S4` 到 `P2-M4-S6`。
 
 ## v0.1.0 演示
 
@@ -246,6 +249,8 @@ npm run build
 - [架构说明](docs/01-architecture.md)
 - [LLM Provider 与 Model Registry](docs/03-llm-provider.md)
 - [Tool Calling 设计](docs/10-tool-calling-design.md)
+- [Simple Agent Loop](docs/11-simple-agent-loop.md)
+- [Agent API](docs/12-agent-api.md)
 - [Plan 1 最终复审记录](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`

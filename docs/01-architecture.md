@@ -11,7 +11,7 @@ conversation navigation, refresh recovery, successful-call usage persistence,
 structured errors, request-linked logging, focused regression coverage,
 recoverable frontend initialization states, clean-start documentation, release
 materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
-completed `P2-M1-S1` through `P2-M3-S8`: Tool contracts, Registry, validation,
+completed `P2-M1-S1` through `P2-M4-S3`: Tool contracts, Registry, validation,
 read-only path policy, AgentRun/ToolCall persistence, and the executable
 `read_file` and `list_dir` builtins are available. The Provider contract now
 accepts typed Tool definitions and normalizes non-streaming Tool Calls; an
@@ -20,8 +20,8 @@ OpenAI-compatible adapter maps `tools` without leaking vendor payloads into
 services. `web_fetch` remains deferred. A backend-only `SimpleAgentService`
 now owns a bounded multi-step loop, observation backfill, per-Tool timeout,
 structured failure results, observation compaction, and AgentRun/ToolCall
-persistence. No network Tool, Agent API, or frontend Agent view is implemented
-at this stage.
+persistence. Validated plural Agent create/query routes now expose that service;
+no network Tool or frontend Agent view is implemented at this stage.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -76,7 +76,7 @@ Current backend layers:
 |---|---|
 | `api/` | HTTP routes and response shaping |
 | `schemas/` | Pydantic request and response contracts |
-| `services/` | Chat, conversation, and application logic |
+| `services/` | Chat, conversation, Agent query, and application logic |
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM provider abstractions and adapters |
 | `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
@@ -243,19 +243,37 @@ Provider observation is compacted when it exceeds the configured character
 bound. Runtime failure results remain committable because the service flushes
 but does not commit.
 
+The implemented HTTP boundary is:
+
+```text
+POST AgentRunCreate
+-> AgentService input/content conversion
+-> request-scoped SimpleAgentService
+-> AgentRunExecutionRead + commit
+
+GET AgentRun / ToolCalls
+-> session-only AgentService
+-> deterministic read schema
+```
+
+The POST response treats a structured failed AgentRun as a persistent HTTP 201
+resource; preflight and transaction errors still use rollback and the unified
+safe error envelope. The two GET routes never resolve Provider or Tool runtime
+dependencies, so history remains readable without a configured Provider key.
+
 `web_fetch` is intentionally absent from this architecture. A future
 reassessment must define SSRF-safe address and redirect validation, DNS-
 rebinding resistance, bounded streaming, content policy, text extraction,
 safe errors, and mock acceptance coverage before exposing a network Tool.
 
-No current route invokes the Agent service. Agent API access and frontend
-visualization remain scheduled for later Plan 2 milestones. Agent Provider
-calls are not yet linked to `LLMCall`, and the existing ToolCall table has no
-explicit sequence column; runtime results preserve Provider order, while a
-strict persisted step timeline belongs to later AgentStep/Trace design. See
-[Tool Calling Design](10-tool-calling-design.md) for the detailed boundary.
-See also [Simple Agent Loop](11-simple-agent-loop.md) for step counting,
-timeouts, failure results, and the M4 service contract.
+The plural `/api/v1/agents/runs` POST and query routes are implemented. Frontend
+Agent/ToolCall visualization remains scheduled for `P2-M4-S4～S6`. Agent
+Provider calls are not yet linked to `LLMCall`, and the existing ToolCall table
+has no explicit sequence column; runtime results preserve Provider order while
+queries use `created_at, id`, but a strict persisted step timeline belongs to
+later AgentStep/Trace design. See [Tool Calling Design](10-tool-calling-design.md)
+for the detailed boundary, [Simple Agent Loop](11-simple-agent-loop.md) for step
+counting and failures, and [Agent API](12-agent-api.md) for the HTTP contract.
 
 ## Frontend Boundaries
 

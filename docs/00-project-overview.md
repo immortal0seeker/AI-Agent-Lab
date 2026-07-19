@@ -36,7 +36,8 @@ The project emphasizes:
 ## Current Stage
 
 Current release: Plan 1 is complete as the `v0.1.0` foundation release.
-Current development stage: Plan 2 M3 is complete through `P2-M3-S8`.
+Current development stage: Plan 2 M4 backend API work is complete through
+`P2-M4-S3`.
 
 The repository has completed `P1-M1-S1` through `P1-M4-S8`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 added:
 
@@ -113,12 +114,21 @@ calls sequentially, enforces the Tool's finite timeout, persists terminal audit
 rows, and returns correlated observations. Oversized Provider observations are
 compacted without changing the persisted ToolResult. Maximum-step, Provider,
 invalid-response, and blank-terminal failures return a committable failed
-AgentRun. Automatic retry, Agent API/UI, strict persisted call ordering, and
-Agent-linked LLM usage records remain deferred.
+AgentRun. Automatic retry, frontend Agent UI, strict persisted call ordering,
+and Agent-linked LLM usage records remain deferred.
 
-The next batch is `P2-M4-S1` through `P2-M4-S3`. See the
+`P2-M4-S1` through `P2-M4-S3` expose the existing service through validated
+API schemas and the plural `/api/v1/agents/runs` resource. POST waits for a
+completed or structured failed run, commits either normal result, and returns
+final answer, status, error, and executed ToolCalls with HTTP 201. Separate
+AgentRun and ToolCall GET endpoints use deterministic query order and do not
+initialize Provider configuration. The frontend Agent API wrapper and
+Agent/ToolCall views remain scheduled for `P2-M4-S4` through `P2-M4-S6`.
+
+The next batch is `P2-M4-S4` through `P2-M4-S6`. See the
 [Tool Calling design](10-tool-calling-design.md),
 [Simple Agent Loop](11-simple-agent-loop.md),
+[Agent API](12-agent-api.md),
 [Plan 1 foundation release](02-plan-1-foundation.md), and root
 [changelog](../CHANGELOG.md) for the current boundaries and limitations.
 
