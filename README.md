@@ -8,9 +8,10 @@ This repository is not a collection of disconnected demos. The goal is to build 
 
 ## Current Stage
 
-Latest existing Git tag: `v0.1.0` (Plan 1 foundation). The `v0.2.0` Plan 2
-release candidate has passed its final Codex review; the user-owned release
-commit and annotated tag are still pending.
+Latest existing Git tag: `v0.2.0` (Plan 2 basic Agent), published from commit
+`0e3f3a6`. Plan 2 is complete. The current working tree prepares a `v0.2.1`
+security and correctness patch found by the post-release Codex audit; Codex has
+not created the patch commit or tag.
 
 Plan 1 covers:
 
@@ -25,12 +26,12 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P1-M4-S8`.
+Completed scope: `P1-M1-S1` through `P2-M5-S8`.
 
-Current development stage: Plan 2 implementation and final review are complete
-through `P2-M5-S7`. All five Plan 3 bridge contracts have been revalidated.
-`P2-M5-S8` remains open only for the user-created `v0.2.0` release commit/tag
-and the subsequent tag-target verification.
+Current development stage: all Plan 2 milestones and the original `v0.2.0`
+release gate are complete. All five Plan 3 bridge contracts were revalidated.
+The in-progress `v0.2.1` patch keeps the same Plan boundary and does not start
+Plan 3.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -50,9 +51,12 @@ Call deltas. `P2-M3-S4` through `P2-M3-S8` add a backend-only Simple Agent
 service. It can return a direct answer or run a bounded non-streaming loop with
 ordered Tool Calls, correlated observations, per-Tool timeouts, bounded
 Provider observations, structured failed results, and AgentRun/ToolCall audit
-rows. One Provider decision is one step; `max_steps` defaults to 3 and is
-limited to 10. There is no automatic retry. The tracked model therefore cannot
-run this path without an explicit tools-capable local configuration.
+rows. `max_steps` defaults to 3, is limited to 10, and bounds ToolCall
+executions: a whole Provider batch that does not fit is rejected atomically,
+while an exactly budgeted run may make one final Provider decision. The whole
+run also has a configurable deadline. There is no automatic retry. The tracked
+model therefore cannot run this path without an explicit tools-capable local
+configuration.
 `P2-M4-S1` through `P2-M4-S3` add validated Agent request/response schemas,
 `POST /api/v1/agents/runs`, and AgentRun/ToolCall query endpoints. Completed and
 structured failed runs both commit and return HTTP 201; read-only queries do not
@@ -63,7 +67,12 @@ Agent selector only offers Registry models with `supports_tools=true`; completed
 and structured failed runs show their final result, ToolCall audit fields, and
 traceable IDs. `?workspace=agent&run=<uuid>` restores a persisted run and its
 ToolCalls. The tracked example model still has Tool support disabled, so browser
-acceptance uses local mocks rather than a live Provider.
+acceptance uses local mocks rather than a live Provider. ToolCalls expose a
+strict one-based `sequence_index`; the UI summarizes large arguments and uses
+`Tool Call ID` only for the Provider correlation ID. A completed POST stores
+only its run UUID in tab-scoped session storage, so leaving and reopening Agent
+can recover the result without allowing a stale response to rewrite the Chat
+URL.
 
 `P2-M5-S1` through `P2-M5-S3` harden the Tool and Agent test boundary. Standard
 JSON validation now rejects non-finite numbers, `.env*` path protection includes
@@ -72,11 +81,19 @@ surface, and a Mock Provider plus temporary SQLite/workspace API test verifies a
 safe failed ToolCall can still lead to a completed final answer. `P2-M5-S4`
 through `P2-M5-S6` refresh frontend type/test/build and local mocked browser
 evidence, synchronize the current Tool/Agent documents, and add sanitized Plan 2
-desktop/mobile release-candidate screenshots. No frontend runtime behavior was
-changed for those checks.
+desktop/mobile release screenshots. S7～S8 completed the original `v0.2.0`
+review, release commit, annotated tag, push, and tag-target gate.
 
-Next action: manually commit this verified release candidate, create annotated
-tag `v0.2.0`, then verify the tag target before beginning `P3-M1-S1`.
+The post-release `v0.2.1` audit patch adds a shared 64 KiB standard-JSON Tool
+argument limit, 4096-character built-in path limit, private-key content checks,
+and no-symlink/reparse traversal. `list_dir` now bounds enumeration, Agent
+dispatch denies non-read-only Tools, invalid or blocked arguments are redacted
+before persistence, Agent runs have a total timeout, and ToolCall order is
+persisted explicitly. `web_fetch` remains deferred and has no runtime surface.
+
+Next action after verification: manually commit the `v0.2.1` patch and create
+the annotated `v0.2.1` tag. The existing `v0.2.0` tag is immutable and must not
+be moved or recreated.
 
 ## v0.1.0 Demo
 
@@ -87,15 +104,15 @@ tag `v0.2.0`, then verify the tag target before beginning `P3-M1-S1`.
 These are sanitized mock demonstrations. No live Provider, real API key, or
 user-local conversation database was used to create them.
 
-## v0.2.0 Release Candidate Demo
+## v0.2.0 Release Demo
 
 ![Desktop Agent ToolCall workspace](docs/assets/plan2/agent-tool-call-desktop.png)
 
 ![Mobile Agent ToolCall workspace](docs/assets/plan2/agent-tool-call-mobile.png)
 
 These are sanitized local Mock demonstrations with synthetic IDs and no project
-backend database. The S7 final review has passed; the images do not claim that
-the user-owned `v0.2.0` tag already exists.
+backend database. They are evidence for the published `v0.2.0` release; they do
+not prove live Provider Tool capability.
 
 ## Non-Goals For Plan 1
 
@@ -177,8 +194,9 @@ The backend defaults to `sqlite:///./ai_agent_lab.db`. Override it with
 `DATABASE_URL` in a local untracked environment file when needed. Alembic owns
 schema creation and currently creates `conversations`, `messages`, `llm_calls`,
 `agent_runs`, and `tool_calls`; the application does not create tables during
-startup. The latest Plan 2 migration also enforces that an AgentRun's optional
-user Message belongs to the same Conversation.
+startup. The Plan 2 migrations also enforce that an AgentRun's optional user
+Message belongs to the same Conversation and that each ToolCall has a positive,
+per-run unique `sequence_index`.
 
 The OpenAI-compatible Provider reads these optional environment settings when
 it is initialized:
@@ -196,11 +214,22 @@ health flow; attempting to initialize the Provider without a key raises a
 readable configuration error. Batch 5 tests use mock HTTP and do not contact a
 real model service.
 
-The JSON Model Registry is stored at
-`backend/app/providers/llm/models.json`. Its tracked entry is example
-configuration only. Registry loading, filtering, lookup, duplicate detection,
-and strict metadata validation are covered by unit tests. See
-`docs/03-llm-provider.md` for Provider and Registry boundaries.
+The default JSON Model Registry is stored at
+`backend/app/providers/llm/models.json`; its tracked entry intentionally keeps
+`supports_tools=false`. For a local Tool-capable model, copy the secret-free
+`models.local.example.json` to the ignored `models.local.json`, replace the
+synthetic model identifier, and set `MODEL_REGISTRY_PATH` in the local
+`backend/.env`:
+
+```powershell
+Copy-Item backend/app/providers/llm/models.local.example.json backend/app/providers/llm/models.local.json
+```
+
+Registry JSON never stores credentials. `AGENT_RUN_TIMEOUT_SECONDS` controls
+the whole Agent-run deadline and defaults to `120`. Registry loading,
+filtering, lookup, duplicate detection, and strict metadata validation are
+covered by unit tests. See `docs/03-llm-provider.md` for Provider and Registry
+boundaries.
 
 The non-streaming and SSE Chat backend flows are available:
 
@@ -320,7 +349,7 @@ Release documentation:
 - [Tool Calling design](docs/10-tool-calling-design.md)
 - [Simple Agent Loop](docs/11-simple-agent-loop.md)
 - [Agent API](docs/12-agent-api.md)
-- [Plan 2 basic Agent release candidate](docs/13-plan-2-basic-agent.md)
+- [Plan 2 basic Agent release and patch](docs/13-plan-2-basic-agent.md)
 - [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - [Plan 2 final review record](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
@@ -335,13 +364,13 @@ editable-install workflow also leaves `models.json` out of future wheel/sdist
 package data. Provider retry/fallback, failed-call audit rows, conversation
 management extensions, Markdown rendering, and later-Plan features remain
 deferred. Agent execution is synchronous/non-streaming and has no run list,
-polling, cancel/resume/retry, strict persisted ToolCall sequence, or live
-Provider acceptance. The tracked model is not enabled for Tools, Agent Provider
-calls are not linked to `LLMCall` usage/cost rows, and `web_fetch` remains
+polling, cancel/resume/retry, AgentStep/Trace replay, or live Provider
+acceptance. ToolCall order is strict, but Agent Provider calls are not linked
+to `LLMCall` usage/cost rows, and `web_fetch` remains
 explicitly deferred with no runtime surface. See the
 [Plan 1 foundation release](docs/02-plan-1-foundation.md),
 [Agent API](docs/12-agent-api.md), and
-[Plan 2 release candidate](docs/13-plan-2-basic-agent.md) and
+[Plan 2 release and patch](docs/13-plan-2-basic-agent.md) and
 [Plan 2 final review](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md) for
 the complete current boundaries.
 

@@ -40,6 +40,7 @@ def to_tool_call_read(row: ToolCall) -> ToolCallRead:
         agent_run_id=row.agent_run_id,
         conversation_id=row.conversation_id,
         tool_name=row.tool_name,
+        sequence_index=row.sequence_index,
         arguments=row.arguments_json,
         result=row.result_json,
         status=row.status,

@@ -71,6 +71,7 @@ class ToolCallRead(BaseModel):
     agent_run_id: UUID
     conversation_id: UUID
     tool_name: str
+    sequence_index: int = Field(gt=0)
     arguments: dict[str, Any]
     result: ToolResult | None
     status: ToolCallStatus

@@ -26,8 +26,9 @@ The Provider layer is consumed by both `POST /api/v1/chat/completions` and
 `POST /api/v1/chat/stream`. `GET /api/v1/models` exposes read-only Registry
 metadata, and the frontend selector uses its exact provider/model identities.
 Listing models does not initialize a Provider or expose credentials.
-`SimpleAgentService` also consumes the non-streaming contract directly, but no
-Agent HTTP route or frontend view exists yet.
+`SimpleAgentService` also consumes the non-streaming contract directly. The
+plural Agent create/query routes and read-only frontend audit workspace expose
+that service synchronously.
 
 ## Provider Contract
 
@@ -86,6 +87,8 @@ Provider settings are optional while the application only serves health checks. 
 | `OPENAI_COMPATIBLE_API_KEY` | Local Provider credential | empty in tracked examples |
 | `OPENAI_COMPATIBLE_MODEL` | Default model identifier | `example-model` |
 | `OPENAI_COMPATIBLE_TIMEOUT_SECONDS` | Request timeout | `30` |
+| `AGENT_RUN_TIMEOUT_SECONDS` | Whole Simple Agent run timeout | `120` |
+| `MODEL_REGISTRY_PATH` | Optional local Registry JSON override | empty uses tracked default |
 
 Keep real credentials only in a local untracked `.env` file or process
 environment. Settings store the key as Pydantic `SecretStr`. Provider HTTP
@@ -165,7 +168,16 @@ SQL parameters.
 
 ## Model Registry
 
-The default tracked Registry configuration is `backend/app/providers/llm/models.json`. It contains one clearly named example OpenAI-compatible model aligned with `backend/.env.example`. The entry is scaffolding and does not claim that a real model endpoint was tested.
+The default tracked Registry configuration is
+`backend/app/providers/llm/models.json`. It contains one clearly named example
+OpenAI-compatible model aligned with `backend/.env.example`. The entry is
+scaffolding and does not claim that a real model endpoint was tested.
+
+For local Tool-capable development, copy the tracked secret-free
+`models.local.example.json` to the ignored `models.local.json`, replace its
+synthetic model identifier, and set `MODEL_REGISTRY_PATH` in untracked
+`backend/.env`. An empty setting keeps the default file. Registry JSON must not
+contain credentials.
 
 Each model defines:
 
@@ -234,19 +246,20 @@ require a real API key.
 Simple Agent tests inject a tools-capable Mock Registry and disposable SQLite.
 They cover direct answers, existing history, multiple ordered Tool rounds,
 exact observation correlation, safe unknown/invalid/failed/malformed Tool
-results, maximum-step non-execution, cross-round ID reuse, finite Tool timeout,
-bounded escaped observations, structured Provider failures, cancellation
-propagation, and AgentRun/ToolCall commit/reload. They use only temporary
+results, atomic ToolCall budgets, permission denial, cross-round ID reuse,
+finite Tool/whole-run timeouts, bounded escaped observations, structured
+Provider failures, cancellation propagation, strict ToolCall sequence, and
+AgentRun/ToolCall commit/reload. They use only temporary
 workspace files and never initialize a real Provider.
 
 ## Known Limitations
 
 - The current local workflow uses an editable backend install, where `models.json` is loaded directly from the source tree. `backend/pyproject.toml` does not yet declare the JSON file as setuptools package data, so a future wheel or sdist workflow must add and verify that packaging configuration.
 - Registry validation exceptions may still contain Pydantic field context internally. `models.json` must not contain credentials or other sensitive values; API errors and logs intentionally expose only a fixed safe message and exception type.
-- Agent Provider calls are not yet represented by Agent-linked `LLMCall` rows, so their usage/cost is not persisted in this batch.
-- The current ToolCall table has no explicit sequence column. Runtime results preserve Provider order; strict persisted step ordering belongs to later AgentStep/Trace work.
+- Agent Provider calls are not yet represented by Agent-linked `LLMCall` rows, so their usage/cost and Provider replay are not persisted in this batch.
+- ToolCall order is persisted through `sequence_index`, but there is no later-Plan AgentStep/Trace timeline.
 - The Agent service flushes but does not commit. Completed and structured failed results remain committable; M4 API code owns the transaction and response mapping. Database errors and task cancellation still propagate for caller-owned rollback.
-- The Simple Agent has no separate total Tool-call-count limit inside one Provider decision. Calls remain sequential and the current registered set is read-only; a broader Runtime Policy belongs to later Plans.
+- The Simple Agent enforces an atomic total ToolCall budget and read-only permission boundary. Calls remain sequential; broader Runtime/Approval policy belongs to later Plans.
 
 ## Deferred Work
 
@@ -256,5 +269,5 @@ workspace files and never initialize a real Provider.
 - persistent Trace, Timeline, and replay
 - streaming Tool Call delta aggregation
 - Agent automatic retry/cancel/resume policy and a broader Runtime Policy
-- Agent APIs and frontend views
+- AgentRun list/polling and later runtime controls
 - all later-plan capabilities

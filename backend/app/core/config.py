@@ -1,6 +1,7 @@
 from functools import lru_cache
+from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,6 +34,24 @@ class Settings(BaseSettings):
         gt=0,
         alias="OPENAI_COMPATIBLE_TIMEOUT_SECONDS",
     )
+    agent_run_timeout_seconds: float = Field(
+        default=120.0,
+        gt=0,
+        le=3600,
+        allow_inf_nan=False,
+        alias="AGENT_RUN_TIMEOUT_SECONDS",
+    )
+    model_registry_path: Path | None = Field(
+        default=None,
+        alias="MODEL_REGISTRY_PATH",
+    )
+
+    @field_validator("model_registry_path", mode="before")
+    @classmethod
+    def normalize_blank_model_registry_path(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     model_config = SettingsConfigDict(
         env_file=".env",

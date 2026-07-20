@@ -32,7 +32,7 @@ def test_read_file_declares_stable_tool_metadata(tmp_path: Path) -> None:
     assert tool.parameters_schema == {
         "type": "object",
         "properties": {
-            "path": {"type": "string", "minLength": 1},
+            "path": {"type": "string", "minLength": 1, "maxLength": 4096},
         },
         "required": ["path"],
         "additionalProperties": False,
@@ -142,7 +142,16 @@ def test_read_file_returns_safe_failure_for_invalid_arguments(
 
 @pytest.mark.parametrize(
     "path",
-    [".env", ".envrc", "../outside.txt", "id_rsa"],
+    [
+        ".env",
+        ".envrc",
+        "../outside.txt",
+        "id_rsa",
+        "synthetic-private.ppk",
+        "synthetic-private.p8",
+        "id_ed25519_sk",
+        "id_ecdsa_sk",
+    ],
 )
 def test_read_file_rejects_unsafe_paths_without_echoing_them(
     tmp_path: Path,
@@ -168,6 +177,57 @@ def test_read_file_rejects_credential_file_without_echoing_content(
     assert result.success is False
     assert result.error == "The requested path is not allowed"
     assert "synthetic-token" not in result.model_dump_json()
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        "-----BEGIN OPENSSH PRIVATE KEY-----",
+        "-----BEGIN PRIVATE KEY-----",
+        "---- BEGIN SSH2 ENCRYPTED PRIVATE KEY ----",
+        "PuTTY-User-Key-File-3: ssh-ed25519",
+    ],
+)
+def test_read_file_rejects_private_key_content_under_arbitrary_name(
+    tmp_path: Path,
+    marker: str,
+) -> None:
+    (tmp_path / "notes.txt").write_text(
+        f"{marker}\nsynthetic-private-material",
+        encoding="utf-8",
+    )
+
+    result = run_tool(ReadFileTool(workspace_root=tmp_path), {"path": "notes.txt"})
+
+    assert result.success is False
+    assert result.error == "The requested path is not allowed"
+    assert marker not in result.model_dump_json()
+    assert "synthetic-private-material" not in result.model_dump_json()
+
+
+def test_read_file_rejects_internal_file_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "target.txt"
+    target.write_text("safe", encoding="utf-8")
+    link = tmp_path / "linked.txt"
+    try:
+        link.symlink_to(target)
+    except (NotImplementedError, OSError):
+        pytest.skip("symbolic links are unavailable in this environment")
+
+    result = run_tool(ReadFileTool(workspace_root=tmp_path), {"path": "linked.txt"})
+
+    assert result.success is False
+    assert result.error == "The requested path is not allowed"
+
+
+def test_read_file_rejects_overlong_path_argument(tmp_path: Path) -> None:
+    result = run_tool(
+        ReadFileTool(workspace_root=tmp_path),
+        {"path": "x" * 4097},
+    )
+
+    assert result.success is False
+    assert result.error == "Invalid read_file arguments"
 
 
 def test_read_file_returns_safe_failure_for_missing_file(tmp_path: Path) -> None:
@@ -339,8 +399,12 @@ def test_register_builtin_tools_adds_both_tools_with_exportable_schemas(
             "description": "List files and directories in the workspace",
             "parameters": {
                 "type": "object",
-                "properties": {
-                    "path": {"type": "string", "minLength": 1},
+                    "properties": {
+                    "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096,
+                    },
                     "max_depth": {
                         "type": "integer",
                         "minimum": 1,

@@ -7,6 +7,8 @@ from typing import Annotated, Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from app.tools.json_values import ensure_standard_json
+
 
 ToolName = Annotated[
     str,
@@ -28,6 +30,8 @@ class ToolResult(BaseModel):
 
     @model_validator(mode="after")
     def validate_error_state(self) -> Self:
+        ensure_standard_json(self.data)
+        ensure_standard_json(self.metadata)
         if self.success and self.error is not None:
             raise ValueError("successful tool results must not include an error")
         if not self.success:

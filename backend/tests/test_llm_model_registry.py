@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from app.api.dependencies import get_model_registry
+from app.core.config import Settings
 from app.providers.llm.registry import (
     ModelInfo,
     ModelRegistry,
@@ -44,6 +46,54 @@ def test_default_registry_lists_example_model() -> None:
             output_price_per_1m=None,
         )
     ]
+    assert [model for model in registry.list_models() if model.supports_tools] == []
+
+
+def test_dependency_loads_configured_local_registry(tmp_path: Path) -> None:
+    config_path = write_registry(
+        tmp_path / "models.local.json",
+        {
+            "models": [
+                {
+                    "provider": "openai_compatible",
+                    "model": "synthetic-tool-model",
+                    "display_name": "Synthetic Tool Model",
+                    "supports_streaming": True,
+                    "supports_tools": True,
+                    "supports_json": False,
+                    "input_price_per_1m": None,
+                    "output_price_per_1m": None,
+                }
+            ]
+        },
+    )
+    settings = Settings(
+        _env_file=None,
+        MODEL_REGISTRY_PATH=config_path,
+    )
+
+    registry = get_model_registry(settings=settings)
+
+    assert [model.model for model in registry.list_models()] == [
+        "synthetic-tool-model"
+    ]
+    assert registry.list_models()[0].supports_tools is True
+
+
+def test_tracked_local_registry_example_is_tool_capable() -> None:
+    example_path = (
+        Path(__file__).parents[1]
+        / "app"
+        / "providers"
+        / "llm"
+        / "models.local.example.json"
+    )
+
+    registry = ModelRegistry.from_file(example_path)
+
+    assert len(registry.list_models()) == 1
+    assert registry.list_models()[0].supports_tools is True
+    assert "replace-with" in registry.list_models()[0].model
 
 
 def test_registry_filters_models_by_provider_in_configuration_order() -> None:

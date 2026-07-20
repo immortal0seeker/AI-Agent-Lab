@@ -53,6 +53,7 @@ export type ToolCall = {
   agent_run_id: string;
   conversation_id: string;
   tool_name: string;
+  sequence_index: number;
   arguments: Record<string, unknown>;
   result: ToolResult | null;
   status: ToolCallStatus;

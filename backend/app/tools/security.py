@@ -1,4 +1,5 @@
 import os
+import re
 import stat
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -8,6 +9,7 @@ from app.tools.base import ToolError
 PROJECT_WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_MAX_FILE_BYTES = 1_048_576
 DEFAULT_MAX_DIRECTORY_DEPTH = 3
+MAX_TOOL_PATH_CHARACTERS = 4096
 
 _SENSITIVE_DIRECTORY_NAMES = frozenset(
     {
@@ -39,7 +41,32 @@ _SENSITIVE_FILE_NAMES = frozenset(
         "service_account.json",
     }
 )
-_PRIVATE_KEY_NAMES = frozenset({"id_dsa", "id_ecdsa", "id_ed25519", "id_rsa"})
+_PRIVATE_KEY_NAME_PATTERN = re.compile(
+    r"^id_(?:dsa|ecdsa|ed25519|rsa)(?:_sk)?$",
+    re.IGNORECASE,
+)
+_PRIVATE_KEY_FILE_SUFFIXES = (
+    ".jks",
+    ".key",
+    ".keystore",
+    ".p8",
+    ".p12",
+    ".pem",
+    ".pfx",
+    ".ppk",
+)
+_PRIVATE_KEY_CONTENT_MARKERS = (
+    b"-----BEGIN PRIVATE KEY-----",
+    b"-----BEGIN ENCRYPTED PRIVATE KEY-----",
+    b"-----BEGIN OPENSSH PRIVATE KEY-----",
+    b"-----BEGIN RSA PRIVATE KEY-----",
+    b"-----BEGIN EC PRIVATE KEY-----",
+    b"-----BEGIN DSA PRIVATE KEY-----",
+    b"-----BEGIN PGP PRIVATE KEY BLOCK-----",
+    b"---- BEGIN SSH2 ENCRYPTED PRIVATE KEY ----",
+    b"-----BEGIN SSH2 ENCRYPTED PRIVATE KEY-----",
+    b"PuTTY-User-Key-File-",
+)
 
 
 class ToolSecurityError(ToolError):
@@ -77,9 +104,15 @@ def is_sensitive_path_component(component: str) -> bool:
         normalized in _SENSITIVE_DIRECTORY_NAMES
         or normalized in _SENSITIVE_FILE_NAMES
         or normalized.startswith(".env")
-        or normalized in _PRIVATE_KEY_NAMES
-        or normalized.endswith((".pem", ".key"))
+        or _PRIVATE_KEY_NAME_PATTERN.fullmatch(normalized) is not None
+        or normalized.endswith(_PRIVATE_KEY_FILE_SUFFIXES)
     )
+
+
+def contains_private_key_material(raw: bytes) -> bool:
+    if not isinstance(raw, bytes):
+        raise TypeError("raw must be bytes")
+    return any(marker in raw for marker in _PRIVATE_KEY_CONTENT_MARKERS)
 
 
 def is_reparse_point(path_stat: os.stat_result) -> bool:
@@ -118,6 +151,15 @@ def resolve_workspace_path(
         raise UnsafePathError("sensitive workspace paths are forbidden")
 
     root = workspace_root.resolve()
+    candidate = root
+    for part in raw_parts:
+        candidate = candidate / part
+        try:
+            candidate_stat = candidate.lstat()
+        except FileNotFoundError:
+            break
+        if candidate.is_symlink() or is_reparse_point(candidate_stat):
+            raise UnsafePathError("symbolic links and reparse points are forbidden")
     resolved = (root / Path(raw_path)).resolve()
     try:
         relative = resolved.relative_to(root)

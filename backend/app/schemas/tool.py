@@ -1,8 +1,17 @@
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.tools import ToolResult
+from app.tools.json_values import ensure_standard_json
+from app.tools.validation import MAX_TOOL_ARGUMENT_JSON_BYTES
 
 
 ToolCallStatus = Literal[
@@ -29,6 +38,18 @@ class ToolCallRequest(BaseModel):
     tool_call_id: ToolCallIdentifier
     tool_name: ToolIdentifier
     arguments: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("arguments")
+    @classmethod
+    def validate_standard_json_arguments(
+        cls,
+        value: dict[str, Any],
+    ) -> dict[str, Any]:
+        ensure_standard_json(
+            value,
+            max_bytes=MAX_TOOL_ARGUMENT_JSON_BYTES,
+        )
+        return value
 
 
 class ToolCallResponse(BaseModel):

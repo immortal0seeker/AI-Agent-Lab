@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator, Mapping
 from functools import lru_cache
+from pathlib import Path
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -35,8 +36,22 @@ def get_session_factory() -> sessionmaker[Session]:
 
 
 @lru_cache
-def get_model_registry() -> ModelRegistry:
-    return load_default_registry()
+def _load_model_registry(configured_path: str | None) -> ModelRegistry:
+    if configured_path is None:
+        return load_default_registry()
+    return ModelRegistry.from_file(Path(configured_path))
+
+
+def get_model_registry(
+    settings: Settings = Depends(get_settings),
+) -> ModelRegistry:
+    configured_path = settings.model_registry_path
+    cache_key = (
+        None
+        if configured_path is None
+        else str(configured_path.expanduser().resolve())
+    )
+    return _load_model_registry(cache_key)
 
 
 def get_llm_providers(
@@ -72,12 +87,14 @@ def get_simple_agent_service(
     registry: ModelRegistry = Depends(get_model_registry),
     providers: Mapping[str, BaseLLMProvider] = Depends(get_llm_providers),
     tools: ToolRegistry = Depends(get_tool_registry),
+    settings: Settings = Depends(get_settings),
 ) -> SimpleAgentService:
     return SimpleAgentService(
         session,
         registry=registry,
         providers=providers,
         tools=tools,
+        run_timeout_seconds=settings.agent_run_timeout_seconds,
     )
 
 

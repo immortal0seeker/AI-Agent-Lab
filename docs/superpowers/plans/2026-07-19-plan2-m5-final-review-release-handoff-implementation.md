@@ -1,5 +1,10 @@
 # Plan 2 M5 Final Review And Release Handoff Implementation Plan
 
+> **Completion update (2026-07-20):** The user published commit `0e3f3a6`,
+> created annotated tag `v0.2.0`, and pushed `main`. Codex verified
+> `HEAD == origin/main == v0.2.0^{}`. S8, Batch 14, and Plan 2 are complete.
+> References below to a pending tag describe the historical pre-release gate.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Complete the executable review and documentation work for `P2-M5-S7～S8`, leaving only the user-owned release commit and `v0.2.0` tag mutation pending.
@@ -190,6 +195,10 @@ Confirm no staged path, no `v0.2.0` tag, no unexpected generated artifact, and o
 
 Suggest `chore: release v0.2.0 basic agent` for the user's commit, then instruct the user to create annotated tag `v0.2.0` on that commit. Do not run either command. State that `P3-M1-S1` can begin only after a later clean-worktree/tag-target verification.
 
-- [ ] **Step 4: Verify the user-created tag in a later turn**
+- [x] **Step 4: Verify the user-created tag in a later turn**
 
 After the user commits and tags, verify `git status`, `HEAD == origin/main` as applicable, `git tag --list v0.2.0`, annotated tag metadata, and the peeled tag target. Only then mark S8, Batch 14, and Plan 2 complete and enter `P3-M1-S1`.
+
+Verified on 2026-07-20: `HEAD` and `origin/main` both resolve to
+`0e3f3a66e1322c565f2056696f7e482cedbb5f6c`; `v0.2.0` is an annotated tag and
+its peeled target resolves to the same release commit.

@@ -63,13 +63,14 @@ def test_agent_service_lists_tool_calls_deterministically(
 ) -> None:
     run = create_agent_run(agent_session)
     created_at = datetime(2026, 7, 19, 12, 0, 0)
-    later_id = UUID(int=2)
-    earlier_id = UUID(int=1)
+    later_id = UUID(int=1)
+    earlier_id = UUID(int=2)
     agent_session.add_all(
         [
             ToolCall(
                 id=later_id,
                 tool_call_id="call-later",
+                sequence_index=2,
                 agent_run_id=run.id,
                 conversation_id=run.conversation_id,
                 tool_name="list_dir",
@@ -80,6 +81,7 @@ def test_agent_service_lists_tool_calls_deterministically(
             ToolCall(
                 id=earlier_id,
                 tool_call_id="call-earlier",
+                sequence_index=1,
                 agent_run_id=run.id,
                 conversation_id=run.conversation_id,
                 tool_name="read_file",
@@ -94,6 +96,7 @@ def test_agent_service_lists_tool_calls_deterministically(
     rows = AgentService(agent_session).list_tool_calls(run.id)
 
     assert [row.id for row in rows] == [earlier_id, later_id]
+    assert [row.sequence_index for row in rows] == [1, 2]
 
 
 def test_agent_service_lists_empty_calls_for_existing_run(

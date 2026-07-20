@@ -19,6 +19,7 @@ Desktop.ini
 *.pfx
 secrets/
 local.secrets.*
+backend/app/providers/llm/models.local.json
 
 # Python
 __pycache__/

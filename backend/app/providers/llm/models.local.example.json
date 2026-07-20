@@ -1,0 +1,14 @@
+{
+  "models": [
+    {
+      "provider": "openai_compatible",
+      "model": "replace-with-your-tool-capable-model",
+      "display_name": "Local Tool-Capable Model",
+      "supports_streaming": true,
+      "supports_tools": true,
+      "supports_json": false,
+      "input_price_per_1m": null,
+      "output_price_per_1m": null
+    }
+  ]
+}

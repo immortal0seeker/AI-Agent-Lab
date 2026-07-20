@@ -35,11 +35,10 @@ The project emphasizes:
 
 ## Current Stage
 
-Latest existing tag: Plan 1 is complete as the `v0.1.0` foundation release.
-Current development stage: Plan 2 implementation and final review are complete
-through `P2-M5-S7`, and all five Plan 3 bridge contracts have been revalidated.
-`P2-M5-S8` remains open for the user-owned `v0.2.0` release commit/tag and
-tag-target verification.
+Latest existing tag: Plan 2 is complete as the published `v0.2.0` basic Agent
+release at commit `0e3f3a6`. All five Plan 3 bridge contracts were revalidated.
+The current working tree prepares a `v0.2.1` audit-remediation patch without
+moving the published tag or starting Plan 3.
 
 The repository has completed `P1-M1-S1` through `P1-M4-S8`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 added:
 
@@ -93,10 +92,12 @@ Tool contracts, ToolCall transport schemas, Registry and argument validation,
 read-only path policy, and AgentRun/ToolCall persistence models. These are
 foundation contracts. `P2-M2-S1` through `P2-M2-S6` add two executable
 read-only builtins. `read_file` provides bounded workspace-relative UTF-8
-reads. `list_dir` provides deterministic recursive listings with default depth
-2, hard depth 3, a default 500-entry bound, structured name/type/size data,
-sensitive-name filtering, and non-followed discovered symlinks. Both return
-safe failure results and register into a caller-controlled Registry.
+reads. `list_dir` provides deterministic small-directory recursive listings
+with default depth 2, hard depth 3, a default 500-entry bound, bounded
+per-directory enumeration, structured name/type/size data, sensitive-name and
+private-key filtering, and non-followed discovered symlinks. User-supplied
+symlink/reparse components are rejected. Both return safe failure results and
+register into a caller-controlled Registry.
 `P2-M2-S7` evaluated and explicitly deferred `web_fetch`; no network Tool,
 schema, helper, dependency, API, or UI was added. `P2-M3-S1` through
 `P2-M3-S3` add typed non-streaming Provider Tool definitions and Tool Calls, a
@@ -110,14 +111,17 @@ Agent/ToolCall views were still deferred.
 `P2-M3-S4` through `P2-M3-S8` add a backend-only `SimpleAgentService`. It
 validates an explicitly tools-capable model, creates or reuses a Conversation,
 persists the user Message and AgentRun, and either completes from one Provider
-text response or runs a bounded loop. One Provider decision consumes one step;
-`max_steps` defaults to 3 and is limited to 10. Each Tool response executes
-calls sequentially, enforces the Tool's finite timeout, persists terminal audit
-rows, and returns correlated observations. Oversized Provider observations are
-compacted without changing the persisted ToolResult. Maximum-step, Provider,
-invalid-response, and blank-terminal failures return a committable failed
-AgentRun. Automatic retry, frontend Agent UI, strict persisted call ordering,
-and Agent-linked LLM usage records remain deferred.
+text response or runs a bounded loop. `max_steps` defaults to 3, is limited to
+10, and bounds ToolCall execution attempts. A Provider batch that cannot fit is
+rejected atomically; an exactly budgeted run may make one final Provider
+decision. Calls execute sequentially, enforce finite per-Tool and whole-run
+timeouts, persist terminal audit rows with one-based unique `sequence_index`,
+and return correlated observations. Only `read_only` Tools execute; other
+permission levels are blocked, and invalid/blocked raw arguments are not
+persisted. Oversized Provider observations are compacted without changing a
+valid persisted ToolResult. Maximum-step, timeout, Provider, invalid-response,
+and blank-terminal failures return a committable failed AgentRun. Automatic
+retry and Agent-linked LLM usage records remain deferred.
 
 `P2-M4-S1` through `P2-M4-S3` expose the existing service through validated
 API schemas and the plural `/api/v1/agents/runs` resource. POST waits for a
@@ -128,24 +132,30 @@ initialize Provider configuration. `P2-M4-S4` through `P2-M4-S6` add a typed
 frontend Agent API wrapper and a dedicated responsive Agent workspace. The
 workspace filters the Registry to `supports_tools=true`, submits synchronous
 runs, displays final and structured failed results, and renders bounded
-ToolCall audit cards with status, arguments, latency, summaries, safe errors,
-and traceable IDs. URL-backed run restoration reads the AgentRun and ToolCalls
-without adding polling or an Agent run list. The tracked example model remains
-tools-disabled and browser acceptance is fully mocked.
+ToolCall audit cards with status, bounded arguments, latency, summaries, safe
+errors, strict sequence, and traceable IDs. URL-backed run restoration reads
+the AgentRun and ToolCalls; tab-scoped storage also recovers a POST completed
+after leaving Agent, without stale URL mutation. This adds neither polling nor
+an Agent run list. The tracked default model remains tools-disabled; an
+optional `MODEL_REGISTRY_PATH` can select an ignored local Registry copied from
+the secret-free example, and browser acceptance remains fully mocked.
 
 `P2-M5-S1` through `P2-M5-S3` strengthen the standard JSON, `.env*`, builtin
 Tool, `web_fetch` deferral, and safe Agent API integration tests. `P2-M5-S4`
 through `P2-M5-S6` rerun the frontend type/test/build and local mocked browser
 flow, add sanitized desktop/mobile Agent ToolCall screenshots, and synchronize
-the Plan 2 release-candidate documents and limitations. These checks did not
-change frontend runtime behavior or enable a live tools-capable model.
+the Plan 2 release documents and limitations. S7～S8 completed the final review,
+release commit, annotated `v0.2.0` tag, push, and tag-target gate.
 
-The next action is the manual `v0.2.0` release commit/tag gate. After its target
-is verified, the repository can enter `P3-M1-S1`. See the
+The post-release `v0.2.1` audit patch hardens JSON/path/private-key/link limits,
+bounded directory enumeration, Agent permission/budget/timeout behavior,
+ToolCall ordering, local Registry setup, and frontend recovery. `web_fetch`
+remains absent. After fresh verification, the user may manually commit and tag
+`v0.2.1`; the existing `v0.2.0` tag remains immutable. See the
 [Tool Calling design](10-tool-calling-design.md),
 [Simple Agent Loop](11-simple-agent-loop.md),
 [Agent API](12-agent-api.md),
-[Plan 2 basic Agent release candidate](13-plan-2-basic-agent.md),
+[Plan 2 basic Agent release](13-plan-2-basic-agent.md),
 [Plan 2 final review](reviews/2026-07-19-plan2-v0.2.0-final-review.md),
 [Plan 1 foundation release](02-plan-1-foundation.md), and root
 [changelog](../CHANGELOG.md) for the current boundaries and limitations.

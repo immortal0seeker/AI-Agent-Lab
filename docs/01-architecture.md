@@ -11,8 +11,8 @@ conversation navigation, refresh recovery, successful-call usage persistence,
 structured errors, request-linked logging, focused regression coverage,
 recoverable frontend initialization states, clean-start documentation, release
 materials, and the expanded final review. Plan 1 remains closed. Plan 2 has
-completed implementation, release-candidate preparation, and final review
-through `P2-M5-S7`: Tool contracts, Registry, validation,
+completed implementation, final review, release, and the `P2-M5-S8` tag gate:
+Tool contracts, Registry, validation,
 read-only path policy, AgentRun/ToolCall persistence, and the executable
 `read_file` and `list_dir` builtins are available. The Provider contract now
 accepts typed Tool definitions and normalizes non-streaming Tool Calls; an
@@ -24,11 +24,12 @@ structured failure results, observation compaction, and AgentRun/ToolCall
 persistence. Validated plural Agent create/query routes expose that service. A
 dedicated frontend Agent workspace consumes the synchronous API and renders
 bounded ToolCall audit details. M5 adds safety regression coverage plus
-sanitized desktop/mobile release-candidate evidence without changing runtime
-states or API schemas; no network Tool is implemented at this stage. The final
-review revalidated all five Plan 3 bridge contracts and aligned backend/API/
-frontend release metadata with `0.2.0`. Only the user-owned `v0.2.0` release
-commit/tag and tag-target verification remain pending in S8.
+sanitized desktop/mobile release evidence; no network Tool is implemented at
+this stage. The final review revalidated all five Plan 3 bridge contracts, and
+the user published `v0.2.0` from commit `0e3f3a6`. The current working tree
+prepares `v0.2.1` with hardened Tool JSON/filesystem limits, deny-by-default
+dispatch, a whole-run deadline, strict ToolCall order, a local Registry
+override, and frontend recovery. It does not start Plan 3 or move `v0.2.0`.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -145,10 +146,11 @@ Conversation ID for direct lookup. A composite foreign key prevents that
 Conversation identity from differing from its parent run.
 
 Both records use UUID database identities. `ToolCall.tool_call_id` is a separate
-string correlation identity and is unique within one AgentRun. Tool arguments
-and results use JSON columns. Named status checks, non-negative latency checks,
-timestamps, and lookup indexes establish persistence integrity without
-introducing an Agent runtime state machine or persistence service.
+string correlation identity and is unique within one AgentRun. Each ToolCall
+also has a positive one-based `sequence_index`, unique within its AgentRun and
+used for query order. Tool arguments and results use JSON columns. Named status
+checks, non-negative latency checks, timestamps, and lookup indexes establish
+persistence integrity without introducing an Agent runtime state machine.
 
 Foreign-key columns used by conversation and message lookups are indexed.
 SQLAlchemy metadata uses a stable naming convention for primary keys, foreign
@@ -165,17 +167,21 @@ Plan 2 M1 defines an asynchronous `Tool` boundary and consistent `ToolResult`,
 plus Provider/database-neutral ToolCall transport schemas. `ToolRegistry`
 registers exact names in stable order, rejects duplicates, and exports defensive
 OpenAI-compatible function schemas. JSON Schema Draft 2020-12 validation checks
-tool schemas and arguments without echoing rejected values in errors.
+tool schemas and arguments without echoing rejected values in errors. Public
+Tool arguments/results must be standard JSON; Agent arguments are limited to
+65,536 UTF-8 bytes before schema validation.
 
 The read-only security module resolves workspace-relative paths and rejects
 absolute, drive, UNC, parent-traversal, sensitive, private-key, Windows alias,
-and alternate-data-stream inputs. File-size and directory-depth limits remain
-shared policy helpers.
+alternate-data-stream, symlink, and reparse-point inputs. Built-in paths are
+limited to 4096 characters. File-size and directory-depth limits remain shared
+policy helpers.
 
 `ReadFileTool` is the first consumer of this boundary. It validates one `path`
-argument, resolves it below an injected workspace root, requires a regular file,
-rejects files over 1 MiB before reading, rechecks the actual byte length, rejects
-NUL and non-UTF-8 content, removes a UTF-8 BOM, and truncates returned text after
+argument, resolves it below an injected workspace root without following a
+user-supplied link component, requires a regular file, rejects files over 1 MiB
+before reading, rechecks the actual byte length, rejects private-key markers,
+NUL, and non-UTF-8 content, removes a UTF-8 BOM, and truncates returned text after
 100,000 decoded characters. The read itself requests at most the byte limit plus
 one, so a file growth race cannot cause an unbounded allocation. Successful
 metadata contains only a normalized
@@ -186,8 +192,10 @@ text. File I/O runs through `asyncio.to_thread`.
 
 `ListDirTool` accepts a workspace-relative `path` and an optional `max_depth`.
 Depth 1 lists direct children, the default is 2, and the hard limit is 3. It
-returns at most 500 entries by default, ordered by normalized relative path,
-with name, `file`/`directory`/`symlink` type, and regular-file byte size. It
+returns at most 500 entries by default, ordered by normalized relative path for
+non-truncated small directories, with name, `file`/`directory`/`symlink` type,
+and regular-file byte size. It scans at most `max_entries + 1` children at each
+visited directory and marks truncated output. It
 filters sensitive entries before metadata access or recursion, keeps ordinary
 dotfiles such as `.gitignore`, reports but never follows discovered symlinks,
 and returns fixed safe failures. Directory metadata work also runs through
@@ -230,19 +238,23 @@ SimpleAgentRequest
 -> Conversation + user Message + AgentRun(running)
 -> provider.chat(history + Tool definitions)
    -> direct text -> assistant Message + AgentRun(completed)
-   -> ordered Tool Calls with another step available
-      -> validation + timeout-bounded execution + ToolCall rows
+   -> ordered Tool Calls that fit the remaining Tool budget atomically
+      -> read-only permission + validation before persistence
+      -> timeout-bounded execution + sequenced ToolCall rows
       -> assistant Tool Call message + correlated Tool observations
       -> next provider.chat()
-   -> Tool Calls on final allowed step -> AgentRun(failed), no execution
-   -> Provider/blank terminal failure -> structured AgentRun(failed)
+   -> Tool Calls beyond budget -> AgentRun(failed), no partial execution
+   -> Provider/blank/whole-run-timeout failure -> structured AgentRun(failed)
 ```
 
-One Provider decision is one step; multiple Tool Calls in the same response run
-sequentially in Provider order and still consume one step. `max_steps` defaults
-to 3 and is limited to 10. The last allowed response cannot start Tool work.
-Each Tool's finite timeout maps to the existing `timeout` ToolCall status, while
-the failed observation lets a later Provider decision finish normally.
+`max_steps` defaults to 3, is limited to 10, and counts ToolCall execution
+attempts. A whole Provider batch that exceeds the remaining budget is rejected
+before any call in that batch is persisted or executed. A run that consumes
+exactly N Tools may make an N+1 Provider decision for final text. Calls execute
+sequentially in Provider order. Only `read_only` Tools may execute; unknown,
+invalid, or blocked calls store `{}` arguments and a safe result. Each Tool's
+finite timeout maps to `timeout`, and `AGENT_RUN_TIMEOUT_SECONDS` bounds the
+entire loop while preserving completed ToolCalls.
 Intermediate Tool protocol messages remain in-process because the current
 Message table cannot losslessly represent correlation fields. ToolCall rows
 retain arguments, complete validated results, status, and timing; only the
@@ -274,11 +286,11 @@ rebinding resistance, bounded streaming, content policy, text extraction,
 safe errors, and mock acceptance coverage before exposing a network Tool.
 
 The plural `/api/v1/agents/runs` POST and query routes and frontend Agent/ToolCall
-visualization are implemented. Agent Provider calls are not yet linked to
-`LLMCall`, and the existing ToolCall table
-has no explicit sequence column; runtime results preserve Provider order while
-queries use `created_at, id`, but a strict persisted step timeline belongs to
-later AgentStep/Trace design. See [Tool Calling Design](10-tool-calling-design.md)
+visualization are implemented. ToolCall execution order is strictly persisted
+through `sequence_index`; this is not an AgentStep/Trace timeline. Agent
+Provider calls are not yet linked to `LLMCall`, and complete Provider
+request/response replay remains a later observability concern. See
+[Tool Calling Design](10-tool-calling-design.md)
 for the detailed boundary, [Simple Agent Loop](11-simple-agent-loop.md) for step
 counting and failures, and [Agent API](12-agent-api.md) for the HTTP contract.
 
@@ -311,11 +323,13 @@ loads health and Registry models, filters to `supports_tools=true`, and owns the
 synchronous create/restore flow. The controlled task form, result panel, and
 ToolCall timeline/card components render loading, empty, no-model, completed,
 structured failed, and transport-error states. Deterministic JSON plus bounded
-result summaries keep the audit cards readable, while full
-AgentRun, Conversation, Provider ToolCall, and database IDs remain visible.
+argument/result summaries keep the audit cards readable, while full AgentRun,
+Conversation, ToolCall correlation, sequence, and database IDs remain visible.
 `?workspace=agent&run=<uuid>` restores a persisted run through parallel AgentRun
 and ToolCall reads. A request gate prevents a late POST response from mutating
-state or URL after the Agent page unmounts.
+state or URL after the Agent page unmounts; the returned UUID is still saved in
+tab-scoped session storage so reopening Agent without an explicit run URL can
+recover it. An explicit URL has priority, and New task clears the recovery ID.
 
 `ChatPage` separates workspace initialization from ready-state message
 rendering through `WorkspaceStatusPanel`:
@@ -486,7 +500,7 @@ Do not write secrets to:
 
 ## Deferred Capabilities
 
-The Plan 2 release candidate includes read-only Tool execution and the bounded
+The Plan 2 release includes read-only Tool execution and the bounded
 Simple Agent loop. The following remain outside the current architecture:
 
 - `web_fetch` or another network Tool

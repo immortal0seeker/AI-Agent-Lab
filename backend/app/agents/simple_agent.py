@@ -1,10 +1,11 @@
 import asyncio
 import json
+import math
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -36,7 +37,7 @@ from app.providers.llm.tool_adapter import build_llm_tool_definitions
 from app.schemas.conversation import ConversationCreate
 from app.schemas.message import MessageCreate
 from app.services.conversation_service import ConversationService
-from app.tools.base import ToolResult
+from app.tools.base import Tool, ToolResult
 from app.tools.registry import ToolNotFoundError, ToolRegistry
 from app.tools.validation import (
     ToolArgumentValidationError,
@@ -52,6 +53,7 @@ NonEmptyIdentifier = Annotated[
 MAX_STEPS_ERROR = "Agent reached the maximum number of steps"
 INCOMPLETE_ERROR = "Agent did not produce a final answer"
 DEFAULT_MAX_TOOL_OBSERVATION_CHARS = 32_000
+DEFAULT_AGENT_RUN_TIMEOUT_SECONDS = 120.0
 MAX_COMPACT_ERROR_CHARS = 256
 
 
@@ -88,7 +90,20 @@ class SimpleAgentResult:
 @dataclass(frozen=True, slots=True)
 class _ToolExecution:
     result: ToolResult
-    status: Literal["success", "failed", "timeout"]
+    status: Literal["success", "failed", "timeout", "blocked"]
+
+
+@dataclass(frozen=True, slots=True)
+class _ToolPreparation:
+    stored_arguments: dict[str, Any]
+    tool: Tool | None
+    terminal_execution: _ToolExecution | None
+
+
+class _AgentRunTimeout(Exception):
+    def __init__(self, tool_calls: tuple[ToolCall, ...] = ()) -> None:
+        super().__init__("Agent run timed out")
+        self.tool_calls = tool_calls
 
 
 class SimpleAgentService:
@@ -100,6 +115,7 @@ class SimpleAgentService:
         providers: Mapping[str, BaseLLMProvider],
         tools: ToolRegistry,
         max_tool_observation_chars: int = DEFAULT_MAX_TOOL_OBSERVATION_CHARS,
+        run_timeout_seconds: float = DEFAULT_AGENT_RUN_TIMEOUT_SECONDS,
     ) -> None:
         if isinstance(max_tool_observation_chars, bool) or not isinstance(
             max_tool_observation_chars,
@@ -110,11 +126,21 @@ class SimpleAgentService:
             raise ValueError(
                 "max_tool_observation_chars must be at least 1024"
             )
+        if isinstance(run_timeout_seconds, bool) or not isinstance(
+            run_timeout_seconds,
+            (int, float),
+        ):
+            raise TypeError("run_timeout_seconds must be a number")
+        if not math.isfinite(run_timeout_seconds):
+            raise ValueError("run_timeout_seconds must be finite")
+        if run_timeout_seconds <= 0:
+            raise ValueError("run_timeout_seconds must be greater than zero")
         self._session = session
         self._registry = registry
         self._providers = providers
         self._tools = tools
         self._max_tool_observation_chars = max_tool_observation_chars
+        self._run_timeout_seconds = float(run_timeout_seconds)
         self._conversations = ConversationService(session)
 
     async def run(self, request: SimpleAgentRequest) -> SimpleAgentResult:
@@ -157,8 +183,12 @@ class SimpleAgentService:
         self._session.add(agent_run)
         self._session.flush()
 
+        deadline = (
+            asyncio.get_running_loop().time() + self._run_timeout_seconds
+        )
         executed_tool_calls: list[ToolCall] = []
-        for step_index in range(request.max_steps):
+        remaining_tool_calls = request.max_steps
+        for decision_index in range(request.max_steps + 1):
             chat_request = ChatRequest(
                 messages=messages,
                 model=request.model,
@@ -167,9 +197,21 @@ class SimpleAgentService:
                 tools=tool_definitions,
             )
             try:
-                response = await provider.chat(chat_request)
+                async with asyncio.timeout_at(deadline):
+                    response = await provider.chat(chat_request)
                 if not isinstance(response, LLMResponse):
                     raise TypeError("Provider returned an invalid response")
+            except TimeoutError:
+                return self._fail_run(
+                    request=request,
+                    conversation=conversation,
+                    user_message=user_message,
+                    agent_run=agent_run,
+                    started=started,
+                    tool_calls=tuple(executed_tool_calls),
+                    error_message="Agent run timed out",
+                    model=request.model,
+                )
             except ProviderTimeoutError:
                 return self._fail_run(
                     request=request,
@@ -203,7 +245,10 @@ class SimpleAgentService:
                     is_new_conversation=is_new_conversation,
                     tool_calls=tuple(executed_tool_calls),
                 )
-            if step_index == request.max_steps - 1:
+            if (
+                decision_index == request.max_steps
+                or len(response.tool_calls) > remaining_tool_calls
+            ):
                 return self._fail_run(
                     request=request,
                     conversation=conversation,
@@ -214,6 +259,7 @@ class SimpleAgentService:
                     error_message=MAX_STEPS_ERROR,
                     model=response.model,
                 )
+            remaining_tool_calls -= len(response.tool_calls)
             executed_ids = {
                 call.tool_call_id for call in executed_tool_calls
             }
@@ -231,12 +277,27 @@ class SimpleAgentService:
                     error_message="Model request failed",
                     model=response.model,
                 )
-            round_messages, round_tool_calls = (
-                await self._execute_tool_round(
-                    agent_run=agent_run,
-                    response=response,
+            try:
+                round_messages, round_tool_calls = (
+                    await self._execute_tool_round(
+                        agent_run=agent_run,
+                        response=response,
+                        start_sequence=len(executed_tool_calls) + 1,
+                        deadline=deadline,
+                    )
                 )
-            )
+            except _AgentRunTimeout as exc:
+                executed_tool_calls.extend(exc.tool_calls)
+                return self._fail_run(
+                    request=request,
+                    conversation=conversation,
+                    user_message=user_message,
+                    agent_run=agent_run,
+                    started=started,
+                    tool_calls=tuple(executed_tool_calls),
+                    error_message="Agent run timed out",
+                    model=response.model,
+                )
             executed_tool_calls.extend(round_tool_calls)
             messages.extend(round_messages)
 
@@ -267,16 +328,27 @@ class SimpleAgentService:
         *,
         agent_run: AgentRun,
         response: LLMResponse,
+        start_sequence: int,
+        deadline: float,
     ) -> tuple[list[ChatMessage], tuple[ToolCall, ...]]:
         agent_run.status = "waiting_tool"
         self._session.flush()
-        executed = [
-            await self._record_tool_call(
-                agent_run=agent_run,
-                call=call,
-            )
-            for call in response.tool_calls
-        ]
+        executed: list[tuple[ToolCall, ToolResult]] = []
+        for offset, call in enumerate(response.tool_calls):
+            if asyncio.get_running_loop().time() >= deadline:
+                raise _AgentRunTimeout(tuple(row for row, _ in executed))
+            try:
+                recorded = await self._record_tool_call(
+                    agent_run=agent_run,
+                    call=call,
+                    sequence_index=start_sequence + offset,
+                    deadline=deadline,
+                )
+            except _AgentRunTimeout as exc:
+                raise _AgentRunTimeout(
+                    (*tuple(row for row, _ in executed), *exc.tool_calls)
+                ) from exc
+            executed.append(recorded)
         tool_calls = tuple(row for row, _ in executed)
         results = [result for _, result in executed]
         assistant_tool_message = ChatMessage(
@@ -305,20 +377,55 @@ class SimpleAgentService:
         *,
         agent_run: AgentRun,
         call: LLMToolCall,
+        sequence_index: int,
+        deadline: float,
     ) -> tuple[ToolCall, ToolResult]:
+        preparation = self._prepare_tool_call(call)
         row = ToolCall(
             agent_run=agent_run,
             conversation_id=agent_run.conversation_id,
             tool_call_id=call.tool_call_id,
             tool_name=call.tool_name,
-            arguments_json=deepcopy(call.arguments),
+            sequence_index=sequence_index,
+            arguments_json=deepcopy(preparation.stored_arguments),
             status="running",
             started_at=utc_now(),
         )
         self._session.add(row)
         self._session.flush()
         started = perf_counter()
-        execution = await self._execute_tool(call)
+        if preparation.terminal_execution is not None:
+            execution = preparation.terminal_execution
+        elif preparation.tool is not None:
+            try:
+                async with asyncio.timeout_at(deadline):
+                    execution = await self._execute_tool(
+                        call,
+                        tool=preparation.tool,
+                        validated_arguments=preparation.stored_arguments,
+                    )
+            except TimeoutError:
+                execution = _ToolExecution(
+                    result=ToolResult(
+                        tool_name=call.tool_name,
+                        success=False,
+                        error="Agent run timed out",
+                    ),
+                    status="timeout",
+                )
+                self._finalize_tool_call(row, execution, started)
+                raise _AgentRunTimeout((row,))
+        else:
+            raise RuntimeError("invalid prepared ToolCall state")
+        self._finalize_tool_call(row, execution, started)
+        return row, execution.result
+
+    def _finalize_tool_call(
+        self,
+        row: ToolCall,
+        execution: _ToolExecution,
+        started: float,
+    ) -> None:
         result = execution.result
         row.result_json = result.model_dump(mode="json")
         row.status = execution.status
@@ -326,19 +433,36 @@ class SimpleAgentService:
         row.ended_at = utc_now()
         row.latency_ms = self._elapsed_ms(started)
         self._session.flush()
-        return row, result
 
-    async def _execute_tool(self, call: LLMToolCall) -> _ToolExecution:
+    def _prepare_tool_call(self, call: LLMToolCall) -> _ToolPreparation:
         try:
             tool = self._tools.get_tool(call.tool_name)
         except ToolNotFoundError:
-            return _ToolExecution(
-                result=ToolResult(
-                    tool_name=call.tool_name,
-                    success=False,
-                    error="Tool is not available",
+            return _ToolPreparation(
+                stored_arguments={},
+                tool=None,
+                terminal_execution=_ToolExecution(
+                    result=ToolResult(
+                        tool_name=call.tool_name,
+                        success=False,
+                        error="Tool is not available",
+                    ),
+                    status="failed",
                 ),
-                status="failed",
+            )
+
+        if tool.permission_level != "read_only":
+            return _ToolPreparation(
+                stored_arguments={},
+                tool=None,
+                terminal_execution=_ToolExecution(
+                    result=ToolResult(
+                        tool_name=call.tool_name,
+                        success=False,
+                        error="Tool permission is not allowed",
+                    ),
+                    status="blocked",
+                ),
             )
 
         try:
@@ -347,15 +471,31 @@ class SimpleAgentService:
                 call.arguments,
             )
         except ToolArgumentValidationError as exc:
-            return _ToolExecution(
-                result=ToolResult(
-                    tool_name=call.tool_name,
-                    success=False,
-                    error=str(exc),
+            return _ToolPreparation(
+                stored_arguments={},
+                tool=None,
+                terminal_execution=_ToolExecution(
+                    result=ToolResult(
+                        tool_name=call.tool_name,
+                        success=False,
+                        error=str(exc),
+                    ),
+                    status="failed",
                 ),
-                status="failed",
             )
+        return _ToolPreparation(
+            stored_arguments=validated_arguments,
+            tool=tool,
+            terminal_execution=None,
+        )
 
+    async def _execute_tool(
+        self,
+        call: LLMToolCall,
+        *,
+        tool: Tool,
+        validated_arguments: dict[str, Any],
+    ) -> _ToolExecution:
         try:
             async with asyncio.timeout(tool.timeout_seconds):
                 result = await tool.run(validated_arguments)

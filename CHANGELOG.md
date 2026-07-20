@@ -4,6 +4,44 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-20
+
+### Security And Reliability
+
+- Enforced standard JSON and a 64 KiB UTF-8 limit for Tool arguments, plus a
+  4096-character path schema limit for the built-in file Tools.
+- Expanded private-key filename/container filtering, rejected recognized
+  private-key content under arbitrary names, and prohibited user-supplied
+  symlink or Windows reparse-point traversal.
+- Bounded `list_dir` enumeration to `max_entries + 1` children per visited
+  directory instead of materializing an unbounded directory.
+- Enforced deny-by-default Agent dispatch: only `read_only` Tools execute, and
+  unknown, invalid, oversized, or blocked call arguments are redacted before
+  persistence.
+- Defined `max_steps` as an atomic ToolCall execution budget, added a
+  configurable whole-run timeout, and persisted one-based per-run unique
+  `ToolCall.sequence_index` values through a backward-compatible migration.
+- Added an optional `MODEL_REGISTRY_PATH` workflow with an ignored local file
+  and a tracked secret-free Tool-capable example; the default Registry remains
+  `supports_tools=false`.
+- Made synchronous Agent results recoverable after leaving the page by storing
+  only the run UUID in tab-scoped session storage; explicit run URLs still take
+  priority and stale responses still cannot rewrite the Chat URL.
+- Corrected ToolCall UI labels, summarized large argument payloads, and added
+  mounted jsdom coverage for submit, restore, leave/reopen, structured failure,
+  transport failure, and model-load failure flows.
+- Synchronized backend, OpenAPI, frontend, lockfile, and documentation metadata
+  to `0.2.1` without moving or recreating the published `v0.2.0` tag.
+
+### Known Limitations
+
+- Agent execution remains synchronous/non-streaming and sequential, with no run
+  list, polling, cancel/resume/retry, or parallel Tool execution.
+- Provider decisions are not strictly replayable and Agent calls are not linked
+  to `LLMCall` usage/cost or later-Plan AgentStep/Trace records.
+- Verification remains Mock-only; it does not prove live Provider Tool
+  capability, and `web_fetch` remains deferred with no executable surface.
+
 ## [0.2.0] - 2026-07-19
 
 ### Added

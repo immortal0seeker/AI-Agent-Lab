@@ -37,7 +37,7 @@ def test_list_dir_declares_stable_tool_metadata(tmp_path: Path) -> None:
     assert tool.parameters_schema == {
         "type": "object",
         "properties": {
-            "path": {"type": "string", "minLength": 1},
+            "path": {"type": "string", "minLength": 1, "maxLength": 4096},
             "max_depth": {
                 "type": "integer",
                 "minimum": 1,
@@ -180,6 +180,53 @@ def test_list_dir_truncates_at_stable_entry_limit(tmp_path: Path) -> None:
     assert result.metadata["truncated"] is True
 
 
+def test_list_dir_bounds_directory_enumeration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in ["c.txt", "a.txt", "b.txt", "d.txt"]:
+        (tmp_path / name).write_text(name, encoding="utf-8")
+    real_scandir = os.scandir
+    scanners: list[object] = []
+
+    class BoundedScandir:
+        def __init__(self, directory: Path) -> None:
+            self._iterator = real_scandir(directory)
+            self.requested = 0
+            scanners.append(self)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            self._iterator.close()
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            self.requested += 1
+            if self.requested > 3:
+                pytest.fail("list_dir exceeded max_entries + 1 scans")
+            return next(self._iterator)
+
+    monkeypatch.setattr(os, "scandir", BoundedScandir)
+
+    result = run_tool(
+        ListDirTool(workspace_root=tmp_path, max_entries=2),
+        {"path": "."},
+    )
+
+    assert result.success is True
+    assert [entry["path"] for entry in result.data["entries"]] == [
+        "a.txt",
+        "b.txt",
+    ]
+    assert result.metadata["truncated"] is True
+    assert len(scanners) == 1
+    assert getattr(scanners[0], "requested") == 3
+
+
 def test_list_dir_does_not_report_truncation_at_exact_entry_limit(
     tmp_path: Path,
 ) -> None:
@@ -252,6 +299,10 @@ def test_list_dir_filters_sensitive_entries_before_traversal(
         "id_rsa",
         "private.pem",
         "private.key",
+        "synthetic-private.ppk",
+        "synthetic-private.p8",
+        "id_ed25519_sk",
+        "id_ecdsa_sk",
     ]:
         (tmp_path / name).write_text("secret", encoding="utf-8")
     (tmp_path / ".gitignore").write_text("dist/", encoding="utf-8")
@@ -295,6 +346,32 @@ def test_list_dir_reports_but_never_follows_symlink(tmp_path: Path) -> None:
     assert "linked/inside.txt" not in {
         entry["path"] for entry in result.data["entries"]
     }
+
+
+def test_list_dir_rejects_internal_directory_symlink_root(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    (target / "inside.txt").write_text("safe", encoding="utf-8")
+    link = tmp_path / "linked"
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (NotImplementedError, OSError):
+        pytest.skip("symbolic links are unavailable in this environment")
+
+    result = run_tool(ListDirTool(workspace_root=tmp_path), {"path": "linked"})
+
+    assert result.success is False
+    assert result.error == "The requested path is not allowed"
+
+
+def test_list_dir_rejects_overlong_path_argument(tmp_path: Path) -> None:
+    result = run_tool(
+        ListDirTool(workspace_root=tmp_path),
+        {"path": "x" * 4097},
+    )
+
+    assert result.success is False
+    assert result.error == "Invalid list_dir arguments"
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows reparse-point regression")

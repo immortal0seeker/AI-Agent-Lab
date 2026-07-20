@@ -61,12 +61,29 @@ class SequenceProvider(BaseLLMProvider):
         raise NotImplementedError
 
 
+class NeverReturningProvider(BaseLLMProvider):
+    async def chat(self, request: ChatRequest) -> LLMResponse:
+        del request
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+    async def stream_chat(
+        self,
+        request: ChatRequest,
+    ) -> AsyncIterator[ChatChunk]:
+        del request
+        if False:
+            yield ChatChunk()
+        raise NotImplementedError
+
+
 class ControlledTool(Tool):
     def __init__(
         self,
         *,
         mode: str,
         name: str = "controlled_tool",
+        permission_level: str = "read_only",
         timeout_seconds: float = 30.0,
     ) -> None:
         super().__init__(
@@ -77,7 +94,7 @@ class ControlledTool(Tool):
                 "properties": {},
                 "additionalProperties": False,
             },
-            permission_level="read_only",
+            permission_level=permission_level,
             timeout_seconds=timeout_seconds,
         )
         self._mode = mode
@@ -88,6 +105,11 @@ class ControlledTool(Tool):
 
     async def run(self, arguments: dict[str, object]) -> ToolResult:
         self.calls += 1
+        if self._mode == "never":
+            try:
+                await asyncio.Event().wait()
+            finally:
+                self.timeout_finally_ran = True
         if self._mode == "timeout":
             try:
                 await asyncio.sleep(0.05)
@@ -193,6 +215,29 @@ def test_simple_agent_request_defaults_to_three_steps() -> None:
     )
 
     assert request.max_steps == 3
+
+
+@pytest.mark.parametrize(
+    "run_timeout_seconds",
+    [True, "1", 0, -1, float("nan"), float("inf")],
+)
+def test_agent_rejects_invalid_whole_run_timeout(
+    tmp_path: Path,
+    run_timeout_seconds: object,
+) -> None:
+    session, engine = create_test_session(tmp_path)
+
+    with pytest.raises((TypeError, ValueError), match="run_timeout_seconds"):
+        SimpleAgentService(
+            session,
+            registry=create_registry(),
+            providers={"mock": SequenceProvider([])},
+            tools=ToolRegistry(),
+            run_timeout_seconds=run_timeout_seconds,  # type: ignore[arg-type]
+        )
+
+    session.close()
+    engine.dispose()
 
 
 def test_agent_rejects_missing_model_before_persistence(
@@ -576,6 +621,7 @@ def test_agent_completes_three_provider_steps_with_two_tool_rounds(
         "call_read",
         "call_list",
     ]
+    assert [call.sequence_index for call in result.tool_calls] == [1, 2]
     third_messages = provider.requests[2].messages
     assert [message.role for message in third_messages[-4:]] == [
         "assistant",
@@ -673,6 +719,59 @@ def test_agent_preserves_multiple_tool_call_observation_order(
         "call_read",
         "call_list",
     ]
+    session.close()
+    engine.dispose()
+
+
+def test_agent_rejects_over_budget_tool_batch_without_execution(
+    tmp_path: Path,
+) -> None:
+    session, engine = create_test_session(tmp_path)
+    provider = SequenceProvider(
+        [
+            LLMResponse(
+                model="tool-model",
+                content=None,
+                tool_calls=tuple(
+                    LLMToolCall(
+                        tool_call_id=f"call_{index}",
+                        tool_name="controlled_tool",
+                        arguments={},
+                    )
+                    for index in range(25)
+                ),
+            )
+        ]
+    )
+    tool = ControlledTool(mode="success")
+    tools = ToolRegistry()
+    tools.register_tool(tool)
+    service = SimpleAgentService(
+        session,
+        registry=create_registry(),
+        providers={"mock": provider},
+        tools=tools,
+    )
+
+    result = asyncio.run(
+        service.run(
+            SimpleAgentRequest(
+                provider="mock",
+                model="tool-model",
+                content="Reject an oversized Tool batch",
+                max_steps=2,
+            )
+        )
+    )
+
+    assert len(provider.requests) == 1
+    assert tool.calls == 0
+    assert result.agent_run.status == "failed"
+    assert result.agent_run.error_message == (
+        "Agent reached the maximum number of steps"
+    )
+    assert result.tool_calls == ()
+    assert session.scalars(select(ToolCall)).all() == []
     session.close()
     engine.dispose()
 
@@ -1205,7 +1304,7 @@ def test_agent_rejects_tool_call_id_reused_across_rounds_safely(
     engine.dispose()
 
 
-def test_agent_returns_failed_result_at_maximum_steps_without_executing_call(
+def test_agent_returns_failed_result_after_tool_budget_is_exhausted(
     tmp_path: Path,
 ) -> None:
     session, engine = create_test_session(tmp_path)
@@ -1227,6 +1326,15 @@ def test_agent_returns_failed_result_at_maximum_steps_without_executing_call(
                 tool_calls=(
                     repeated_call.model_copy(
                         update={"tool_call_id": "call_2"}
+                    ),
+                ),
+            ),
+            LLMResponse(
+                model="tool-model",
+                content=None,
+                tool_calls=(
+                    repeated_call.model_copy(
+                        update={"tool_call_id": "call_3"}
                     ),
                 ),
             ),
@@ -1254,12 +1362,18 @@ def test_agent_returns_failed_result_at_maximum_steps_without_executing_call(
 
     run = session.scalar(select(AgentRun))
     stored_calls = session.scalars(select(ToolCall)).all()
-    assert len(provider.requests) == 2
+    assert len(provider.requests) == 3
     assert run is not None
     assert result.assistant_message is None
     assert result.agent_run is run
-    assert [call.tool_call_id for call in result.tool_calls] == ["call_1"]
-    assert [call.tool_call_id for call in stored_calls] == ["call_1"]
+    assert [call.tool_call_id for call in result.tool_calls] == [
+        "call_1",
+        "call_2",
+    ]
+    assert [call.tool_call_id for call in stored_calls] == [
+        "call_1",
+        "call_2",
+    ]
     assert run.status == "failed"
     assert run.error_message == "Agent reached the maximum number of steps"
     run_id = run.id
@@ -1285,7 +1399,7 @@ def test_agent_returns_failed_result_at_maximum_steps_without_executing_call(
     engine.dispose()
 
 
-def test_agent_max_steps_one_does_not_execute_initial_tool_call(
+def test_agent_max_steps_one_executes_one_tool_then_accepts_final_answer(
     tmp_path: Path,
 ) -> None:
     session, engine = create_test_session(tmp_path)
@@ -1301,7 +1415,8 @@ def test_agent_max_steps_one_does_not_execute_initial_tool_call(
                         arguments={},
                     ),
                 ),
-            )
+            ),
+            LLMResponse(model="resolved-model", content="One Tool completed"),
         ]
     )
     tools = ToolRegistry()
@@ -1324,14 +1439,14 @@ def test_agent_max_steps_one_does_not_execute_initial_tool_call(
         )
     )
 
-    assert len(provider.requests) == 1
-    assert result.assistant_message is None
-    assert result.agent_run.status == "failed"
-    assert result.agent_run.error_message == (
-        "Agent reached the maximum number of steps"
-    )
-    assert result.tool_calls == ()
-    assert session.scalars(select(ToolCall)).all() == []
+    assert len(provider.requests) == 2
+    assert result.assistant_message is not None
+    assert result.assistant_message.content == "One Tool completed"
+    assert result.agent_run.status == "completed"
+    assert [call.tool_call_id for call in result.tool_calls] == [
+        "call_not_executed"
+    ]
+    assert len(session.scalars(select(ToolCall)).all()) == 1
     session.close()
     engine.dispose()
 
@@ -1505,6 +1620,216 @@ def test_agent_does_not_swallow_provider_cancellation(
             )
         )
 
+    session.close()
+    engine.dispose()
+
+
+def test_agent_applies_whole_run_timeout_without_provider_leakage(
+    tmp_path: Path,
+) -> None:
+    session, engine = create_test_session(tmp_path)
+    service = SimpleAgentService(
+        session,
+        registry=create_registry(),
+        providers={"mock": NeverReturningProvider()},
+        tools=ToolRegistry(),
+        run_timeout_seconds=0.01,
+    )
+
+    result = asyncio.run(
+        service.run(
+            SimpleAgentRequest(
+                provider="mock",
+                model="tool-model",
+                content="Bound the complete run",
+            )
+        )
+    )
+
+    assert result.agent_run.status == "failed"
+    assert result.agent_run.error_message == "Agent run timed out"
+    assert result.agent_run.ended_at is not None
+    assert result.agent_run.latency_ms is not None
+    assert result.tool_calls == ()
+    session.close()
+    engine.dispose()
+
+
+def test_agent_whole_run_timeout_terminalizes_partial_tool_round(
+    tmp_path: Path,
+) -> None:
+    session, engine = create_test_session(tmp_path)
+    fast_tool = ControlledTool(mode="success", name="fast_tool")
+    slow_tool = ControlledTool(mode="never", name="slow_tool")
+    tools = ToolRegistry()
+    tools.register_tool(fast_tool)
+    tools.register_tool(slow_tool)
+    provider = SequenceProvider(
+        [
+            LLMResponse(
+                model="tool-model",
+                content=None,
+                tool_calls=(
+                    LLMToolCall(
+                        tool_call_id="call_fast",
+                        tool_name="fast_tool",
+                        arguments={},
+                    ),
+                    LLMToolCall(
+                        tool_call_id="call_slow",
+                        tool_name="slow_tool",
+                        arguments={},
+                    ),
+                ),
+            )
+        ]
+    )
+    service = SimpleAgentService(
+        session,
+        registry=create_registry(),
+        providers={"mock": provider},
+        tools=tools,
+        run_timeout_seconds=0.1,
+    )
+
+    result = asyncio.run(
+        service.run(
+            SimpleAgentRequest(
+                provider="mock",
+                model="tool-model",
+                content="Preserve the partial Tool audit",
+                max_steps=2,
+            )
+        )
+    )
+
+    assert result.agent_run.status == "failed"
+    assert result.agent_run.error_message == "Agent run timed out"
+    assert [call.status for call in result.tool_calls] == ["success", "timeout"]
+    assert [call.sequence_index for call in result.tool_calls] == [1, 2]
+    assert result.tool_calls[1].error_message == "Agent run timed out"
+    assert all(call.ended_at is not None for call in result.tool_calls)
+    assert slow_tool.timeout_finally_ran is True
+
+    run_id = result.agent_run.id
+    session.commit()
+    session.expire_all()
+    loaded_calls = session.scalars(
+        select(ToolCall)
+        .where(ToolCall.agent_run_id == run_id)
+        .order_by(ToolCall.sequence_index)
+    ).all()
+    assert [call.status for call in loaded_calls] == ["success", "timeout"]
+    assert all(call.ended_at is not None for call in loaded_calls)
+    session.close()
+    engine.dispose()
+
+
+def test_agent_redacts_unavailable_and_invalid_arguments_before_persistence(
+    tmp_path: Path,
+) -> None:
+    session, engine = create_test_session(tmp_path)
+    provider = SequenceProvider(
+        [
+            LLMResponse(
+                model="tool-model",
+                content=None,
+                tool_calls=(
+                    LLMToolCall(
+                        tool_call_id="call_unknown",
+                        tool_name="unknown_tool",
+                        arguments={"secret": "synthetic-secret"},
+                    ),
+                    LLMToolCall(
+                        tool_call_id="call_invalid",
+                        tool_name="read_file",
+                        arguments={"path": "x" * 1_000_000},
+                    ),
+                ),
+            ),
+            LLMResponse(model="resolved-model", content="Handled safely"),
+        ]
+    )
+    tools = ToolRegistry()
+    register_builtin_tools(tools, workspace_root=tmp_path)
+    service = SimpleAgentService(
+        session,
+        registry=create_registry(),
+        providers={"mock": provider},
+        tools=tools,
+    )
+
+    result = asyncio.run(
+        service.run(
+            SimpleAgentRequest(
+                provider="mock",
+                model="tool-model",
+                content="Reject unsafe arguments",
+            )
+        )
+    )
+
+    assert result.agent_run.status == "completed"
+    assert [call.arguments_json for call in result.tool_calls] == [{}, {}]
+    assert "synthetic-secret" not in str(
+        [call.result_json for call in result.tool_calls]
+    )
+    session.close()
+    engine.dispose()
+
+
+def test_agent_blocks_non_read_only_tool_without_invocation(
+    tmp_path: Path,
+) -> None:
+    session, engine = create_test_session(tmp_path)
+    provider = SequenceProvider(
+        [
+            LLMResponse(
+                model="tool-model",
+                content=None,
+                tool_calls=(
+                    LLMToolCall(
+                        tool_call_id="call_blocked",
+                        tool_name="controlled_tool",
+                        arguments={},
+                    ),
+                ),
+            ),
+            LLMResponse(model="resolved-model", content="Permission denied"),
+        ]
+    )
+    tool = ControlledTool(
+        mode="success",
+        permission_level="requires_approval",
+    )
+    tools = ToolRegistry()
+    tools.register_tool(tool)
+    service = SimpleAgentService(
+        session,
+        registry=create_registry(),
+        providers={"mock": provider},
+        tools=tools,
+    )
+
+    result = asyncio.run(
+        service.run(
+            SimpleAgentRequest(
+                provider="mock",
+                model="tool-model",
+                content="Do not run a non-read-only Tool",
+            )
+        )
+    )
+
+    assert tool.calls == 0
+    assert result.agent_run.status == "completed"
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].status == "blocked"
+    assert result.tool_calls[0].arguments_json == {}
+    assert result.tool_calls[0].error_message == "Tool permission is not allowed"
+    observation = json.loads(provider.requests[1].messages[-1].content or "")
+    assert observation["success"] is False
+    assert observation["error"] == "Tool permission is not allowed"
     session.close()
     engine.dispose()
 

@@ -512,7 +512,24 @@ docs(plan2): prepare basic agent release materials
 | 文档与边界 | README 中英文、CHANGELOG、overview、architecture、Tool/Agent/API/release candidate 与本表同步到 S7 final-review-passed / S8 tag-pending 状态。77 个 Markdown、67 个本地链接/图片、0 missing，223 个候选文本路径 secret 命中 0；`web_fetch` runtime、later Plan 目录、migration 改动、tracked dist、临时 Playwright、staged path 和 `v0.2.0` tag 均为 0。最终 18 个路径仅含 release metadata/test/docs，唯一 runtime 路径是 FastAPI 版本号；没有真实 Provider、网络 Tool、`.env`、用户数据库内容、Claude Code、Fable 5、子代理或外部复审。 |
 | Finding 分类 | 必须修：四处 release version metadata，已按 TDD 修复。后续 Step：用户手动 release commit、annotated `v0.2.0` tag 与 tag-target 复核。接受限制：Mock-only Provider、同步非流式/顺序 Tool、无 list/polling/cancel/resume/retry、无严格 sequence/Agent-linked LLMCall usage、字符级 observation 压缩、tracked 模型 tools=false、`web_fetch` 延期、editable-only Registry packaging、开发 favicon 404。不适用：新增 Agent 状态、ORM 字段、migration、Provider Tool 协议、API schema 或前端 runtime。 |
 
-**当前结论：** `P2-M5-S7` 已完成且 Plan 3 五项 bridge 已通过；`P2-M5-S8`、Batch 14 和 Plan 2 仍保持未完成，因为 Git 规则要求用户先手动提交本批并创建 `v0.2.0` tag。tag 及其 peeled target 复核通过前不得开始 `P3-M1-S1`。
+**发布后更新（2026-07-20）：** 用户已创建 release commit `0e3f3a6`、
+annotated tag `v0.2.0` 并推送 `main`；Codex 已验证
+`HEAD == origin/main == v0.2.0^{}`。`P2-M5-S8`、Batch 14 和 Plan 2 已完成。
+上表中的 tag-pending 描述是 2026-07-19 收集证据时的历史状态。当前工作区准备
+`v0.2.1` 发布后审计修复，既有 `v0.2.0` tag 不移动。
+
+### Plan 2 v0.2.1 发布后审计修复记录（2026-07-20）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| Tool 与文件安全 | 标准 JSON、64 KiB arguments、4096 字符路径、私钥名称/内容、用户输入 symlink/reparse、目录有界枚举均按 RED/GREEN 加固；`web_fetch` 仍无 runtime、schema、Registry、依赖或网络实现。 |
+| Agent 正确性 | `max_steps` 作为 ToolCall 尝试预算且 batch 原子拒绝；仅 `read_only` 可执行；未知、非法或非只读调用在持久化前清空参数；全 run timeout 会保留并终态化部分 Tool round；ToolCall 使用每 run 正序唯一 `sequence_index`。 |
+| Registry 与前端 | 支持可选、本地、不含 secret 的模型 Registry 文件，空白环境值安全回退默认 Registry；Agent 页面用 `sessionStorage` 恢复迟到结果，URL 优先且 New task 清理；参数展示有界，字段明确为 Tool Call ID 和 Sequence。 |
+| 完整验证 | Backend `503 passed, 1 warning`；`pip check` 无破损依赖。Frontend typecheck、`18 files / 90 tests`、production build（1813 modules）通过。新建系统临时 SQLite 升级到 `20260720_0004 (head)`，`current --check-heads` 与 `alembic check` 通过并已清理。 |
+| Mock UI 与文档 | 仅用本地 Mock API/Vite 验证 POST、reload/GET restore、1280 desktop、390 mobile 和无横向溢出；两张正式脱敏截图已刷新。79 个 Markdown、67 个本地链接/图片、0 missing。 |
+| 安全与边界 | 高置信凭据命中 0；私钥 marker 仅出现在预期安全代码、合成测试和修复计划；未读取真实 `.env`/secret/用户 SQLite 内容，未调用真实 Provider 或网络 Tool，未实现任何 Plan 3+ runtime。 |
+| Codex self-review | must-fix 已全部按 TDD 修复；later Plan 保留 AgentStep/Trace/usage/replay、list/poll/cancel/resume/retry、Human Approval；接受同步非流式、顺序执行、Mock-only Provider、协作式取消和 `web_fetch` 延期；无阻塞项。 |
+| Git/release 边界 | `HEAD == origin/main == v0.2.0^{}`，已发布标签不移动；staged paths 为 0，`v0.2.1` 标签不存在，由用户在手动提交后创建。 |
 
 M5 完成后建议 commit：
 
@@ -596,18 +613,18 @@ Codex review 后：
 | Tool Registry 完成 | done（M1） | Registry 测试 |
 | read_file 可用 | done（M2） | read_file 正常、限制和安全测试 |
 | list_dir 可用 | done（M2） | list_dir 正常、junction、限制和安全测试 |
-| 工具参数校验可用 | done（M1） | Draft 2020-12、object 根和参数错误测试 |
-| 工具安全边界可用 | done（M1/M2 audit fix） | 路径、凭据名称、symlink/junction 测试 |
+| 工具参数校验可用 | done（M1 / v0.2.1 audit fix） | Draft 2020-12、object 根、标准 JSON、64 KiB 参数和 4096 字符路径测试 |
+| 工具安全边界可用 | done（M1/M2 / v0.2.1 audit fix） | 路径、凭据/私钥名称与内容、无 symlink/junction traversal、有界枚举测试 |
 | LLM Provider 支持 tools | done（M3 S1～S3，非流式协议） | Provider contract、schema adapter、OpenAI-compatible mock 测试；真实模型能力仍为 false |
-| Simple Agent Loop 可用 | done（M3 S4～S8，后端非流式 service） | 直接回答、多轮 Tool、最大步数、超时、失败和持久化测试 |
+| Simple Agent Loop 可用 | done（M3 S4～S8 / v0.2.1 audit fix） | 直接回答、多轮 Tool、原子 ToolCall 预算、权限拒绝、单 Tool/全 run 超时、失败和持久化测试 |
 | Agent API 可用 | done（M4 S1～S3，后端同步 API） | create/query、Tool round、结构化失败、错误与事务测试 |
-| 工具调用记录可保存 | done（M1 schema / M3 S6～S8 execution） | AgentRun/ToolCall ORM、迁移、执行状态和 commit/reload 测试 |
-| 前端能展示 Tool Call | done（M4 S4～S6 / M5 S4～S6 evidence） | 组件测试、本地 mock 桌面/移动浏览器验收与正式脱敏 release-candidate 截图 |
+| 工具调用记录可保存 | done（M1 schema / M3 S6～S8 / v0.2.1 sequence） | AgentRun/ToolCall ORM、迁移、正序唯一 `sequence_index`、执行状态和 commit/reload 测试 |
+| 前端能展示 Tool Call | done（M4 S4～S6 / M5 S4～S6 / v0.2.1 DOM tests） | 组件与 mounted async 测试、本地 mock 桌面/移动浏览器验收与正式脱敏 release 截图 |
 | 工具失败不会导致系统崩溃 | done（M1/M2/M3 S7） | Tool validation、内置 Tool、timeout 和安全 observation 测试 |
-| README 已更新 | done（through M5 S6） | README / README_CN 当前范围、Agent 工作台、启动要求、截图与限制说明 |
-| docs 已更新 | done（through M5 S6） | Provider、Tool Calling、Simple Agent、Agent API、release candidate、架构文档与验收记录 |
+| README 已更新 | done（through v0.2.1 candidate） | README / README_CN 当前范围、Agent 工作台、本地 Registry、启动要求、截图与限制说明 |
+| docs 已更新 | done（through v0.2.1 candidate） | Provider、Tool Calling、Simple Agent、Agent API、release、架构文档与验收记录 |
 | Plan 2 全量 review 已完成 | done（M5 S7） | Codex final review、release version RED/GREEN、完整 Backend/Frontend/SQLite/边界验证 |
-| 已创建 v0.2.0 tag | pending | `git tag --list` 输出 |
+| 已创建 v0.2.0 tag | done（2026-07-20 verified） | annotated tag object `3f727e3`；peeled target `0e3f3a66e1322c565f2056696f7e482cedbb5f6c` |
 
 ---
 
@@ -618,10 +635,10 @@ Codex review 后：
 | 桥接项 | 状态 | 说明 |
 |---|---|---|
 | Tool Registry 可以稳定注册后续 `search_knowledge_base` 工具 | done（S7 fresh review） | caller-owned Registry、顺序、schema adapter 与重复/原子失败测试稳定；Plan 3 不需要重写工具体系 |
-| ToolResult 结构能表达 success、content、error、metadata | done（S7 fresh review） | 成功、失败、结构化 data/metadata、标准 JSON 和 observation 压缩测试 |
-| 工具调用日志能关联 conversation_id 或 agent_run_id | done（S7 fresh review） | ToolCall 复合外键、AgentRun/Conversation 归属和 commit/reload 测试 |
-| read_file / list_dir 的路径安全规则已经固定 | done（S7 fresh review） | traversal、敏感名称、symlink/junction、大小/深度/条目限制与正式文档 |
-| Simple Agent Loop 有最大步数、超时和失败返回 | done（S7 fresh review） | 默认 3 步、Tool timeout、结构化 failed AgentRun 和完整回归 |
+| ToolResult 结构能表达 success、content、error、metadata | done（S7 + v0.2.1 audit） | 成功、失败、结构化 data/metadata、标准 JSON 和 observation 压缩测试 |
+| 工具调用日志能关联 conversation_id 或 agent_run_id | done（S7 + v0.2.1 audit） | ToolCall 复合外键、AgentRun/Conversation 归属、strict sequence 和 commit/reload 测试 |
+| read_file / list_dir 的路径安全规则已经固定 | done（S7 + v0.2.1 audit） | traversal、敏感/私钥、无 link traversal、大小/深度/条目/枚举限制与正式文档 |
+| Simple Agent Loop 有最大步数、超时和失败返回 | done（S7 + v0.2.1 audit） | 默认 3 个 ToolCall、原子 batch、Tool/全 run timeout、权限边界、结构化 failed AgentRun 和完整回归 |
 
 ---
 

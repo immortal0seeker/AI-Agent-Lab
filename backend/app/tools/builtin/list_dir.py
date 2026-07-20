@@ -3,12 +3,14 @@ from __future__ import annotations
 import asyncio
 import os
 import stat
+from itertools import islice
 from pathlib import Path
 from typing import Any
 
 from app.tools.base import Tool, ToolResult
 from app.tools.security import (
     DEFAULT_MAX_DIRECTORY_DEPTH,
+    MAX_TOOL_PATH_CHARACTERS,
     PROJECT_WORKSPACE_ROOT,
     ToolLimitError,
     ToolSecurityError,
@@ -67,7 +69,11 @@ class ListDirTool(Tool):
             parameters_schema={
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "minLength": 1},
+                    "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": MAX_TOOL_PATH_CHARACTERS,
+                    },
                     "max_depth": {
                         "type": "integer",
                         "minimum": 1,
@@ -176,8 +182,9 @@ class ListDirTool(Tool):
         entries: list[dict[str, str | int | None]],
     ) -> bool:
         with os.scandir(directory) as iterator:
-            children = sorted(
-                iterator,
+            children = list(islice(iterator, self.max_entries + 1))
+            has_more_children = len(children) > self.max_entries
+            children.sort(
                 key=lambda entry: (entry.name.casefold(), entry.name),
             )
 
@@ -219,7 +226,7 @@ class ListDirTool(Tool):
                     entries=entries,
                 ):
                     return True
-        return False
+        return has_more_children
 
     def _failure(self, error: str) -> ToolResult:
         return ToolResult(

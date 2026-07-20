@@ -46,12 +46,14 @@ def create_tool_call(
     run: AgentRun,
     *,
     tool_call_id: str = "call-1",
+    sequence_index: int = 1,
     conversation_id: UUID | None = None,
 ) -> ToolCall:
     return ToolCall(
         agent_run=run,
         conversation_id=conversation_id or run.conversation_id,
         tool_call_id=tool_call_id,
+        sequence_index=sequence_index,
         tool_name="echo",
         arguments_json={"message": "hello"},
         result_json={"success": True, "content": "hello"},
@@ -78,6 +80,7 @@ def test_agent_models_persist_relationships_json_and_defaults(
     assert loaded.created_at.tzinfo is None
     assert loaded.tool_calls[0].status == "pending"
     assert loaded.tool_calls[0].tool_call_id == "call-1"
+    assert loaded.tool_calls[0].sequence_index == 1
     assert loaded.tool_calls[0].arguments_json == {"message": "hello"}
     assert loaded.tool_calls[0].result_json == {
         "success": True,
@@ -94,12 +97,14 @@ def test_tool_call_argument_defaults_are_isolated(
         agent_run=run,
         conversation_id=conversation.id,
         tool_call_id="call-1",
+        sequence_index=1,
         tool_name="echo",
     )
     second = ToolCall(
         agent_run=run,
         conversation_id=conversation.id,
         tool_call_id="call-2",
+        sequence_index=2,
         tool_name="echo",
     )
     session.add_all([first, second])
@@ -215,6 +220,27 @@ def test_tool_call_id_is_unique_within_one_run(
     _, _, run = create_run(session)
     session.add_all([create_tool_call(run), create_tool_call(run)])
 
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_tool_call_sequence_is_positive_and_unique_within_one_run(
+    db: tuple[Session, Engine],
+) -> None:
+    session, _ = db
+    _, _, run = create_run(session)
+    session.add(create_tool_call(run, sequence_index=0))
+    with pytest.raises(IntegrityError):
+        session.commit()
+    session.rollback()
+
+    _, _, run = create_run(session)
+    session.add_all(
+        [
+            create_tool_call(run, tool_call_id="call-1", sequence_index=1),
+            create_tool_call(run, tool_call_id="call-2", sequence_index=1),
+        ]
+    )
     with pytest.raises(IntegrityError):
         session.commit()
 

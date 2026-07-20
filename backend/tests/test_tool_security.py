@@ -128,7 +128,16 @@ def test_resolve_workspace_path_rejects_windows_alternate_data_streams(
 
 @pytest.mark.parametrize(
     "unsafe_path",
-    ["id_rsa", "keys/id_ed25519", "certs/private.pem", "keys/PRIVATE.KEY"],
+    [
+        "id_rsa",
+        "keys/id_ed25519",
+        "keys/id_ed25519_sk",
+        "keys/id_ecdsa_sk",
+        "certs/private.pem",
+        "keys/PRIVATE.KEY",
+        "keys/synthetic-private.ppk",
+        "keys/synthetic-private.p8",
+    ],
 )
 def test_resolve_workspace_path_rejects_private_key_files(
     tmp_path: Path,
@@ -142,6 +151,19 @@ def test_resolve_workspace_path_allows_non_secret_similar_name(tmp_path: Path) -
     resolved = resolve_workspace_path("docs/keynote.md", workspace_root=tmp_path)
 
     assert resolved == (tmp_path / "docs" / "keynote.md").resolve()
+
+
+def test_resolve_workspace_path_rejects_internal_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "target.txt"
+    target.write_text("safe", encoding="utf-8")
+    link = tmp_path / "linked.txt"
+    try:
+        link.symlink_to(target)
+    except (NotImplementedError, OSError):
+        pytest.skip("symbolic links are unavailable in this environment")
+
+    with pytest.raises(UnsafePathError):
+        resolve_workspace_path("linked.txt", workspace_root=tmp_path)
 
 
 def test_validate_file_size_accepts_limit_and_rejects_oversize() -> None:

@@ -16,6 +16,7 @@ function createToolCall(
     agent_run_id: "00000000-0000-0000-0000-000000000201",
     conversation_id: "00000000-0000-0000-0000-000000000202",
     tool_name: index % 2 === 0 ? "list_dir" : "read_file",
+    sequence_index: index,
     arguments: {
       path: index === 1 ? '<script>alert("unsafe")</script>' : ".",
     },
@@ -60,7 +61,9 @@ describe("ToolCallTimeline", () => {
     expect(html).toContain("Pending");
     expect(html).toContain("Success");
     expect(html).toContain("Failed");
-    expect(html).toContain("Provider call ID");
+    expect(html).toContain("Tool Call ID");
+    expect(html).not.toContain("Provider call ID");
+    expect(html).toContain("Sequence");
     expect(html).toContain("Database ID");
     expect(html).not.toContain('<script>alert("unsafe")</script>');
     expect(html).toContain("&lt;script&gt;alert");
@@ -87,4 +90,17 @@ describe("ToolCallTimeline", () => {
       expect(html).toContain(`tool-call-status--${tone}`);
     },
   );
+
+  it("bounds rendered ToolCall arguments", () => {
+    const longPath = "x".repeat(1000);
+    const call = createToolCall("failed", 1);
+    call.arguments = { path: longPath };
+
+    const html = renderToStaticMarkup(
+      <ToolCallTimeline toolCalls={[call]} />,
+    );
+
+    expect(html).not.toContain(longPath);
+    expect(html).toContain("…");
+  });
 });

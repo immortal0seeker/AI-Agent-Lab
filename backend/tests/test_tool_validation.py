@@ -143,6 +143,22 @@ def test_validate_tool_arguments_rejects_non_standard_json_numbers(
     assert repr(value) not in str(exc_info.value)
 
 
+def test_validate_tool_arguments_rejects_oversized_json_payload() -> None:
+    oversized = "x" * 70_000
+
+    with pytest.raises(ToolArgumentValidationError) as exc_info:
+        validate_tool_arguments(build_tool(), {"message": oversized})
+
+    assert len(exc_info.value.issues) == 1
+    assert exc_info.value.issues[0].path == ()
+    assert exc_info.value.issues[0].code == "json_size"
+    assert (
+        exc_info.value.issues[0].message
+        == "arguments exceed the allowed JSON size"
+    )
+    assert oversized not in str(exc_info.value)
+
+
 def test_validate_tool_schema_rejects_invalid_schema_without_echoing_it() -> None:
     schema = {"type": "not-a-json-schema-type"}
 

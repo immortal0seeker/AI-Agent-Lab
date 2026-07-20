@@ -4,7 +4,7 @@ import tomllib
 from pathlib import Path
 
 
-EXPECTED_RELEASE_VERSION = "0.2.0"
+EXPECTED_RELEASE_VERSION = "0.2.1"
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
 

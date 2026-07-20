@@ -8,9 +8,11 @@ from typing import Any
 from app.tools.base import Tool, ToolResult
 from app.tools.security import (
     DEFAULT_MAX_FILE_BYTES,
+    MAX_TOOL_PATH_CHARACTERS,
     PROJECT_WORKSPACE_ROOT,
     ToolLimitError,
     ToolSecurityError,
+    contains_private_key_material,
     resolve_workspace_path,
     validate_file_size,
 )
@@ -53,7 +55,11 @@ class ReadFileTool(Tool):
             parameters_schema={
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "minLength": 1},
+                    "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": MAX_TOOL_PATH_CHARACTERS,
+                    },
                 },
                 "required": ["path"],
                 "additionalProperties": False,
@@ -121,6 +127,8 @@ class ReadFileTool(Tool):
         except ToolLimitError:
             return self._failure(_TOO_LARGE_ERROR)
 
+        if contains_private_key_material(raw):
+            return self._failure(_UNSAFE_PATH_ERROR)
         if b"\x00" in raw:
             return self._failure(_UNSUPPORTED_TEXT_ERROR)
         try:

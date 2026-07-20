@@ -2,6 +2,7 @@ import type { ToolCall, ToolCallStatus } from "../../types/agent";
 import {
   formatJson,
   formatLatency,
+  summarizeText,
   toolCallTone,
   toolResultSections,
 } from "./toolCallView";
@@ -52,7 +53,11 @@ export default function ToolCallCard({ toolCall }: ToolCallCardProps) {
           <dd>{formatLatency(toolCall.latency_ms)}</dd>
         </div>
         <div>
-          <dt>Provider call ID</dt>
+          <dt>Sequence</dt>
+          <dd>{toolCall.sequence_index}</dd>
+        </div>
+        <div>
+          <dt>Tool Call ID</dt>
           <dd>
             <code className="trace-id">{toolCall.tool_call_id}</code>
           </dd>
@@ -67,7 +72,9 @@ export default function ToolCallCard({ toolCall }: ToolCallCardProps) {
 
       <section className="tool-call-section">
         <h5>Arguments</h5>
-        <pre className="tool-call-json">{formatJson(toolCall.arguments)}</pre>
+        <pre className="tool-call-json">
+          {summarizeText(formatJson(toolCall.arguments))}
+        </pre>
       </section>
 
       {visibleError !== null ? (

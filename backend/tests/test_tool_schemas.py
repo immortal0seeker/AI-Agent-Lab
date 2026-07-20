@@ -56,6 +56,27 @@ def test_tool_call_request_rejects_unknown_fields() -> None:
         )
 
 
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_tool_call_request_rejects_non_standard_json_arguments(
+    value: float,
+) -> None:
+    with pytest.raises(ValidationError, match="standard JSON"):
+        ToolCallRequest(
+            tool_call_id="call-1",
+            tool_name="echo",
+            arguments={"value": value},
+        )
+
+
+def test_tool_call_request_rejects_oversized_json_arguments() -> None:
+    with pytest.raises(ValidationError, match="allowed JSON size"):
+        ToolCallRequest(
+            tool_call_id="call-1",
+            tool_name="echo",
+            arguments={"value": "x" * 70_000},
+        )
+
+
 def test_tool_call_response_rejects_invalid_status() -> None:
     with pytest.raises(ValidationError):
         ToolCallResponse(

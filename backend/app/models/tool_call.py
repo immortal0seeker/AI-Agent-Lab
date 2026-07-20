@@ -42,10 +42,19 @@ class ToolCall(Base):
             "latency_ms IS NULL OR latency_ms >= 0",
             name="ck_tool_calls_latency_ms_non_negative",
         ),
+        CheckConstraint(
+            "sequence_index > 0",
+            name="ck_tool_calls_sequence_index_positive",
+        ),
         UniqueConstraint(
             "agent_run_id",
             "tool_call_id",
             name="uq_tool_calls_agent_run_id_tool_call_id",
+        ),
+        UniqueConstraint(
+            "agent_run_id",
+            "sequence_index",
+            name="uq_tool_calls_agent_run_id_sequence_index",
         ),
     )
 
@@ -66,6 +75,7 @@ class ToolCall(Base):
         nullable=False,
     )
     tool_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    sequence_index: Mapped[int] = mapped_column(Integer(), nullable=False)
     arguments_json: Mapped[dict[str, Any]] = mapped_column(
         JSON(),
         nullable=False,

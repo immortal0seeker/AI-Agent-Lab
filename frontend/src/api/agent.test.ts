@@ -14,6 +14,7 @@ const conversationId = "00000000-0000-0000-0000-000000000102";
 const toolCall: ToolCall = {
   id: "00000000-0000-0000-0000-000000000104",
   tool_call_id: "call-read-readme",
+  sequence_index: 1,
   agent_run_id: runId,
   conversation_id: conversationId,
   tool_name: "read_file",

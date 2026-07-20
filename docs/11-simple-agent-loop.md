@@ -8,9 +8,10 @@ Conversation persistence, and AgentRun/ToolCall audit records. It supports a
 bounded non-streaming loop. Plan 2 M4 S1～S3 now expose it through synchronous
 Agent create/query routes, while M4 S4～S6 add a dedicated frontend Agent
 workspace that submits one goal and renders the persisted AgentRun/ToolCall
-audit result. M5 S1～S6 harden its safety tests and refresh the release-candidate
-verification and documentation. M5 S7 completes the final Codex review without
-changing the loop contract.
+audit result. M5 S1～S6 harden its safety tests and refresh release verification
+and documentation. M5 S7～S8 complete the final Codex review and published
+`v0.2.0`. The current `v0.2.1` audit patch clarifies and enforces the Tool budget,
+permission, timeout, persistence, and recovery boundaries described below.
 
 The loop itself was delivered by `P2-M3-S1` through `P2-M3-S8`. Plan 2 does not
 add RAG, Embedding, Memory, MCP, Shell/file-writing Tools, a Planner, Human
@@ -27,43 +28,46 @@ Approval, or the Plan 5 Agent Runtime.
 | `content` | Non-blank user goal |
 | `temperature` | `0..2` |
 | `max_tokens` | Optional positive integer |
-| `max_steps` | Strict integer `1..10`, default `3` |
+| `max_steps` | Strict integer `1..10`, default `3`; maximum ToolCall executions |
 
 Before writing any row, the service verifies that the model exists, explicitly
 advertises `supports_tools=true`, and has a configured Provider. The tracked
-example model remains `supports_tools=false`; tests inject a tools-capable Mock
-Registry and do not prove live Provider support.
+default model remains `supports_tools=false`; tests inject a tools-capable Mock
+Registry and do not prove live Provider support. Local development may select a
+secret-free ignored Registry through `MODEL_REGISTRY_PATH`.
 
 `SimpleAgentResult` always returns the Conversation, user Message, AgentRun,
 executed ToolCall rows, Provider, and model. A successful result has an
 assistant Message. A terminal runtime failure has `assistant_message=None` and
 a failed AgentRun with a fixed safe error.
 
-## Loop and Step Counting
+## Loop And Tool Budget
 
-One step is one Provider `chat()` decision, not one Tool Call:
+One step is one ToolCall execution attempt. A Provider ToolCall batch is atomic:
 
 ```text
 Conversation history + current user Message
 -> AgentRun(running)
--> for each Provider decision up to max_steps
+-> make at most max_steps + 1 Provider decisions
    -> final non-blank text
       -> assistant Message + AgentRun(completed)
-   -> Tool Calls with another step available
+   -> Tool Calls fit the remaining Tool budget
       -> AgentRun(waiting_tool)
       -> validate and execute calls sequentially
       -> persist terminal ToolCalls
       -> append assistant Tool Call message and correlated observations
       -> AgentRun(running)
       -> next Provider decision
-   -> Tool Calls on the last step
-      -> AgentRun(failed), do not execute those calls
+   -> Tool Call batch exceeds the remaining budget
+      -> AgentRun(failed), persist/execute none of that batch
 ```
 
-Multiple Tool Calls in one Provider response execute in Provider order but
-consume only one step. With the default `max_steps=3`, the service can perform
-two Tool rounds followed by final text. With `max_steps=1`, a Tool request is
-not executed because no step remains for a final model decision.
+Multiple Tool Calls in one Provider response consume one budget unit each and
+execute sequentially in Provider order only when the entire batch fits. With
+`max_steps=3`, up to three ToolCalls may run across one or more rounds, followed
+by one final Provider decision. With `max_steps=1`, one ToolCall may execute and
+the second Provider decision must return final text; another Tool request fails
+without execution.
 
 Tool Call IDs must be unique across all executed rounds. A Provider response
 that reuses an earlier ID terminates safely before the duplicate row or Tool
@@ -83,14 +87,17 @@ The OpenAI-compatible adapter alone maps these messages to Chat Completions
 
 ## Tool Execution and Timeout
 
-Each attempted call creates a running ToolCall row before Registry lookup,
-argument validation, or execution. After validation, `tool.run()` is wrapped
-by the Tool's finite, positive `timeout_seconds` value.
+Before creating a ToolCall row, the service resolves the Tool, enforces
+`permission_level == "read_only"`, and validates the arguments. A valid call
+persists a defensive copy and wraps `tool.run()` with the Tool's finite,
+positive `timeout_seconds` value. Unknown, invalid, oversized, and blocked calls
+persist `{}` rather than raw Provider arguments.
 
 | Outcome | ToolCall status | Safe error |
 |---|---|---|
 | successful ToolResult | `success` | none |
 | unknown Tool / invalid arguments / failed or malformed result / exception | `failed` | stable Tool-specific failure |
+| non-read-only permission | `blocked` | `Tool permission is not allowed` |
 | deadline exceeded | `timeout` | `Tool execution timed out` |
 
 A failed or timed-out Tool becomes an observation; it does not immediately
@@ -99,7 +106,10 @@ Provider decision can explain the failure or choose another read-only Tool.
 
 Timeout cancellation is cooperative. If a Tool has already delegated blocking
 work to a thread, the coroutine deadline cannot forcibly stop that underlying
-thread. Tools must therefore keep their own I/O bounded. M3 performs no
+thread. Tools must therefore keep their own I/O bounded. The complete loop is
+also bounded by finite `AGENT_RUN_TIMEOUT_SECONDS` (default 120, maximum 3600);
+expiry records `Agent run timed out` without swallowing external cancellation.
+M3 performs no
 automatic retry: retrying future side-effecting Tools without the later
 Runtime/Approval policy would be unsafe.
 
@@ -120,9 +130,8 @@ valid JSON copy that:
 
 This does not mutate or truncate the persisted ToolResult. It is a character
 bound, not token-aware semantic summarization. A single Provider response can
-also contain multiple calls; M3 has no separate total Tool-call-count limit,
-so the trusted Provider and registered read-only Tool set remain part of this
-simple-loop boundary.
+contain multiple calls, but the atomic `max_steps` Tool budget bounds their
+total execution count.
 
 ## Terminal Results and Transaction Ownership
 
@@ -132,7 +141,8 @@ terminations return a structured failed result:
 
 | Condition | AgentRun error |
 |---|---|
-| Last allowed decision still requests Tool | `Agent reached the maximum number of steps` |
+| ToolCall batch exceeds the remaining budget | `Agent reached the maximum number of steps` |
+| Whole-run deadline expires | `Agent run timed out` |
 | Provider timeout | `Model request timed out` |
 | Other Provider failure or invalid Provider result | `Model request failed` |
 | Empty/blank terminal text | `Agent did not produce a final answer` |
@@ -153,24 +163,26 @@ or other database failure still escapes and triggers rollback.
 M3 reuses the existing ORM and migrations:
 
 - AgentRun: `running -> waiting_tool -> running`, then `completed` or `failed`.
-- ToolCall: `running`, then `success`, `failed`, or `timeout`.
+- ToolCall: `running`, then `success`, `failed`, `timeout`, or `blocked`.
 - Only the user and final successful assistant text enter `messages`.
 - Intermediate assistant Tool Call and Tool observation messages remain
   in-process because the Message table cannot preserve correlation fields.
-- `SimpleAgentResult.tool_calls` preserves runtime order. The database has no
-  explicit sequence field and does not promise replay order by relationship.
+- `SimpleAgentResult.tool_calls` and query results preserve strict runtime order
+  through a positive, per-run unique one-based `sequence_index`.
 - Agent Provider calls still have no Agent-linked `LLMCall`, so their
   usage/cost is not persisted.
 
-No schema field, state, constraint, or Alembic revision was added in M3 S7～S8.
+The `v0.2.1` patch adds only the ToolCall sequence migration; it does not add an
+Agent state, AgentStep, Trace, or later Runtime schema.
 
 ## Verification and Security
 
-Tests cover direct answers, existing history, two Tool rounds, multiple calls
-per decision, final-step non-execution, cross-round ID reuse, safe Tool
-failures, finite timeouts, cooperative cancellation, Provider failures and
-invalid results, bounded observations including escaped JSON, and commit/reload
-of completed and failed runs.
+Tests cover direct answers, existing history, two Tool rounds, exact and
+over-budget atomic batches, cross-round ID reuse, pre-persistence argument
+redaction, permission blocking, safe Tool failures, per-Tool/whole-run timeouts,
+cooperative cancellation, Provider failures and invalid results, bounded
+observations including escaped JSON, strict sequence, and commit/reload of
+completed and failed runs.
 
 All Agent acceptance tests use Mock Providers, controlled Tools, temporary
 SQLite databases, and temporary workspace files. They do not call a real or
@@ -186,14 +198,14 @@ touch the user's SQLite database.
 - Tool Calling is non-streaming only.
 - Tool Calls execute sequentially; no parallel execution or automatic retry.
 - No user cancellation/resume API or persisted cancelled-run policy.
-- No Agent-linked Provider usage/cost record or strict persisted step sequence.
+- ToolCall order is persisted, but there is no AgentStep/Trace timeline,
+  Provider request replay, or Agent-linked Provider usage/cost record.
 - Observation compaction is character-based and lossy only for Provider context.
 - `web_fetch` remains explicitly deferred with no runtime surface.
 
-The tracked example model remains `supports_tools=false`; browser and release
+The tracked default model remains `supports_tools=false`; browser and release
 acceptance use local Mock data and do not prove live Provider Tool capability.
-The S7 final review passed and revalidated the bounded loop for Plan 3. S8
-remains open only for the user-owned `v0.2.0` release commit/tag and subsequent
-tag-target verification. See
+The S7 final review and S8 `v0.2.0` tag gate are complete; the current working
+tree prepares `v0.2.1` without moving that tag. See
 [Agent API](12-agent-api.md) for the implemented HTTP schemas, transaction
 behavior, error mapping, query boundaries, and frontend integration.

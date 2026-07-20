@@ -278,6 +278,7 @@ def test_agent_read_schemas_use_public_error_and_tool_result_fields() -> None:
     tool_call = ToolCallRead(
         id=uuid4(),
         tool_call_id="call-1",
+        sequence_index=1,
         agent_run_id=run_id,
         conversation_id=conversation_id,
         tool_name="read_file",
@@ -317,6 +318,7 @@ def test_agent_read_schemas_use_public_error_and_tool_result_fields() -> None:
     assert payload["tool_calls"][0]["arguments"] == {
         "path": "README.md"
     }
+    assert payload["tool_calls"][0]["sequence_index"] == 1
     assert payload["tool_calls"][0]["result"]["success"] is True
     assert "arguments_json" not in payload["tool_calls"][0]
     assert "result_json" not in payload["tool_calls"][0]
@@ -467,6 +469,7 @@ def test_agent_api_tool_round_returns_persists_and_queries_call(
     assert len(body["tool_calls"]) == 1
     call = body["tool_calls"][0]
     assert call["tool_call_id"] == "call-read-notes"
+    assert call["sequence_index"] == 1
     assert call["tool_name"] == "read_file"
     assert call["arguments"] == {"path": "notes.txt"}
     assert call["status"] == "success"
@@ -583,7 +586,7 @@ def test_agent_api_commits_structured_failed_run(
         assert session.scalar(select(func.count()).select_from(ToolCall)) == 0
 
 
-def test_agent_api_max_steps_failure_does_not_execute_final_tool(
+def test_agent_api_max_steps_failure_preserves_budgeted_tool_only(
     agent_api_context: Any,
 ) -> None:
     client, factory, _, providers, _ = agent_api_context
@@ -604,13 +607,16 @@ def test_agent_api_max_steps_failure_does_not_execute_final_tool(
     body = response.json()
     assert body["status"] == "failed"
     assert body["error"] == "Agent reached the maximum number of steps"
-    assert body["tool_calls"] == []
-    assert len(provider.requests) == 1
+    assert len(body["tool_calls"]) == 1
+    assert body["tool_calls"][0]["tool_call_id"] == "call-not-executed"
+    assert body["tool_calls"][0]["sequence_index"] == 1
+    assert body["tool_calls"][0]["status"] == "success"
+    assert len(provider.requests) == 2
 
     with factory() as session:
         assert session.scalar(select(func.count()).select_from(Message)) == 1
         assert session.scalar(select(func.count()).select_from(AgentRun)) == 1
-        assert session.scalar(select(func.count()).select_from(ToolCall)) == 0
+        assert session.scalar(select(func.count()).select_from(ToolCall)) == 1
 
 
 def test_agent_api_queries_existing_run_and_empty_calls(
@@ -660,8 +666,9 @@ def test_agent_api_tool_call_query_uses_deterministic_order(
         session.add_all(
             [
                 ToolCall(
-                    id=UUID(int=2),
+                    id=UUID(int=1),
                     tool_call_id="call-later",
+                    sequence_index=2,
                     agent_run_id=run.id,
                     conversation_id=run.conversation_id,
                     tool_name="list_dir",
@@ -674,8 +681,9 @@ def test_agent_api_tool_call_query_uses_deterministic_order(
                     created_at=created_at,
                 ),
                 ToolCall(
-                    id=UUID(int=1),
+                    id=UUID(int=2),
                     tool_call_id="call-earlier",
+                    sequence_index=1,
                     agent_run_id=run.id,
                     conversation_id=run.conversation_id,
                     tool_name="read_file",
@@ -700,6 +708,7 @@ def test_agent_api_tool_call_query_uses_deterministic_order(
         "call-earlier",
         "call-later",
     ]
+    assert [item["sequence_index"] for item in response.json()] == [1, 2]
 
 
 @pytest.mark.parametrize("suffix", ["", "/tool-calls"])

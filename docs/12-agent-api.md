@@ -12,8 +12,8 @@ GET  /api/v1/agents/runs/{run_id}/tool-calls
 ```
 
 The resource name is always plural `agents`; there is no singular
-`/api/v1/agent/runs` alias. These endpoints add no new Agent state, database
-field, migration, Tool, or Provider protocol.
+`/api/v1/agent/runs` alias. The routes add no new Agent state, Tool, or Provider
+protocol. The later `v0.2.1` patch adds only ToolCall `sequence_index` storage.
 
 ## Create a Run
 
@@ -39,7 +39,7 @@ field, migration, Tool, or Provider protocol.
 | `input` | Non-blank Agent goal |
 | `temperature` | `0..2`, default `0.7` |
 | `max_tokens` | Optional positive integer |
-| `max_steps` | Strict integer `1..10`, default `3` |
+| `max_steps` | Strict integer `1..10`, default `3`; maximum ToolCall executions |
 
 Unknown fields are rejected. `content` is not accepted as an alias for
 `input`. Before creating any row, the Agent verifies that the Registry model
@@ -65,12 +65,14 @@ AgentRun. A successful response is HTTP 201:
 }
 ```
 
-The POST response includes every ToolCall actually executed during the run in
-runtime order. A ToolCall exposes:
+The POST response includes every ToolCall attempt accepted within the run
+budget, including safe failed/blocked attempts, in strict sequence order. A
+ToolCall exposes:
 
 - database `id` and Provider `tool_call_id`;
 - `agent_run_id` and `conversation_id`;
-- `tool_name` and validated `arguments`;
+- `tool_name`, one-based `sequence_index`, and safe stored `arguments` (`{}` for
+  unknown, invalid, oversized, or blocked calls);
 - complete persisted `result` or `null` for a non-terminal historical row;
 - `status`, safe `error`, timestamps, and `latency_ms`.
 
@@ -81,8 +83,9 @@ to the public names `arguments`, `result`, and `error`.
 
 Once an AgentRun has been created, expected runtime failures are persistent
 business outcomes rather than failed HTTP transport. Provider timeout/failure,
-an invalid Provider result, blank terminal text, or exhausting `max_steps`
-therefore returns HTTP 201 with:
+whole-run timeout, an invalid Provider result, blank terminal text, or a
+ToolCall batch exceeding the remaining `max_steps` budget therefore returns
+HTTP 201 with:
 
 ```json
 {
@@ -115,10 +118,9 @@ An existing run with no calls returns `200 []`. The service checks that the
 parent AgentRun exists first; an unknown run returns 404 rather than an
 ambiguous empty list.
 
-Query results use `created_at ASC, id ASC` for deterministic display. The
-database does not yet have a strict step/sequence column, so this ordering is
-not a lossless persisted replay timeline. POST preserves the in-memory runtime
-order supplied by `SimpleAgentResult`.
+Query results use `sequence_index ASC`, a positive per-run unique field
+assigned in execution order. This guarantees ToolCall ordering but is not a
+lossless AgentStep or Provider request/response replay timeline.
 
 ## HTTP Errors
 
@@ -138,12 +140,14 @@ All errors use the existing request-ID envelope.
 
 The production dependency creates a fresh Tool Registry per POST and registers
 only `read_file` and `list_dir`. Both remain read-only, workspace-relative,
-bounded, sensitive-name aware, and unable to follow discovered symlink,
-junction, or reparse-point content outside the trusted workspace. Tool results
+bounded, sensitive-name/private-key aware, and reject every user-supplied
+symlink, junction, or reparse-point component. Tool results
 are intentionally returned for the user-visible Agent audit trail; sensitive
 paths remain blocked by the Tool security layer.
 
-The tracked example model still declares `supports_tools=false`. Automated
+The tracked default model still declares `supports_tools=false`. An optional
+`MODEL_REGISTRY_PATH` may select an ignored local Registry copied from the
+secret-free example; it never carries Provider credentials. Automated
 acceptance uses a tools-capable Mock Registry, Mock Providers, temporary SQLite,
 and temporary workspace files. It proves the local API contract, not live or
 paid Provider connectivity.
@@ -158,17 +162,21 @@ explicit no-model state.
 
 Submitting a task waits for the synchronous POST response. The result panel
 distinguishes completed runs, structured failed HTTP 201 runs, transport errors,
-loading, and empty states. Each ToolCall card shows the Tool name, validated
-arguments, status, latency, bounded result content/data/metadata, safe error, and
-the Provider correlation ID plus database ID. AgentRun and Conversation IDs are
+loading, and empty states. Each ToolCall card shows the Tool name, sequence,
+bounded validated arguments, status, latency, bounded result content/data/
+metadata, safe error, Tool Call correlation ID, and database ID. The correlation
+ID is not labeled as a Provider request ID. AgentRun and Conversation IDs are
 also visible so the UI remains an audit surface rather than hiding persistence
 identity.
 
 The URL uses `workspace=agent` and an optional `run=<uuid>`. A valid run UUID is
 restored with parallel AgentRun and ToolCall GET requests; invalid UUID values
-are ignored. There is intentionally no AgentRun list, polling, streaming,
-cancel/resume, or automatic retry. Leaving the workspace invalidates the active
-frontend request so a late response cannot rewrite the Chat URL.
+are ignored. If no explicit URL run exists, the page may restore the latest
+returned UUID from tab-scoped session storage. There is intentionally no
+AgentRun list, polling, streaming, cancel/resume, or automatic retry. Leaving
+the workspace invalidates the active frontend request so a late response cannot
+rewrite the Chat URL, while the returned UUID remains recoverable. New task
+clears both URL and stored recovery ID.
 
 Mocked browser acceptance covers the default Chat regression, tools-capable
 model filtering, README summary success, mobile layout, no-model, structured
@@ -180,8 +188,9 @@ does not call or validate a live Provider.
 - Tool Calling is non-streaming and ToolCalls execute sequentially.
 - No AgentRun list, polling, automatic retry, user cancel/resume API, or
   persisted cancelled-run policy.
-- Agent Provider calls are not linked to `LLMCall` usage/cost rows.
-- ToolCall has no strict persisted step sequence.
+- Agent Provider calls are not linked to `LLMCall` usage/cost rows, AgentStep,
+  Trace, or a lossless Provider replay record.
+- ToolCall order is strict, but execution remains synchronous and sequential.
 - `web_fetch` remains deferred with no runtime or API surface.
 - No RAG, Embedding, Memory, MCP, Shell, file-writing, or file-deletion Tool is
   part of Plan 2.
@@ -189,5 +198,6 @@ does not call or validate a live Provider.
 See [Simple Agent Loop](11-simple-agent-loop.md) and
 [Tool Calling Design](10-tool-calling-design.md) for the underlying runtime and
 security contracts. The S7 [Plan 2 final review](reviews/2026-07-19-plan2-v0.2.0-final-review.md)
-revalidated these routes and their Plan 3 bridge role; the user-owned
-`v0.2.0` tag remains pending in S8.
+revalidated these routes and their Plan 3 bridge role; S8 and the published
+`v0.2.0` tag gate are complete. The current working tree prepares `v0.2.1`
+without moving that tag.

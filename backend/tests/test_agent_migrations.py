@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from alembic import command
 from alembic.config import Config
@@ -58,6 +58,7 @@ def test_upgrade_head_creates_agent_persistence_schema(
         "agent_run_id",
         "conversation_id",
         "tool_name",
+        "sequence_index",
         "arguments_json",
         "result_json",
         "status",
@@ -116,7 +117,10 @@ def test_upgrade_head_creates_agent_persistence_schema(
     assert {
         constraint["name"]
         for constraint in inspector.get_unique_constraints("tool_calls")
-    } == {"uq_tool_calls_agent_run_id_tool_call_id"}
+    } == {
+        "uq_tool_calls_agent_run_id_sequence_index",
+        "uq_tool_calls_agent_run_id_tool_call_id",
+    }
     assert {
         constraint["name"]
         for constraint in inspector.get_check_constraints("agent_runs")
@@ -129,8 +133,93 @@ def test_upgrade_head_creates_agent_persistence_schema(
         for constraint in inspector.get_check_constraints("tool_calls")
     } == {
         "ck_tool_calls_latency_ms_non_negative",
+        "ck_tool_calls_sequence_index_positive",
         "ck_tool_calls_status",
     }
+    engine.dispose()
+
+
+def test_upgrade_backfills_tool_call_sequence_per_run(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    config, database_url = migration_config(tmp_path, monkeypatch)
+    command.upgrade(config, "20260718_0003")
+    now = datetime.now(UTC).replace(tzinfo=None)
+    conversation_id = uuid4().hex
+    run_id = uuid4().hex
+    earlier_id = UUID(int=1).hex
+    later_id = UUID(int=2).hex
+
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO conversations "
+                "(id, title, created_at, updated_at) "
+                "VALUES (:id, :title, :created_at, :updated_at)"
+            ),
+            {
+                "id": conversation_id,
+                "title": "Synthetic conversation",
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        connection.execute(
+            text(
+                "INSERT INTO agent_runs "
+                "(id, conversation_id, status, goal, created_at) "
+                "VALUES (:id, :conversation_id, :status, :goal, :created_at)"
+            ),
+            {
+                "id": run_id,
+                "conversation_id": conversation_id,
+                "status": "completed",
+                "goal": "Synthetic sequence audit",
+                "created_at": now,
+            },
+        )
+        for tool_id, tool_call_id in [
+            (later_id, "call-later"),
+            (earlier_id, "call-earlier"),
+        ]:
+            connection.execute(
+                text(
+                    "INSERT INTO tool_calls "
+                    "(id, tool_call_id, agent_run_id, conversation_id, "
+                    "tool_name, arguments_json, status, created_at) "
+                    "VALUES (:id, :tool_call_id, :agent_run_id, "
+                    ":conversation_id, :tool_name, :arguments_json, "
+                    ":status, :created_at)"
+                ),
+                {
+                    "id": tool_id,
+                    "tool_call_id": tool_call_id,
+                    "agent_run_id": run_id,
+                    "conversation_id": conversation_id,
+                    "tool_name": "read_file",
+                    "arguments_json": "{}",
+                    "status": "success",
+                    "created_at": now,
+                },
+            )
+    engine.dispose()
+
+    try:
+        command.upgrade(config, "head")
+    finally:
+        get_settings.cache_clear()
+
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                "SELECT tool_call_id, sequence_index FROM tool_calls "
+                "ORDER BY sequence_index"
+            )
+        ).all()
+    assert rows == [("call-earlier", 1), ("call-later", 2)]
     engine.dispose()
 
 

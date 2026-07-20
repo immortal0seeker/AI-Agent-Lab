@@ -14,9 +14,10 @@ structured failures, bounded observations, and AgentRun/ToolCall persistence.
 a dedicated read-only frontend workspace with bounded ToolCall audit cards.
 `P2-M5-S1` through `P2-M5-S6` harden standard-JSON and `.env*` validation,
 lock the `web_fetch` deferral with regression coverage, refresh frontend
-verification, and prepare sanitized release-candidate documentation.
-`P2-M5-S7` completes the final Codex review and revalidates this Tool boundary
-for Plan 3. S8 tag creation remains a user-owned Git operation.
+verification, and prepare sanitized release documentation. `P2-M5-S7～S8`
+completed the final Codex review, published `v0.2.0`, and revalidated this Tool
+boundary for Plan 3. The current `v0.2.1` audit patch hardens the same boundary
+without adding a network Tool or later-Plan runtime.
 
 ## Tool Boundary
 
@@ -35,9 +36,15 @@ separate from ORM identities.
 `ToolRegistry` registers exact names, rejects duplicates, preserves order, and
 exports defensive OpenAI-compatible function schemas. Registered parameter
 schemas must be JSON-serializable Draft 2020-12 schemas with an explicit
-`type: object` root. Argument validation runs before execution.
-Validation errors contain safe paths and rules and never echo rejected
-argument or schema values.
+`type: object` root. Arguments must be standard JSON, are limited to 65,536
+encoded UTF-8 bytes, and pass schema validation before execution or raw-value
+persistence. Validation errors contain safe paths and rules and never echo
+rejected argument or schema values.
+
+The default model Registry remains tracked at `models.json` with
+`supports_tools=false`. `MODEL_REGISTRY_PATH` may select an ignored local JSON
+file copied from the secret-free `models.local.example.json`; model Registry
+metadata never carries credentials.
 
 `build_llm_tool_definitions(registry)` is the typed Provider boundary. It
 copies the ordered Tool name, description, and object-root parameter schema
@@ -78,9 +85,11 @@ explicitly tools-capable Registry entry before it writes an AgentRun.
 
 ## Read-only Security
 
-Paths are workspace-relative and resolved before use. Absolute, drive, UNC,
-parent traversal, `.env`, credential files/directories, private keys, Windows
-path aliases, and alternate data streams are rejected. Credential policy
+Paths are workspace-relative, limited to 4096 characters in both built-ins,
+and resolved before use. Absolute, drive, UNC, parent traversal, `.env`,
+credential files/directories, private keys, Windows path aliases, alternate
+data streams, and every user-supplied symlink/reparse component are rejected.
+Credential policy
 includes package-manager credentials, Git credential stores, cloud CLI config,
 container/Kubernetes config, and common credential JSON names while ordinary
 dotfiles such as `.gitignore` remain available. File-size and directory-depth
@@ -94,8 +103,9 @@ It resolves only workspace-relative paths, requires a regular file, rejects
 files over 1 MiB before reading, and checks the actual byte length again after
 the read. A single read requests at most the byte limit plus one, preventing an
 unbounded allocation if the file grows after `stat`. It accepts UTF-8 and UTF-8
-BOM text, rejects NUL and non-UTF-8 content, and truncates returned text after
-100,000 decoded characters.
+BOM text, rejects recognized private-key container markers before decoding,
+rejects NUL and non-UTF-8 content, and truncates returned text after 100,000
+decoded characters.
 
 Successful results place text in `ToolResult.content` and return a normalized
 relative path, `utf-8` encoding, byte count, original/returned character counts,
@@ -108,11 +118,13 @@ argument values, absolute paths, file contents, or raw exceptions.
 `ListDirTool` accepts a required workspace-relative `path` and optional integer
 `max_depth`. Depth 1 lists direct children, depth 2 includes one more level,
 the default is 2, and the configured hard limit is at most 3. Traversal returns
-at most 500 entries by default and marks bounded results as truncated.
+at most 500 entries by default, requests at most `max_entries + 1` children from
+each visited directory, and marks bounded results as truncated.
 
 Each entry contains a normalized relative path, name, `file`, `directory`, or
-`symlink` type, and byte size for regular files. Results are globally ordered
-by case-folded relative POSIX path with the original path as tie-breaker.
+`symlink` type, and byte size for regular files. Non-truncated small-directory
+results are globally ordered by case-folded relative POSIX path with the
+original path as tie-breaker; a truncated result sorts only the bounded sample.
 Line-oriented `content` and structured `data.entries` carry the same listing;
 metadata records root path, applied depth, entry count, and truncation state.
 
@@ -152,9 +164,10 @@ network permission and extraction contract before implementation.
 `AgentRun` records Conversation ownership, an optional user Message, simple
 status, goal/final output/error, timing, and creation time. `ToolCall` uses a UUID
 database ID plus a separate string `tool_call_id`, belongs to an AgentRun, keeps
-direct Conversation lookup, stores JSON arguments/result, and records status and
-timing. Composite and unique constraints prevent cross-Conversation ownership
-and duplicate correlation IDs inside one run. An AgentRun's optional user
+direct Conversation lookup, stores JSON arguments/result, and records status,
+timing, and a positive one-based `sequence_index`. Composite and unique
+constraints prevent cross-Conversation ownership, duplicate correlation IDs,
+and duplicate sequence positions inside one run. An AgentRun's optional user
 Message is also protected by a composite key and must belong to the same
 Conversation; migration stops safely if historical rows violate that rule or
 contain a non-null Message ID that no longer exists.
@@ -163,9 +176,12 @@ Deleting a Conversation removes its runs and calls. Deleting one user Message
 keeps the audit record and nulls its link. Deleting an AgentRun removes its
 ToolCalls.
 
-`SimpleAgentService` now creates the AgentRun, user/final assistant Messages,
-and one ToolCall row before each attempted lookup/validation/execution. Safe
-success, failure, or timeout outcomes determine terminal ToolCall fields. The
+`SimpleAgentService` creates the AgentRun and user/final assistant Messages. It
+resolves permission and validates arguments before creating each ToolCall row:
+valid read-only calls keep a defensive argument copy; unknown, invalid, or
+blocked calls store `{}` plus a fixed safe result, and non-read-only Tools are
+never invoked. Safe success, failure, blocked, or timeout outcomes determine
+terminal ToolCall fields. The
 service flushes but never commits; completed and structured failed results are
 both committable, and the Agent API owns that transaction boundary. It
 does not create LLMCall rows because those rows currently have no AgentRun
@@ -211,22 +227,25 @@ SimpleAgentRequest
 -> Conversation + user Message + AgentRun
 -> provider.chat(history + Registry definitions)
    -> direct final text
-   -> ordered Tool Calls with another decision available
-      -> Tool lookup + schema validation + sequential timeout-bounded execution
-      -> one ToolCall row and observation per call
+   -> Tool Calls that fit the remaining budget as one atomic batch
+      -> Tool lookup + read-only permission + schema validation
+      -> sequential timeout-bounded execution
+      -> one sequenced ToolCall row and observation per accepted call
       -> provider.chat(complete history + assistant Tool Calls + observations)
    -> final text -> assistant Message + completed AgentRun
-   -> Tool Calls on final allowed decision -> failed AgentRun, no execution
-   -> Provider/blank response failure -> structured failed AgentRun
+   -> Tool Calls beyond the remaining budget -> failed AgentRun, no partial work
+   -> Provider/blank/whole-run-timeout failure -> structured failed AgentRun
 ```
 
-One Provider decision is one step. Multiple calls in one response execute and
-return observations in Provider order but consume one step. `max_steps`
-defaults to 3 and is constrained to `1..10`; a Tool request on the last step is
-not executed. Cross-round reused Tool Call IDs fail safely before they reach the
-database unique constraint. Each Tool uses its finite `timeout_seconds`; a
-timeout records `ToolCall.status="timeout"` and becomes a failed observation so
-the loop can still obtain final text. M3 performs no automatic retry.
+`max_steps` defaults to 3, is constrained to `1..10`, and counts ToolCall
+execution attempts. A Provider batch that cannot fit the remaining budget is
+rejected atomically. A run that consumes exactly N calls may make one final
+Provider decision, for at most N+1 decisions. Cross-round reused Tool Call IDs
+fail safely before they reach the database unique constraint. Each Tool uses
+its finite `timeout_seconds`; a timeout records `ToolCall.status="timeout"` and
+becomes a failed observation so the loop can still obtain final text.
+`AGENT_RUN_TIMEOUT_SECONDS` defaults to 120 and bounds the whole loop. There is
+no automatic retry.
 
 Unknown Tools, argument failures, failed ToolResults, exceptions, mismatched
 Tool names, and non-standard JSON Tool results become safe failed observations.
@@ -242,14 +261,20 @@ The synchronous plural `/api/v1/agents/runs` POST and query routes expose
 completed and structured failed AgentRuns plus their ToolCalls. The frontend
 Agent workspace filters Registry entries to `supports_tools=true`, submits one
 goal at a time, and displays final answer/status/error, bounded ToolCall
-arguments/results, latency, and AgentRun/Conversation/Provider/database IDs.
+arguments/results, latency, sequence, and AgentRun/Conversation/ToolCall/
+database IDs. `Tool Call ID` is the Provider correlation ID, not a Provider
+request ID.
 `?workspace=agent&run=<uuid>` restores one persisted result through AgentRun and
 ToolCall GET requests. Safe transport errors retain only the structured request
-ID.
+ID. If a POST completes after the user leaves Agent, only the returned run UUID
+is saved in tab-scoped storage; reopening Agent without an explicit run URL
+restores it. The request gate still prevents stale state/URL writes.
 
 This is an audit view, not a later runtime console. It has no AgentRun list,
-polling, streaming, cancellation, resume, retry, approval, or strict persisted
-ToolCall sequence. The tracked example model remains `supports_tools=false`,
+polling, streaming, cancellation, resume, retry, approval, or Provider
+request/response replay. Strict ToolCall order exists through `sequence_index`,
+but AgentStep/Trace does not. The tracked default model remains
+`supports_tools=false`,
 so release acceptance uses local Mock data and does not assert a live model can
 execute Tools.
 
@@ -262,15 +287,15 @@ credential, private key, or call a real Provider.
 The Agent suite additionally verifies direct and multi-round loops,
 multiple-call ordering, observation correlation, maximum-step non-execution,
 cross-round ID safety, Tool timeout, structured Provider failures, escaped JSON
-compaction, and AgentRun/ToolCall commit/reload. The database does not have an
-explicit ToolCall sequence field, so only the runtime result promises strict
-order in this batch. See [Simple Agent Loop](11-simple-agent-loop.md) for the
-complete service contract.
+compaction, AgentRun/ToolCall commit/reload, standard-JSON/size limits,
+private-key/link rejection, bounded enumeration, permission denial, whole-run
+timeout, and persisted ToolCall ordering. See
+[Simple Agent Loop](11-simple-agent-loop.md) for the complete service contract.
 
 ## Deferred Work
 
 - `web_fetch` reassessment, no earlier than Plan 4 or Plan 6
 - streaming Provider Tool Call aggregation
 - automatic retry/cancel/resume and broader Runtime Policy
-- AgentRun list/polling and strict AgentStep/ToolCall replay ordering
+- AgentRun list/polling and strict AgentStep/Provider replay ordering
 - Plan 4 Trace, replay, and evaluation

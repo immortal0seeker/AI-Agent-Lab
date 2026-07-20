@@ -46,6 +46,6 @@ class AgentService:
         statement = (
             select(ToolCall)
             .where(ToolCall.agent_run_id == run_id)
-            .order_by(ToolCall.created_at, ToolCall.id)
+            .order_by(ToolCall.sequence_index)
         )
         return list(self._session.scalars(statement))

@@ -22,6 +22,11 @@ import {
   readAgentRunId,
   type WorkspaceView,
 } from "../utils/agentUrl";
+import {
+  clearStoredAgentRunId,
+  readStoredAgentRunId,
+  storeAgentRunId,
+} from "../utils/agentRunStorage";
 
 type ModelState =
   | { status: "loading" }
@@ -83,10 +88,10 @@ export default function AgentPage({ onSelectWorkspace }: AgentPageProps) {
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [taskInput, setTaskInput] = useState("");
-  const initialRunId = useMemo(
-    () => readAgentRunId(window.location.search),
-    [],
-  );
+  const initialRunId = useMemo(() => {
+    const urlRunId = readAgentRunId(window.location.search);
+    return urlRunId ?? readStoredAgentRunId(window.sessionStorage);
+  }, []);
   const [runState, setRunState] = useState<AgentRunViewState>(() =>
     initialRunId === null
       ? { status: "empty" }
@@ -224,6 +229,7 @@ export default function AgentPage({ onSelectWorkspace }: AgentPageProps) {
         model: selectedModel,
         input,
       });
+      storeAgentRunId(window.sessionStorage, run.id);
       if (!requestGate.isCurrent(request)) {
         return;
       }
@@ -243,6 +249,7 @@ export default function AgentPage({ onSelectWorkspace }: AgentPageProps) {
 
   const newTask = () => {
     requestGate.invalidate();
+    clearStoredAgentRunId(window.sessionStorage);
     setTaskInput("");
     setRunState({ status: "empty" });
     window.history.replaceState(

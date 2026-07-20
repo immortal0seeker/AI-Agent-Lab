@@ -8,9 +8,15 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError, ValidationError
 
 from app.tools.base import Tool, ToolError
+from app.tools.json_values import (
+    StandardJsonError,
+    StandardJsonSizeError,
+    ensure_standard_json,
+)
 
 
 PathPart = str | int
+MAX_TOOL_ARGUMENT_JSON_BYTES = 65_536
 
 
 class ToolSchemaError(ToolError):
@@ -106,8 +112,22 @@ def validate_tool_arguments(
 
     payload = deepcopy(dict(arguments))
     try:
-        json.dumps(payload, allow_nan=False)
-    except (TypeError, ValueError) as exc:
+        ensure_standard_json(
+            payload,
+            max_bytes=MAX_TOOL_ARGUMENT_JSON_BYTES,
+        )
+    except StandardJsonSizeError as exc:
+        raise ToolArgumentValidationError(
+            tool.name,
+            [
+                ToolValidationIssue(
+                    (),
+                    "json_size",
+                    "arguments exceed the allowed JSON size",
+                )
+            ],
+        ) from exc
+    except StandardJsonError as exc:
         raise ToolArgumentValidationError(
             tool.name,
             [

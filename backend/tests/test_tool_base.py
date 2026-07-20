@@ -185,3 +185,23 @@ def test_tool_result_metadata_defaults_are_isolated() -> None:
     first.metadata["source"] = "first"
 
     assert second.metadata == {}
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("data", {"value": float("nan")}),
+        ("data", {"value": float("inf")}),
+        ("metadata", {"value": float("-inf")}),
+    ],
+)
+def test_tool_result_rejects_non_standard_json_values(
+    field_name: str,
+    value: dict[str, float],
+) -> None:
+    with pytest.raises(ValidationError, match="standard JSON"):
+        ToolResult(
+            tool_name="echo",
+            success=True,
+            **{field_name: value},
+        )
