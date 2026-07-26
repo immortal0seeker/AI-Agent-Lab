@@ -1,7 +1,8 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Self
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -68,6 +69,18 @@ class Settings(BaseSettings):
         le=10_000,
         alias="DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE",
     )
+    rag_chunk_size: int = Field(
+        default=1000,
+        ge=100,
+        le=10_000,
+        alias="RAG_CHUNK_SIZE",
+    )
+    rag_chunk_overlap: int = Field(
+        default=150,
+        ge=0,
+        le=2_000,
+        alias="RAG_CHUNK_OVERLAP",
+    )
 
     @field_validator("model_registry_path", mode="before")
     @classmethod
@@ -88,6 +101,14 @@ class Settings(BaseSettings):
         if not path.is_absolute():
             path = BACKEND_ROOT / path
         return path.resolve()
+
+    @model_validator(mode="after")
+    def validate_rag_chunk_window(self) -> Self:
+        if self.rag_chunk_overlap >= self.rag_chunk_size:
+            raise ValueError(
+                "RAG chunk overlap must be smaller than chunk size"
+            )
+        return self
 
     model_config = SettingsConfigDict(
         env_file=".env",

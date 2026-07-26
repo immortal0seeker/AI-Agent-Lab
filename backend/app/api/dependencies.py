@@ -91,6 +91,8 @@ def get_document_service(
         max_files_per_knowledge_base=(
             settings.document_max_files_per_knowledge_base
         ),
+        chunk_size=settings.rag_chunk_size,
+        chunk_overlap=settings.rag_chunk_overlap,
     )
 
 

@@ -35,6 +35,13 @@ def test_settings_default_document_upload_limits() -> None:
     assert settings.document_max_files_per_knowledge_base == 50
 
 
+def test_settings_default_rag_chunk_bounds() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.rag_chunk_size == 1000
+    assert settings.rag_chunk_overlap == 150
+
+
 def test_settings_resolves_relative_document_storage_from_backend() -> None:
     settings = Settings(
         _env_file=None,
@@ -61,6 +68,28 @@ def test_settings_rejects_invalid_document_upload_limits(
 ) -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **{field_name: value})
+
+
+@pytest.mark.parametrize(
+    ("size", "overlap"),
+    [
+        (99, 0),
+        (10_001, 0),
+        (1000, -1),
+        (1000, 1000),
+        (1000, 2001),
+    ],
+)
+def test_settings_rejects_invalid_rag_chunk_bounds(
+    size: int,
+    overlap: int,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            _env_file=None,
+            RAG_CHUNK_SIZE=size,
+            RAG_CHUNK_OVERLAP=overlap,
+        )
 
 
 @pytest.mark.parametrize("value", ["", "   "])

@@ -6,6 +6,16 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added pure text cleaning with stable newline/blank-line normalization,
+  bounded invisible-character removal, Markdown heading remapping, and
+  independent PDF page preservation.
+- Added configurable naive Chunking with paragraph/line boundary preference,
+  bounded overlap, ordered indices, deterministic token estimates, and
+  Markdown heading/PDF page provenance.
+- Added synchronous parser/Cleaner/Chunker orchestration to Document upload:
+  successful requests persist `DocumentChunk` rows, expected content failures
+  persist safe visible lifecycle states, and infrastructure failures roll back
+  database rows and promoted files.
 - Added independent Markdown, TXT, and text-layer PDF parsers with a shared
   immutable result contract, heading/code-block metadata, deterministic
   UTF-8/UTF-16 BOM decoding, ordered PDF page provenance, and a readable

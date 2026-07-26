@@ -8,83 +8,15 @@ from app.rag.parsers import (
     DocumentParseLimitationError,
     parse_pdf,
 )
+from tests.pdf_factory import build_pdf
 
 
 DOCUMENT_ID = UUID("33333333-3333-4333-8333-333333333333")
 
 
-def _pdf_string(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-
-
-def _build_pdf(page_texts: list[str | None]) -> bytes:
-    page_object_numbers = [
-        4 + page_index * 2 for page_index in range(len(page_texts))
-    ]
-    objects: list[bytes] = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        (
-            "<< /Type /Pages /Count "
-            f"{len(page_texts)} /Kids "
-            f"[{' '.join(f'{number} 0 R' for number in page_object_numbers)}]"
-            " >>"
-        ).encode(),
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    ]
-    for page_index, page_text in enumerate(page_texts):
-        page_number = page_object_numbers[page_index]
-        content_number = page_number + 1
-        objects.append(
-            (
-                "<< /Type /Page /Parent 2 0 R "
-                "/MediaBox [0 0 612 792] "
-                "/Resources << /Font << /F1 3 0 R >> >> "
-                f"/Contents {content_number} 0 R >>"
-            ).encode()
-        )
-        if page_text is None:
-            stream = b"q Q"
-        else:
-            stream = (
-                "BT /F1 12 Tf 72 720 Td "
-                f"({_pdf_string(page_text)}) Tj ET"
-            ).encode()
-        objects.append(
-            b"<< /Length "
-            + str(len(stream)).encode()
-            + b" >>\nstream\n"
-            + stream
-            + b"\nendstream"
-        )
-
-    document = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
-    offsets = [0]
-    for object_number, body in enumerate(objects, start=1):
-        offsets.append(len(document))
-        document.extend(f"{object_number} 0 obj\n".encode())
-        document.extend(body)
-        document.extend(b"\nendobj\n")
-
-    xref_offset = len(document)
-    document.extend(f"xref\n0 {len(objects) + 1}\n".encode())
-    document.extend(b"0000000000 65535 f \n")
-    for offset in offsets[1:]:
-        document.extend(f"{offset:010d} 00000 n \n".encode())
-    document.extend(
-        (
-            "trailer\n"
-            f"<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
-            "startxref\n"
-            f"{xref_offset}\n"
-            "%%EOF\n"
-        ).encode()
-    )
-    return bytes(document)
-
-
 def test_pdf_parser_extracts_ordered_pages(tmp_path: Path) -> None:
     path = tmp_path / "manual.pdf"
-    path.write_bytes(_build_pdf(["First page", "Second page"]))
+    path.write_bytes(build_pdf(["First page", "Second page"]))
 
     parsed = parse_pdf(path, document_id=DOCUMENT_ID)
 
@@ -103,7 +35,7 @@ def test_pdf_parser_allows_blank_page_when_other_page_has_text(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "mixed.pdf"
-    path.write_bytes(_build_pdf(["Text page", None]))
+    path.write_bytes(build_pdf(["Text page", None]))
 
     parsed = parse_pdf(path, document_id=DOCUMENT_ID)
 
@@ -116,7 +48,7 @@ def test_pdf_parser_reports_scanned_pdf_limitation(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "private-scanned.pdf"
-    path.write_bytes(_build_pdf([None]))
+    path.write_bytes(build_pdf([None]))
 
     with pytest.raises(DocumentParseLimitationError) as caught:
         parse_pdf(path, document_id=DOCUMENT_ID)

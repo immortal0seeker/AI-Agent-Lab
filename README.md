@@ -25,7 +25,7 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M2-S6`.
+Completed scope: `P1-M1-S1` through `P3-M2-S9`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -36,7 +36,9 @@ Base CRUD service/API. The first Plan 3 M2 batch adds controlled multipart
 Document upload, bounded local storage, SHA-256/type/size validation, same-KB
 duplicate rejection, and safe transaction rollback cleanup. The second M2
 batch adds independently testable Markdown, TXT, and text-layer PDF parsers
-with source metadata and an explicit scanned-PDF/OCR limitation.
+with source metadata and an explicit scanned-PDF/OCR limitation. The final M2
+batch adds deterministic text cleaning, bounded overlapping Chunking, and a
+synchronous upload-to-`DocumentChunk` pipeline with visible lifecycle errors.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -107,9 +109,11 @@ optional answer-message linkage. `KnowledgeBaseService` and the five plural
 `/api/v1/knowledge-bases` CRUD routes now expose metadata management with
 partial `PATCH`, safe not-found responses, and request-scoped transactions.
 The nested Document upload POST now accepts `.md`, `.txt`, and `.pdf` files and
-returns an initial `Document` record. Pure parsers can extract Markdown
-structure, deterministically decoded TXT, and page-aware text-layer PDF
-content. Upload does not invoke them yet; cleaning, Chunking, lifecycle updates,
+returns the final result of synchronous parsing, cleaning, and basic Chunking.
+Pure parsers extract Markdown structure, deterministically decoded TXT, and
+page-aware text-layer PDF content. Successful uploads persist ordered
+`DocumentChunk` rows and return `parsed` / `chunked`; expected parser or
+content failures remain HTTP 201 resources with safe visible failure states.
 Embedding, Qdrant client, retrieval, Document query/delete APIs, and frontend
 upload/RAG runtime remain deferred to later Plan 3 steps.
 
@@ -230,16 +234,21 @@ relative POSIX path. Configure the non-secret limits in an untracked
 DOCUMENT_STORAGE_ROOT=./uploads
 DOCUMENT_MAX_UPLOAD_BYTES=20971520
 DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE=50
+RAG_CHUNK_SIZE=1000
+RAG_CHUNK_OVERLAP=150
 ```
 
 Uploads are non-empty, limited to 20 MiB, and deduplicated by SHA-256 within
 one Knowledge Base. Identical content is allowed in a different Knowledge Base.
 Request rollback removes a newly promoted file, but process termination can
-leave an orphan. Document/Knowledge Base file deletion, orphan scanning,
-automatic parsing, and content validation at upload time are not implemented.
-The runtime upload directory is ignored and must never be committed.
+leave an orphan. Each accepted upload synchronously runs the parser, Cleaner,
+and Chunker before the request commits. Storage, database, and unexpected
+processing errors use the existing safe error responses and roll back the
+Document, chunks, and promoted file. Document/Knowledge Base file deletion and
+orphan scanning are not implemented. The runtime upload directory is ignored
+and must never be committed.
 
-### Document Parsers
+### Document Processing
 
 `app.rag.parsers` exposes one immutable `ParsedDocument` result contract and
 independent parsers for stored Markdown, TXT, and text-layer PDF files.
@@ -248,9 +257,20 @@ blocks. TXT supports strict UTF-8, UTF-8 BOM, and BOM-marked UTF-16. PDF parsing
 uses `pypdf`, preserves one-based page metadata, and returns a readable
 limitation for scanned or image-only PDFs because Plan 3 does not include OCR.
 
-These parsers are not wired into the upload route through `P3-M2-S6`.
-`P3-M2-S7～S9` still own cleaning, Chunking, parser dispatch, lifecycle updates,
-and safe persistence of parse failures.
+The Cleaner normalizes line endings, removes bounded control/format characters,
+collapses whitespace-only blank-line runs, preserves Markdown syntax and
+per-page PDF boundaries, and updates Markdown heading line metadata. The
+Chunker defaults to 1,000 characters with 150-character overlap, prefers
+paragraph then line boundaries in the latter half of a window, never crosses
+PDF pages, and preserves heading/page provenance. Its `token_count` is a
+deterministic UTF-8 byte estimate (`ceil(bytes / 4)`), not tokenizer billing
+data.
+
+Successful uploads return HTTP 201 with `parse_status=parsed`,
+`chunk_status=chunked`, and `embedding_status=pending`. Invalid encoded text or
+unreadable content returns HTTP 201 with `parse_status=failed` and
+`chunk_status=failed`; text that becomes empty after cleaning returns
+`parsed` / `failed`. Both cases persist a safe `error_message` and no chunks.
 
 ### Backend
 

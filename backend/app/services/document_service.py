@@ -13,6 +13,7 @@ from app.knowledge import (
     StagedDocument,
 )
 from app.models import Document
+from app.services.document_ingestion_service import DocumentIngestionService
 from app.services.knowledge_base_service import KnowledgeBaseService
 
 logger = logging.getLogger(__name__)
@@ -56,10 +57,18 @@ class DocumentService:
         *,
         storage: DocumentStorage,
         max_files_per_knowledge_base: int,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 150,
     ) -> None:
         self._session = session
         self._storage = storage
         self._max_files_per_knowledge_base = max_files_per_knowledge_base
+        self._ingestion = DocumentIngestionService(
+            session,
+            storage=storage,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
         _register_file_transaction_listeners(session)
 
     async def upload_document(
@@ -123,7 +132,7 @@ class DocumentService:
             )
             self._session.add(document)
             self._session.flush()
-            return document
+            return self._ingestion.process_document(document)
         finally:
             if staged is not None:
                 self._storage.discard_staged(staged)

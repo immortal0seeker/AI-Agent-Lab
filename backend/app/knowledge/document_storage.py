@@ -151,17 +151,45 @@ class DocumentStorage:
 
     def discard_stored(self, relative_path: str) -> None:
         try:
-            normalized = PurePosixPath(relative_path)
-            if normalized.is_absolute() or len(normalized.parts) != 2:
-                raise ValueError("invalid stored document path")
-            knowledge_base_id, filename = normalized.parts
-            UUID(knowledge_base_id)
-            file_path = Path(filename)
-            UUID(file_path.stem)
-            if file_path.suffix.lower() not in _SUPPORTED_SUFFIXES:
-                raise ValueError("invalid stored document suffix")
-            path = self._contained_path(self._root.joinpath(*normalized.parts))
+            path, _, _, _ = self._stored_path(relative_path)
+            self._validate_managed_directory(self._root)
+            self._validate_managed_directory(path.parent)
             path.unlink(missing_ok=True)
+        except DocumentError:
+            raise
+        except (OSError, ValueError) as exc:
+            raise DocumentStorageError() from exc
+
+    def resolve_stored(
+        self,
+        relative_path: str,
+        *,
+        knowledge_base_id: UUID,
+        document_id: UUID,
+        file_type: Literal["md", "txt", "pdf"],
+    ) -> Path:
+        try:
+            path, path_knowledge_base_id, path_document_id, path_file_type = (
+                self._stored_path(relative_path)
+            )
+            if (
+                path_knowledge_base_id != knowledge_base_id
+                or path_document_id != document_id
+                or path_file_type != file_type
+            ):
+                raise DocumentStorageError()
+            self._validate_managed_directory(self._root)
+            self._validate_managed_directory(path.parent)
+            path_stat = path.lstat()
+            if (
+                path.is_symlink()
+                or is_reparse_point(path_stat)
+                or not path.is_file()
+            ):
+                raise DocumentStorageError()
+            return path
+        except DocumentError:
+            raise
         except (OSError, ValueError) as exc:
             raise DocumentStorageError() from exc
 
@@ -188,16 +216,41 @@ class DocumentStorage:
     def _ensure_managed_directory(self, path: Path) -> None:
         candidate = self._contained_path(path)
         if candidate.exists() or candidate.is_symlink():
-            path_stat = candidate.lstat()
-            if candidate.is_symlink() or is_reparse_point(path_stat):
-                raise DocumentStorageError()
-            if not candidate.is_dir():
-                raise DocumentStorageError()
+            self._validate_managed_directory(candidate)
             return
         candidate.mkdir(parents=True, exist_ok=False)
-        path_stat = candidate.lstat()
-        if candidate.is_symlink() or is_reparse_point(path_stat):
+        self._validate_managed_directory(candidate)
+
+    def _validate_managed_directory(self, path: Path) -> None:
+        path_stat = path.lstat()
+        if (
+            path.is_symlink()
+            or is_reparse_point(path_stat)
+            or not path.is_dir()
+        ):
             raise DocumentStorageError()
+
+    def _stored_path(
+        self,
+        relative_path: str,
+    ) -> tuple[
+        Path,
+        UUID,
+        UUID,
+        Literal["md", "txt", "pdf"],
+    ]:
+        normalized = PurePosixPath(relative_path)
+        if normalized.is_absolute() or len(normalized.parts) != 2:
+            raise ValueError("invalid stored document path")
+        raw_knowledge_base_id, filename = normalized.parts
+        knowledge_base_id = UUID(raw_knowledge_base_id)
+        file_path = Path(filename)
+        document_id = UUID(file_path.stem)
+        file_type = _SUPPORTED_SUFFIXES.get(file_path.suffix.lower())
+        if file_type is None:
+            raise ValueError("invalid stored document suffix")
+        path = self._contained_path(self._root.joinpath(*normalized.parts))
+        return path, knowledge_base_id, document_id, file_type
 
     def _contained_path(self, path: Path) -> Path:
         candidate = Path(path).absolute()

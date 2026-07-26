@@ -193,9 +193,9 @@ feat(rag): add knowledge base models and api
 | P3-M2-S4 | 实现 Markdown Parser（已完成） | Codex | `parsers/markdown_parser.py` | Markdown 标题、正文、代码块提取测试通过 | Codex |
 | P3-M2-S5 | 实现 TXT Parser（已完成） | Codex | `parsers/txt_parser.py` | TXT 文本读取和编码处理测试通过 | Codex |
 | P3-M2-S6 | 实现文本型 PDF Parser（已完成） | Codex | `parsers/pdf_parser.py` | 文本型 PDF 可提取文本；扫描 PDF 返回可读限制说明 | Codex |
-| P3-M2-S7 | 实现 Text Cleaner | Codex | `text_cleaner.py` | 空白、重复换行、不可见字符清洗测试通过 | Codex |
-| P3-M2-S8 | 实现 Chunker | Codex | `chunker.py` | chunk_size、overlap、chunk_index、token_count 测试通过 | Claude Code 可审 |
-| P3-M2-S9 | 串联解析、清洗、切分并更新 Document 状态 | Codex | parser pipeline 初版 | 上传后可生成 DocumentChunk 记录 | Codex review |
+| P3-M2-S7 | 实现 Text Cleaner（已完成） | Codex | `text_cleaner.py` | 空白、重复换行、不可见字符清洗测试通过 | Codex |
+| P3-M2-S8 | 实现 Chunker（已完成） | Codex | `chunker.py` | chunk_size、overlap、chunk_index、token_count 测试通过 | Codex |
+| P3-M2-S9 | 串联解析、清洗、切分并更新 Document 状态（已完成） | Codex | parser pipeline 初版 | 上传后可生成 DocumentChunk 记录 | Codex review |
 
 ### P3-M2-S1～S3 受控 Document 上传验收记录（2026-07-26）
 
@@ -246,10 +246,28 @@ feat(knowledge): add controlled document upload
 feat(rag): add markdown txt and pdf parsers
 ```
 
+### P3-M2-S7～S9 文档处理 Pipeline 验收记录（2026-07-26）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 范围与设计 | 用户确认方案 A：现有上传请求同步执行 parse/clean/chunk。成功返回 HTTP 201 最终 `parsed/chunked`；预期内容失败返回 HTTP 201 并持久化安全失败状态；存储、数据库和非预期错误继续向上冒泡并回滚。本批未开始 Embedding、Qdrant client、Retriever、前端或 Plan 4+ runtime。 |
+| S7 Text Cleaner | 新增纯 `clean_parsed_document`：统一 CRLF/CR、移除受限 C0/C1 与格式字符、折叠空白空行、保留 tab/Markdown 内容，不修改 Parser 输入；Markdown 标题行 metadata 随清洗重映射，PDF 逐页独立清洗并保留页码。RED 为导入缺失，GREEN `4 passed`。 |
+| S8 Chunker 与配置 | 新增 `RAG_CHUNK_SIZE=1000`（100～10,000）和 `RAG_CHUNK_OVERLAP=150`（0～2,000 且小于 size）。Chunker 优先窗口后半段段落边界、其次换行、最后硬边界；保证单调推进、顺序 `chunk_index`、Markdown 标题/PDF 页码来源和不跨 PDF 页。`token_count=max(1, ceil(UTF-8 bytes/4))` 仅为确定性估算。Settings RED 6 项失败后 GREEN `22 passed`；Chunker RED 为契约缺失，Cleaner/config/Chunker GREEN `40 passed`。 |
+| S9 Pipeline 与状态 | `DocumentIngestionService` 复用受控存储 resolver，按 UUID ownership 与 suffix 校验文件，分发既有 Parser，串联 Cleaner/Chunker 并 flush `DocumentChunk`。解析失败为 `failed/failed`，清洗后为空为 `parsed/failed`，均不创建 chunk；成功为 `parsed/chunked/pending`。route 保持薄，请求 Session 仍是唯一 commit/rollback owner。 |
+| 存储与事务边界 | resolver RED `12 failed, 18 passed`，GREEN `30 passed`，覆盖路径 grammar、ownership/type tamper、缺失/目录及 root/KB/final symlink/reparse。额外自审测试证明 resolver 错误不会伪装成内容失败；数据库 commit 失败会同时回滚 Document、chunks 与新提升文件。 |
+| TDD 与聚焦回归 | ingestion success RED 为 service 缺失，GREEN `3 passed`；内容失败 RED 为 `3 failed, 3 passed`，精确 catch 后 GREEN。上传集成 RED 为 8 个新断言失败且 24 个既有断言通过，GREEN `32 passed, 1 warning`；完整 M2 聚焦集合 `179 passed, 1 warning`；最终边界/API 集合 `30 passed, 1 warning`。 |
+| 完整回归 | `pip check` 为 `No broken requirements found`。Backend `698 passed, 1 warning`；warning 为既知 Starlette TestClient/httpx 弃用提示。Frontend `18 files / 90 tests`、typecheck、production build（1813 modules）通过。 |
+| SQLite 与文档 | 仅对新建系统临时 SQLite 执行 `upgrade head`、`current --check-heads` 与 `alembic check`；head 为 `20260726_0005`、`No new upgrade operations detected`，临时目录已验证删除。92 个 Markdown、69 个本地链接/图片、0 读取错误、0 missing。未读取或修改 `backend/ai_agent_lab.db`。 |
+| 安全、边界与 Git 门禁 | 27 个变更路径全部命中 S7～S9 allowlist；新增行高置信 secret、真实 Provider host、generated artifact、later runtime 和禁止的 production 能力命中均为 0。`git diff --check` 无发现，暂存路径 0；`HEAD == origin/main == 39c901efb91d0ccdee49bae950b12106edd21a71`；`v0.2.0^{}` / `v0.2.1^{}` 仍为 `0e3f3a66e1322c565f2056696f7e482cedbb5f6c` / `872310b4dc1b78e2a2487303699d68ec8b22f88b`。 |
+| Codex self-review | must fix：移除 ingestion 测试跨测试模块辅助类依赖，并补提交失败的 chunk rollback 与 resolver 错误不被内容失败吞掉的断言，修正 README/架构/Knowledge 文档中的 S6 旧事实；均已复验。later Step：M3 Embedding/Vector Store、后续 Document 查询/删除与文件生命周期协调、M4 Retriever/RAG。accepted limitation：同步处理会占用上传请求时延；token 数仅为估算；扫描 PDF 不做 OCR；hard-crash orphan 与既知 TestClient warning 保留。not applicable：本批无 ORM/migration 变化、真实 Provider/Qdrant 调用、前端、Advanced RAG/Rerank/Evaluation/Memory/multimodal 或外部 review。无剩余 must-fix。 |
+
+**结论：** `P3-M2-S7～S9`、Batch 6 与 M2 完成。当前证据支持下一批进入
+`P3-M3-S1～S3`；本批未提前实现 M3 或更晚能力。
+
 M2 完成后建议 commit：
 
 ```text
-feat(rag): add document upload parsing and chunking
+feat(rag): add document processing pipeline
 ```
 
 ---

@@ -24,7 +24,8 @@ from app.knowledge import (
     KnowledgeBaseDocumentLimitReachedError,
 )
 from app.main import app
-from app.models import Document
+from app.models import Document, DocumentChunk
+from tests.pdf_factory import build_pdf
 
 
 @pytest.fixture
@@ -84,6 +85,11 @@ def _create_knowledge_base(client: TestClient, name: str = "Docs") -> str:
 def _document_count(factory: sessionmaker[Session]) -> int:
     with factory() as session:
         return session.scalar(select(func.count(Document.id))) or 0
+
+
+def _chunk_count(factory: sessionmaker[Session]) -> int:
+    with factory() as session:
+        return session.scalar(select(func.count(DocumentChunk.id))) or 0
 
 
 def _stored_files(storage_root: Path) -> list[Path]:
@@ -147,14 +153,33 @@ def test_openapi_exposes_only_nested_document_upload(
 
 
 @pytest.mark.parametrize(
-    ("filename", "content", "content_type", "expected_type"),
+    (
+        "filename",
+        "content",
+        "content_type",
+        "expected_type",
+        "expected_format",
+    ),
     [
-        ("guide.md", b"# Synthetic", "text/markdown", "md"),
-        ("notes.txt", b"Synthetic text", "text/plain", "txt"),
+        (
+            "guide.md",
+            b"# Synthetic",
+            "text/markdown",
+            "md",
+            "markdown",
+        ),
+        (
+            "notes.txt",
+            b"Synthetic text",
+            "text/plain",
+            "txt",
+            "txt",
+        ),
         (
             "manual.pdf",
-            b"%PDF-1.7 synthetic",
+            build_pdf(["Synthetic PDF"]),
             "application/pdf",
+            "pdf",
             "pdf",
         ),
     ],
@@ -165,6 +190,7 @@ def test_document_upload_accepts_supported_types(
     content: bytes,
     content_type: str,
     expected_type: str,
+    expected_format: str,
 ) -> None:
     client, factory, _, storage_root = api_context
     knowledge_base_id = _create_knowledge_base(client)
@@ -181,10 +207,11 @@ def test_document_upload_accepts_supported_types(
     assert payload["file_type"] == expected_type
     assert payload["file_size"] == len(content)
     assert payload["file_hash"] == hashlib.sha256(content).hexdigest()
-    assert payload["parse_status"] == "uploaded"
-    assert payload["chunk_status"] == "pending"
+    assert payload["parse_status"] == "parsed"
+    assert payload["chunk_status"] == "chunked"
     assert payload["embedding_status"] == "pending"
-    assert payload["metadata"] == {}
+    assert payload["error_message"] is None
+    assert payload["metadata"]["format"] == expected_format
     assert not Path(payload["file_path"]).is_absolute()
     assert PurePosixPath(payload["file_path"]).parts[0] == knowledge_base_id
     stored_path = storage_root.joinpath(
@@ -195,6 +222,79 @@ def test_document_upload_accepts_supported_types(
         document = session.get(Document, UUID(payload["id"]))
         assert document is not None
         assert document.file_hash == payload["file_hash"]
+        chunks = list(
+            session.scalars(
+                select(DocumentChunk)
+                .where(DocumentChunk.document_id == document.id)
+                .order_by(DocumentChunk.chunk_index)
+            )
+        )
+        assert chunks
+        assert [chunk.chunk_index for chunk in chunks] == list(
+            range(len(chunks))
+        )
+
+
+@pytest.mark.parametrize(
+    (
+        "filename",
+        "content",
+        "content_type",
+        "parse_status",
+        "error_message",
+    ),
+    [
+        (
+            "invalid.txt",
+            b"\x80private invalid text",
+            "text/plain",
+            "failed",
+            "Document parsing failed.",
+        ),
+        (
+            "scanned.pdf",
+            build_pdf([None]),
+            "application/pdf",
+            "failed",
+            (
+                "Scanned or image-only PDF requires OCR, which is not "
+                "supported in Plan 3."
+            ),
+        ),
+        (
+            "blank.txt",
+            b" \r\n\t\r\n",
+            "text/plain",
+            "parsed",
+            "Document contains no usable text.",
+        ),
+    ],
+)
+def test_document_upload_persists_content_processing_failure(
+    api_context: Any,
+    filename: str,
+    content: bytes,
+    content_type: str,
+    parse_status: str,
+    error_message: str,
+) -> None:
+    client, factory, _, storage_root = api_context
+    knowledge_base_id = _create_knowledge_base(client)
+
+    response = client.post(
+        f"/api/v1/knowledge-bases/{knowledge_base_id}/documents",
+        files={"file": (filename, content, content_type)},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["parse_status"] == parse_status
+    assert payload["chunk_status"] == "failed"
+    assert payload["embedding_status"] == "pending"
+    assert payload["error_message"] == error_message
+    assert str(storage_root) not in response.text
+    assert _document_count(factory) == 1
+    assert _chunk_count(factory) == 0
 
 
 def test_document_upload_sanitizes_client_path(
@@ -277,7 +377,9 @@ def test_document_upload_rejects_invalid_file(
         content=content,
     )
     assert _document_count(factory) == 0
+    assert _chunk_count(factory) == 0
     assert _stored_files(storage_root) == []
+    assert _chunk_count(factory) == 0
 
 
 def test_document_upload_rejects_oversized_file(

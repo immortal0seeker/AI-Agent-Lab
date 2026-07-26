@@ -14,6 +14,9 @@ from app.knowledge import (
     DocumentTypeUnsupportedError,
 )
 
+KNOWLEDGE_BASE_ID = UUID("11111111-1111-4111-8111-111111111111")
+DOCUMENT_ID = UUID("22222222-2222-4222-8222-222222222222")
+
 
 class ChunkedStream:
     def __init__(self, content: bytes) -> None:
@@ -29,6 +32,21 @@ class ChunkedStream:
         chunk = self._content[self._offset : end]
         self._offset += len(chunk)
         return chunk
+
+
+def promote_synthetic_document(storage: DocumentStorage) -> str:
+    staged = asyncio.run(
+        storage.stage(
+            ChunkedStream(b"synthetic text"),
+            original_filename="notes.txt",
+        )
+    )
+    stored = storage.promote(
+        staged,
+        knowledge_base_id=KNOWLEDGE_BASE_ID,
+        document_id=DOCUMENT_ID,
+    )
+    return stored.relative_path
 
 
 def test_storage_stages_stream_and_calculates_sha256(
@@ -224,4 +242,146 @@ def test_storage_rejects_managed_symlink_or_reparse_directory(
                 ChunkedStream(b"synthetic"),
                 original_filename="notes.txt",
             )
+        )
+
+
+def test_storage_resolves_existing_uuid_owned_file(
+    tmp_path: Path,
+) -> None:
+    storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=1024)
+    relative_path = promote_synthetic_document(storage)
+
+    resolved = storage.resolve_stored(
+        relative_path,
+        knowledge_base_id=KNOWLEDGE_BASE_ID,
+        document_id=DOCUMENT_ID,
+        file_type="txt",
+    )
+
+    assert resolved == storage.root / Path(relative_path)
+    assert resolved.is_file()
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "../outside.txt",
+        "not-a-uuid/file.txt",
+        (
+            f"{KNOWLEDGE_BASE_ID}/"
+            "not-a-uuid.txt"
+        ),
+        f"{KNOWLEDGE_BASE_ID}/{DOCUMENT_ID}.exe",
+    ],
+)
+def test_storage_rejects_invalid_stored_path(
+    tmp_path: Path,
+    relative_path: str,
+) -> None:
+    storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=1024)
+
+    with pytest.raises(DocumentStorageError):
+        storage.resolve_stored(
+            relative_path,
+            knowledge_base_id=KNOWLEDGE_BASE_ID,
+            document_id=DOCUMENT_ID,
+            file_type="txt",
+        )
+
+
+@pytest.mark.parametrize(
+    ("knowledge_base_id", "document_id", "file_type"),
+    [
+        (
+            UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+            DOCUMENT_ID,
+            "txt",
+        ),
+        (
+            KNOWLEDGE_BASE_ID,
+            UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+            "txt",
+        ),
+        (KNOWLEDGE_BASE_ID, DOCUMENT_ID, "md"),
+    ],
+)
+def test_storage_rejects_stored_path_ownership_mismatch(
+    tmp_path: Path,
+    knowledge_base_id: UUID,
+    document_id: UUID,
+    file_type: str,
+) -> None:
+    storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=1024)
+    relative_path = promote_synthetic_document(storage)
+
+    with pytest.raises(DocumentStorageError):
+        storage.resolve_stored(
+            relative_path,
+            knowledge_base_id=knowledge_base_id,
+            document_id=document_id,
+            file_type=file_type,  # type: ignore[arg-type]
+        )
+
+
+def test_storage_rejects_missing_or_directory_stored_path(
+    tmp_path: Path,
+) -> None:
+    storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=1024)
+    relative_path = f"{KNOWLEDGE_BASE_ID}/{DOCUMENT_ID}.txt"
+    directory_path = storage.root / Path(relative_path)
+    directory_path.mkdir(parents=True)
+
+    with pytest.raises(DocumentStorageError):
+        storage.resolve_stored(
+            relative_path,
+            knowledge_base_id=KNOWLEDGE_BASE_ID,
+            document_id=DOCUMENT_ID,
+            file_type="txt",
+        )
+
+    directory_path.rmdir()
+    with pytest.raises(DocumentStorageError):
+        storage.resolve_stored(
+            relative_path,
+            knowledge_base_id=KNOWLEDGE_BASE_ID,
+            document_id=DOCUMENT_ID,
+            file_type="txt",
+        )
+
+
+@pytest.mark.parametrize("link_level", ["root", "knowledge_base", "file"])
+def test_storage_resolver_rejects_symlink_or_reparse_ancestors(
+    tmp_path: Path,
+    link_level: str,
+) -> None:
+    storage_root = tmp_path / "uploads"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    outside_file = outside / f"{DOCUMENT_ID}.txt"
+    outside_file.write_text("private outside", encoding="utf-8")
+    knowledge_base_directory = storage_root / str(KNOWLEDGE_BASE_ID)
+    stored_file = knowledge_base_directory / f"{DOCUMENT_ID}.txt"
+    try:
+        if link_level == "root":
+            os.symlink(outside, storage_root, target_is_directory=True)
+        elif link_level == "knowledge_base":
+            storage_root.mkdir()
+            os.symlink(
+                outside,
+                knowledge_base_directory,
+                target_is_directory=True,
+            )
+        else:
+            knowledge_base_directory.mkdir(parents=True)
+            os.symlink(outside_file, stored_file)
+    except OSError as exc:
+        pytest.skip(f"symlink unavailable: {exc}")
+    storage = DocumentStorage(storage_root, max_upload_bytes=1024)
+
+    with pytest.raises(DocumentStorageError):
+        storage.resolve_stored(
+            f"{KNOWLEDGE_BASE_ID}/{DOCUMENT_ID}.txt",
+            knowledge_base_id=KNOWLEDGE_BASE_ID,
+            document_id=DOCUMENT_ID,
+            file_type="txt",
         )

@@ -3,17 +3,18 @@
 ## Scope
 
 Plan 3 Milestone 1 establishes the persistence and management boundary for
-Knowledge Bases. Through `P3-M2-S6`, the backend can create, list, read, update,
+Knowledge Bases. Through `P3-M2-S9`, the backend can create, list, read, update,
 and delete Knowledge Base metadata, upload one validated Document through a
-service-owned HTTP API, and parse Markdown, TXT, or text-layer PDF through an
-independent extraction boundary.
+service-owned HTTP API, and synchronously parse, clean, and chunk Markdown,
+TXT, or text-layer PDF through independent processing boundaries.
 
 The first M2 batch stores `.md`, `.txt`, and `.pdf` bytes and creates the
-initial Document row. The second adds pure parsers, but upload still does not
-invoke them. The parsers do not clean or chunk content, update Document state,
-create embeddings, connect a Qdrant client, retrieve sources, generate RAG
-answers, or expose a frontend Knowledge Base workspace. Those capabilities
-remain assigned to later Plan 3 steps.
+initial Document row. The second adds pure parsers. The final M2 batch composes
+the Parser, Cleaner, and Chunker in the upload transaction, persists
+`DocumentChunk` rows, and exposes final parse/chunk states. M2 does not create
+embeddings, connect a Qdrant client, retrieve sources, generate RAG answers, or
+expose a frontend Knowledge Base workspace. Those capabilities remain assigned
+to later Plan 3 steps.
 
 ## Storage Responsibilities
 
@@ -25,12 +26,12 @@ SQLite remains the default and long-term supported primary database. It owns:
 - RAG query audit metadata and retrieved-chunk snapshots.
 
 Qdrant is configured as Plan 3's vector-storage service, but the scope through
-M2 S3 contains no Qdrant client or Vector Store runtime. The `vector_store`,
+M2 S9 contains no Qdrant client or Vector Store runtime. The `vector_store`,
 `vector_collection_name`, and `vector_id` fields are persistence bridges, not
 evidence that a collection or vector has been created.
 
 Deleting a Knowledge Base deletes its SQLite-owned metadata through database
-cascades. Through M2 S3 it does not delete locally uploaded bytes, contact
+cascades. Through M2 S9 it does not delete locally uploaded bytes, contact
 Qdrant, or delete a Qdrant collection; local-file deletion coordination is a
 documented later-step limitation.
 
@@ -82,8 +83,11 @@ The `documents` table belongs to one Knowledge Base and records:
 | Diagnostics and source metadata | optional `error_message`, `metadata_json` |
 | Audit time | `created_at`, `updated_at` |
 
-Document upload now creates the initial `uploaded` / `pending` / `pending`
-state. Parsing, cleaning, Chunking, and Embedding transitions remain deferred.
+Document upload creates the row as `uploaded` / `pending` / `pending`, then
+synchronously processes it before commit. Success returns `parsed` / `chunked`
+/ `pending`. Expected parser failures return `failed` / `failed` / `pending`;
+text that is empty after cleaning returns `parsed` / `failed` / `pending`.
+Embedding transitions remain deferred to M3.
 
 Deleting a Knowledge Base cascades to its Documents. The unique
 `(id, knowledge_base_id)` pair supports a composite ownership check for chunks.
@@ -98,6 +102,8 @@ boundary. Its defaults are:
 | `DOCUMENT_STORAGE_ROOT` | `./uploads` | Relative values resolve below the backend root |
 | `DOCUMENT_MAX_UPLOAD_BYTES` | `20_971_520` | 20 MiB per non-empty file |
 | `DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE` | `50` | Checked before the upload stream is read |
+| `RAG_CHUNK_SIZE` | `1_000` | 100 through 10,000 characters |
+| `RAG_CHUNK_OVERLAP` | `150` | 0 through 2,000 and smaller than chunk size |
 
 The runtime layout is:
 
@@ -153,9 +159,31 @@ that scanned/image-only PDF requires OCR, which Plan 3 does not implement.
 Malformed or unreadable files return a generic safe parse error without paths
 or third-party diagnostics.
 
-Upload does not call these parsers through M2 S6. S7～S9 own cleaning,
-Chunking, format dispatch, Document lifecycle transitions, and safe persistence
-of parser failures.
+## Cleaner, Chunker, And Ingestion
+
+`app.rag.text_cleaner` and `app.rag.chunker` are pure and database-independent.
+The Cleaner returns a new immutable parser result. It normalizes CRLF/CR to LF,
+removes C0/C1 controls except tab plus a small denylist of layout-unsafe format
+characters, collapses whitespace-only blank-line runs, trims outer blank lines,
+updates Markdown heading line numbers, and cleans PDF pages independently.
+
+The Chunker uses the configured character window and overlap. When a hard
+window boundary is not the end of content, it prefers the last paragraph
+boundary in the latter half of the window, then a line boundary, then the hard
+boundary. Progress is monotonic. Markdown chunks record the latest heading
+visible at their start; PDF chunks never cross pages. Each draft records
+zero-based `chunk_index`, exact character count, source format and offsets, plus
+optional heading/page provenance. `token_count` is the deterministic estimate
+`max(1, ceil(UTF-8 bytes / 4))`, not a model tokenizer result.
+
+`DocumentIngestionService` owns the composition. It resolves the stored path
+against the expected Knowledge Base UUID, Document UUID, and suffix while
+rejecting malformed ownership, symlink, and reparse paths. It dispatches the
+existing parser, cleans, chunks, writes ordered `DocumentChunk` rows, and
+flushes without committing. Expected parser/content errors persist safe
+Document states and no chunks. Storage, SQLAlchemy, and unexpected programming
+errors are not converted into content failures; they propagate so the request
+transaction rolls back the Document, chunks, and promoted file.
 
 ## DocumentChunk Integrity
 
@@ -223,7 +251,7 @@ All routes use the plural kebab-case prefix `/api/v1/knowledge-bases`.
 | `GET` | `/api/v1/knowledge-bases/{knowledge_base_id}` | `200` | `KnowledgeBaseRead` |
 | `PATCH` | `/api/v1/knowledge-bases/{knowledge_base_id}` | `200` | Updated `KnowledgeBaseRead` |
 | `DELETE` | `/api/v1/knowledge-bases/{knowledge_base_id}` | `204` | Empty body |
-| `POST` | `/api/v1/knowledge-bases/{knowledge_base_id}/documents` | `201` | Initial `DocumentRead` |
+| `POST` | `/api/v1/knowledge-bases/{knowledge_base_id}/documents` | `201` | Final synchronous `DocumentRead` |
 
 `PATCH` is a partial update. At least one field must be supplied. The mutable
 fields are `name`, `description`, `embedding_provider`, `embedding_model`,
@@ -236,7 +264,7 @@ does not own persistence logic.
 
 The Document upload request is `multipart/form-data` with one required `file`
 field. There are no Document list, detail, chunk-query, or delete routes through
-M2 S3.
+M2 S9.
 
 ## Error And Transaction Behavior
 
@@ -267,6 +295,12 @@ hashes, absolute paths, or internal diagnostics:
 | `409` | `document_duplicate` | Same hash exists in this Knowledge Base |
 | `409` | `knowledge_base_document_limit_reached` | Knowledge Base reached its configured count |
 | `503` | `document_storage_error` | Controlled staging/promotion/cleanup failed |
+
+Expected parse/content failures are successful HTTP 201 resource creation, not
+transport failures. Invalid encoded or unreadable content persists
+`parse_status=failed` and `chunk_status=failed`. Content that is empty after
+cleaning persists `parse_status=parsed` and `chunk_status=failed`. Both expose a
+bounded safe `error_message` and create no chunks.
 
 Successful requests commit after the route returns. Any exception rolls the
 request transaction back before the session closes. Tests use newly created
@@ -318,16 +352,44 @@ The M2 S4～S6 parser TDD checkpoints are:
 - parser plus adjacent upload/model/schema regression:
   `117 passed, 1 warning`.
 
+The M2 S7～S9 processing TDD checkpoints are:
+
+- Cleaner RED: `clean_parsed_document` was absent at collection; GREEN:
+  `4 passed`;
+- Settings RED: six missing-bound/relationship assertions failed; GREEN:
+  `22 passed`;
+- Chunker RED: chunk contracts were absent at collection; Cleaner/config/
+  Chunker GREEN: `40 passed`;
+- stored-path resolver RED: `12 failed, 18 passed`; GREEN: `30 passed`;
+- ingestion success RED: `DocumentIngestionService` was absent; success GREEN:
+  `3 passed`;
+- expected-content RED: three parser/empty-content exceptions escaped while
+  three success cases passed; precise failure handling GREEN: `6 passed`;
+- upload integration RED: eight new lifecycle/chunk assertions failed while 24
+  existing cases passed; GREEN: `32 passed, 1 warning`;
+- complete focused M2 regression: `179 passed, 1 warning`;
+- final infrastructure-boundary/API regression: `30 passed, 1 warning`.
+
+Fresh completion verification reached:
+
+- complete backend: `698 passed, 1 warning`;
+- dependency integrity: `No broken requirements found`;
+- frontend regression: `18` files / `90` tests, typecheck, and production build
+  with `1813` transformed modules;
+- fresh temporary-SQLite Alembic head `20260726_0005`, checked at head with no
+  new upgrade operations and verified temporary-directory cleanup;
+- `92` Markdown files and `69` local links/images with zero read errors or
+  missing targets.
+
 The active Plan 3 execution table contains the security, scope, artifact, and
 Git gates. No verification command read or modified `backend/ai_agent_lab.db`.
 
 ## Deferred Capabilities
 
-The following remain outside `P3-M2-S1～S3`:
+The following remain outside completed Plan 3 M2:
 
 - Document list, detail, chunk-query, delete, local-file deletion, and orphan
   recovery workflows;
-- automatic parser dispatch, cleaning, Chunking, and lifecycle updates;
 - Embedding Provider adapters and embedding execution;
 - Qdrant client, collection lifecycle, vector upsert, and vector deletion;
 - Retriever, RAG Prompt, RAG query/chat runtime, and Agent Tool integration;

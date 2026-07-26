@@ -17,7 +17,7 @@ from app.knowledge import (
     DocumentStorageError,
     KnowledgeBaseDocumentLimitReachedError,
 )
-from app.models import Document
+from app.models import Document, DocumentChunk
 from app.schemas import KnowledgeBaseCreate
 from app.services import (
     DocumentService,
@@ -70,6 +70,10 @@ def _document_count(session: Session) -> int:
     return session.scalar(select(func.count(Document.id))) or 0
 
 
+def _chunk_count(session: Session) -> int:
+    return session.scalar(select(func.count(DocumentChunk.id))) or 0
+
+
 def _stored_files(root: Path) -> list[Path]:
     if not root.exists():
         return []
@@ -112,14 +116,48 @@ def test_service_uploads_document_with_initial_states(
     assert document.file_type == "md"
     assert document.file_size == len(content)
     assert document.file_hash == hashlib.sha256(content).hexdigest()
-    assert document.parse_status == "uploaded"
-    assert document.chunk_status == "pending"
+    assert document.parse_status == "parsed"
+    assert document.chunk_status == "chunked"
     assert document.embedding_status == "pending"
-    assert document.metadata_json == {}
+    assert document.error_message is None
+    assert document.metadata_json["format"] == "markdown"
+    assert _chunk_count(session) == 1
     assert (storage.root / Path(document.file_path)).read_bytes() == content
 
     session.commit()
 
+    assert (storage.root / Path(document.file_path)).exists()
+
+
+def test_service_retains_document_when_content_processing_fails(
+    db: tuple[Session, Engine],
+    tmp_path: Path,
+) -> None:
+    session, _ = db
+    knowledge_base_id = _create_knowledge_base(session, "Failed content")
+    storage = DocumentStorage(
+        tmp_path / "uploads",
+        max_upload_bytes=1024,
+    )
+    service = DocumentService(
+        session,
+        storage=storage,
+        max_files_per_knowledge_base=50,
+    )
+
+    document = asyncio.run(
+        service.upload_document(
+            knowledge_base_id,
+            original_filename="invalid.txt",
+            stream=TrackingStream(b"\x80private"),
+        )
+    )
+
+    assert document.parse_status == "failed"
+    assert document.chunk_status == "failed"
+    assert document.error_message == "Document parsing failed."
+    assert _document_count(session) == 1
+    assert _chunk_count(session) == 0
     assert (storage.root / Path(document.file_path)).exists()
 
 

@@ -25,7 +25,7 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M2-S6`。
+已完成范围：`P1-M1-S1` 到 `P3-M2-S9`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -34,7 +34,8 @@ Plan 1 覆盖：
 service/API。Plan 3 M2 首批还新增受控 multipart Document 上传、有界本地存储、
 SHA-256/类型/大小校验、同一知识库去重和事务回滚文件清理。M2 第二批新增可独立
 测试的 Markdown、TXT 与文本层 PDF Parser、来源 metadata，以及明确的扫描 PDF/
-OCR 限制。
+OCR 限制。M2 最后一批新增确定性的文本清洗、有界重叠 Chunking，以及同步的
+上传到 `DocumentChunk` Pipeline，并让生命周期失败状态可见。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -90,10 +91,10 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 检索片段快照和可选回答 Message 关联。`KnowledgeBaseService` 与五个复数形式的
 `/api/v1/knowledge-bases` CRUD 路由现已提供 metadata 管理，包含部分 `PATCH`、
 安全的 not-found 响应与请求级事务。嵌套 Document POST 已支持 `.md`、`.txt`
-和 `.pdf` 上传并返回初始 `Document` 记录。纯 Parser 已可提取 Markdown 结构、
-确定性解码的 TXT 和带页码的文本层 PDF；上传接口尚未调用 Parser。清洗、
-Chunking、生命周期更新、Embedding、Qdrant client、检索、Document 查询/删除
-API 和前端上传/RAG runtime 仍延期到后续 Plan 3 Step。
+和 `.pdf` 上传，并返回同步解析、清洗和基础 Chunking 的最终结果。成功上传会
+持久化有序 `DocumentChunk`，返回 `parsed` / `chunked`；预期的解析或内容失败
+仍是 HTTP 201 资源，并持久化安全、可见的失败状态。Embedding、Qdrant client、
+检索、Document 查询/删除 API 和前端上传/RAG runtime 仍延期到后续 Plan 3 Step。
 
 ## v0.1.0 演示
 
@@ -202,15 +203,18 @@ POSIX 路径。如需覆盖非秘密配置，可在未跟踪的 `backend/.env` �
 DOCUMENT_STORAGE_ROOT=./uploads
 DOCUMENT_MAX_UPLOAD_BYTES=20971520
 DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE=50
+RAG_CHUNK_SIZE=1000
+RAG_CHUNK_OVERLAP=150
 ```
 
 上传必须非空，默认上限 20 MiB，每个知识库默认最多 50 个 Document；同一
 知识库按 SHA-256 拒绝重复内容，不同知识库允许相同内容。正常请求回滚会删除
-刚提升的文件，但进程异常终止仍可能留下孤儿文件。本批不处理 Document/知识库
-文件删除、孤儿扫描、上传时自动解析和内容真实性校验。runtime 上传目录已忽略，
-不能提交。
+刚提升的文件，但进程异常终止仍可能留下孤儿文件。每个已接受上传都会在请求
+提交前同步执行 Parser、Cleaner 和 Chunker。存储、数据库和非预期处理错误沿用
+安全错误响应，并回滚 Document、chunk 和已提升文件。本批不处理 Document/
+知识库文件删除与孤儿扫描。runtime 上传目录已忽略，不能提交。
 
-### Document Parser
+### Document 处理
 
 `app.rag.parsers` 提供统一且不可变的 `ParsedDocument` 结果契约，以及独立的
 Markdown、TXT 和文本层 PDF Parser。Markdown 保留原始标记，同时报告标题与围栏
@@ -218,8 +222,16 @@ Markdown、TXT 和文本层 PDF Parser。Markdown 保留原始标记，同时报
 并保留从 1 开始的页码 metadata。扫描版或纯图片 PDF 会返回可读限制说明，因为
 Plan 3 不包含 OCR。
 
-截至 `P3-M2-S6`，上传路由尚未调用这些 Parser。`P3-M2-S7～S9` 仍负责清洗、
-Chunking、Parser 分发、生命周期更新和解析错误的安全持久化。
+Cleaner 会统一换行、移除受限控制/格式字符、折叠只含空白的连续空行、保留
+Markdown 语法与 PDF 分页边界，并更新 Markdown 标题行 metadata。Chunker 默认
+使用 1000 字符窗口和 150 字符 overlap，优先选择窗口后半段的段落边界、其次
+换行边界；PDF chunk 不跨页，并保留标题/页码来源。`token_count` 是确定性的
+UTF-8 字节估算 `ceil(bytes / 4)`，不是 tokenizer 计费数据。
+
+成功上传返回 HTTP 201，状态为 `parse_status=parsed`、
+`chunk_status=chunked`、`embedding_status=pending`。编码无效或不可读内容返回
+HTTP 201 的 `failed` / `failed`；清洗后为空则返回 `parsed` / `failed`。两类
+预期内容失败都会持久化安全 `error_message`，且不生成 chunk。
 
 ### 后端
 
