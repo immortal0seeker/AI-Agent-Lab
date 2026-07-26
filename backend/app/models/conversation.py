@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.agent_run import AgentRun
     from app.models.llm_call import LLMCall
     from app.models.message import Message
+    from app.models.rag_query import RagQuery
 
 
 class Conversation(Base):
@@ -63,4 +64,10 @@ class Conversation(Base):
         back_populates="conversation",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    rag_queries: Mapped[list[RagQuery]] = relationship(
+        back_populates="conversation",
+        cascade="all, delete",
+        passive_deletes=True,
+        foreign_keys="RagQuery.conversation_id",
     )

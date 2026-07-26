@@ -25,12 +25,12 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M1-S3`。
+已完成范围：`P1-M1-S1` 到 `P3-M1-S6`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
-都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 只开始
-`P3-M1-S1～S3` 地基批次：复核发布交接、配置 Qdrant，以及创建空的
-RAG/Knowledge 包边界。
+都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成
+`P3-M1-S1～S6` 地基和持久化批次：复核发布交接、配置 Qdrant、建立明确的
+RAG/Knowledge ownership 边界，以及新增四个知识持久化模型。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -79,6 +79,13 @@ annotated tag、push 与 tag-target 门禁。
 任何运行时表面。
 
 Plan 3 以 `v0.2.1` 为当前基线，不会把基线降回 `v0.2.0`。
+
+Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`、
+`document_chunks` 和 `rag_queries` 四张表。对应 ORM 与 Pydantic 契约保留知识库/
+文档 ownership、摄取生命周期状态、SHA-256 hash、来源 metadata、vector ID、
+检索片段快照和可选回答 Message 关联。Knowledge Base service/API 仍延期到
+`P3-M1-S7～S9`；上传、解析、Chunking、Embedding、Qdrant client、检索和前端
+RAG runtime 仍延期到后续 Plan 3 Step。
 
 ## v0.1.0 演示
 

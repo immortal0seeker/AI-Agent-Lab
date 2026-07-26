@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.agent_run import AgentRun
     from app.models.conversation import Conversation
     from app.models.llm_call import LLMCall
+    from app.models.rag_query import RagQuery
 
 
 class Message(Base):
@@ -60,4 +61,13 @@ class Message(Base):
             "Message.conversation_id == AgentRun.conversation_id)"
         ),
         foreign_keys="AgentRun.user_message_id",
+    )
+    answered_rag_queries: Mapped[list[RagQuery]] = relationship(
+        "RagQuery",
+        back_populates="answer_message",
+        primaryjoin=(
+            "and_(Message.id == RagQuery.answer_message_id, "
+            "Message.conversation_id == RagQuery.conversation_id)"
+        ),
+        foreign_keys="RagQuery.answer_message_id",
     )

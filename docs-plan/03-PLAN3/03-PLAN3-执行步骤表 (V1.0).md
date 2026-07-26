@@ -53,7 +53,7 @@ blocked
 | 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 | 状态 |
 |---|---|---|---|---|
 | Batch 1 | P3-M1-S1～S3 | 确认 Plan2 地基，接入 Qdrant 配置 | 跑现有测试和 Qdrant health | 已完成（配置、回归与真实 Qdrant health 均通过） |
-| Batch 2 | P3-M1-S4～S6 | 建立知识库核心数据模型 | 数据库迁移和模型测试 | 未完成 |
+| Batch 2 | P3-M1-S4～S6 | 建立知识库核心数据模型 | 数据库迁移和模型测试 | 已完成（四模型、schema、迁移与回归均通过） |
 | Batch 3 | P3-M1-S7～S9 | 实现 Knowledge Base API | API 测试，Codex + Claude review M1 | 未完成 |
 | Batch 4 | P3-M2-S1～S3 | 实现文件上传和存储 | 上传 API 测试 | 未完成 |
 | Batch 5 | P3-M2-S4～S6 | 实现 Markdown / TXT / PDF 文本解析 | Parser 测试 | 未完成 |
@@ -118,6 +118,25 @@ blocked
 **结论：** `P3-M1-S1～S3` 与 Batch 1 完成。Qdrant 配置与真实 runtime
 health 均已验收，且本地开发配置已禁用遥测。下一批可进入
 `P3-M1-S4～S6`，本批没有提前实现这些数据模型步骤。
+
+### P3-M1-S4～S6 知识库核心数据模型验收记录（2026-07-26）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 执行基线 | 开始时 `main` 工作区与暂存区为空，`HEAD == origin/main == dbdda4416b548ed805d1d3f1421f21a81c830f88`；未切换分支、移动标签或改写历史。 |
+| ORM TDD | RED 因四个模型尚不存在而在 collection 阶段 ImportError；最小实现后模型测试 `19 passed`。 |
+| Schema TDD | RED 因新 schema exports 尚不存在而在 collection 阶段 ImportError；实现三个 schema 模块后，模型与 schema 聚焦测试 `48 passed`。 |
+| Migration TDD | RED 为 `1 failed, 1 passed`，失败原因正是四张表不存在；新增 revision `20260726_0005` 后迁移测试 `2 passed`，含既有迁移的聚焦集合为 `57 passed`。 |
+| 数据模型 | 新增 `KnowledgeBase`、`Document`、`DocumentChunk`、`RagQuery` 四个独立 ORM/schema 契约；包含 ownership、状态、SHA-256 hash、metadata、vector ID、检索片段快照和回答 Message 关联字段。 |
+| 关系完整性 | 知识库删除级联 Document/Chunk/RagQuery；DocumentChunk 使用 `(document_id, knowledge_base_id)` 复合外键阻止跨知识库归属；RagQuery 使用回答 Message/Conversation 复合外键阻止跨会话关联，单独删除回答 Message 时保留查询并清空引用。 |
+| SQLite migration | 仅对新建系统临时 SQLite 执行 `upgrade head`、`current --check-heads` 与 `alembic check`；head 为 `20260726_0005`，无待生成操作，临时目录已验证并删除。未读取、迁移、删除或重建 `backend/ai_agent_lab.db`。 |
+| 完整回归 | Backend `558 passed, 1 warning`，warning 为既知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损依赖。Frontend `18 files / 90 tests`、typecheck、production build（1813 modules）通过。 |
+| 范围边界 | 未新增 Knowledge Base service/API、upload/storage、parser、Chunking、Embedding、Qdrant client/Vector Store、Retriever、前端 RAG 或任何 Plan 4+ runtime；`docs/20-knowledge-base-design.md` 仍留给 S9。 |
+| 文档、安全与仓库门禁 | 83 个 Markdown、67 个本地链接/图片、0 missing；新增行高置信 secret、真实 Provider host、`web_fetch` runtime、later-Plan runtime、越界路径和 generated/database artifact 命中均为 0。`git diff --check` 无发现，暂存路径 0，`HEAD == origin/main == dbdda4416b548ed805d1d3f1421f21a81c830f88`。 |
+| Codex self-review | must fix：补上 Conversation 删除级联 RagQuery 的独立回归，单测与后端全量均通过；later Step：S7 service/update schema、S8 API、S9 正式模型文档；accepted limitation：保留既知 TestClient warning，且本批不提供运行时 CRUD/摄取/检索能力；not applicable：Claude/Fable 外部 review 与 Advanced RAG 等后续 Plan 能力不适用于本批。无剩余阻塞项。 |
+
+**结论：** `P3-M1-S4～S6` 与 Batch 2 完成。当前数据模型、schema、
+迁移和验证证据可支持下一批进入 `P3-M1-S7～S9`；本批未提前实现下一批内容。
 
 M1 完成后建议 commit：
 
@@ -375,9 +394,9 @@ Claude Code 审核后，Codex 负责：
 | 验收项 | 状态 | 证据 |
 |---|---|---|
 | Qdrant 可启动 | implemented | Qdrant 1.15.4 容器运行、重启次数为 0；`/healthz` 返回 HTTP 200 |
-| Knowledge Base 数据模型完成 | pending | ORM / migration / test |
-| Document 数据模型完成 | pending | ORM / migration / test |
-| DocumentChunk 数据模型完成 | pending | ORM / migration / test |
+| Knowledge Base 数据模型完成 | implemented | `KnowledgeBase` ORM/schema、revision `20260726_0005`、模型/迁移测试 |
+| Document 数据模型完成 | implemented | `Document` ORM/schema、状态/hash/metadata 约束、模型/迁移测试 |
+| DocumentChunk 数据模型完成 | implemented | `DocumentChunk` ORM/schema、复合 ownership 外键、模型/迁移测试 |
 | 可以创建知识库 | pending | API 测试或页面截图 |
 | 可以上传 Markdown | pending | 上传验证记录 |
 | 可以上传 TXT | pending | 上传验证记录 |

@@ -12,6 +12,10 @@ All notable changes to AI Agent Lab are documented in this file.
   package boundaries.
 - Added focused foundation tests and Qdrant startup/health instructions while
   preserving SQLite as the primary business and audit database.
+- Added `KnowledgeBase`, `Document`, `DocumentChunk`, and `RagQuery` ORM and
+  schema contracts with ownership, lifecycle, hash, metadata, vector, and query
+  audit fields. Alembic revision `20260726_0005` creates the four SQLite tables
+  with composite ownership and answer-message consistency constraints.
 
 ## [0.2.1] - 2026-07-20
 

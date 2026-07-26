@@ -27,9 +27,9 @@ bounded ToolCall audit details. M5 adds safety regression coverage plus
 sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
 the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
-audit patch from commit `872310b`. Plan 3 starts from `v0.2.1` with only Qdrant
-configuration and empty `knowledge/` and `rag/` ownership boundaries in
-`P3-M1-S1～S3`.
+audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
+`P3-M1-S6` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
+ownership boundaries, and the four knowledge persistence models.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -89,8 +89,8 @@ Current backend layers:
 | `services/` | Chat, conversation, Agent query, and application logic |
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM provider abstractions and adapters |
-| `knowledge/` | Plan 3 structured knowledge metadata and orchestration boundary; no models or service are added in S1～S3 |
-| `rag/` | Plan 3 document-processing and Naive RAG pipeline boundary; no pipeline is added in S1～S3 |
+| `knowledge/` | Plan 3 structured knowledge metadata and future orchestration boundary; S4～S6 models live in `models/` and service logic remains deferred |
+| `rag/` | Plan 3 document-processing and Naive RAG pipeline boundary; no processing, retrieval, or Qdrant client runtime exists through S6 |
 | `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
 | `db/` | SQLAlchemy session and database setup |
 | `models/` | ORM models |
@@ -127,7 +127,7 @@ operation without adding PostgreSQL-specific infrastructure preemptively.
 
 Plan 3 adds Qdrant as a separate vector-storage service configured through
 `QDRANT_URL`; it does not replace SQLite business or audit persistence. The
-S1～S3 foundation contains no Qdrant client or Vector Store implementation.
+S1～S6 scope contains no Qdrant client or Vector Store implementation.
 
 The initial migration creates:
 
@@ -139,6 +139,13 @@ The Plan 2 M1 migration adds:
 
 - `agent_runs`
 - `tool_calls`
+
+Plan 3 revision `20260726_0005` adds:
+
+- `knowledge_bases`
+- `documents`
+- `document_chunks`
+- `rag_queries`
 
 All model IDs use UUID v4 values. Datetimes are stored as timezone-naive UTC
 values because SQLite does not preserve timezone information consistently.
@@ -159,6 +166,19 @@ also has a positive one-based `sequence_index`, unique within its AgentRun and
 used for query order. Tool arguments and results use JSON columns. Named status
 checks, non-negative latency checks, timestamps, and lookup indexes establish
 persistence integrity without introducing an Agent runtime state machine.
+
+`Document` belongs to one `KnowledgeBase`; `DocumentChunk` repeats the
+knowledge-base identity beside its document identity, and a composite foreign
+key rejects cross-knowledge-base chunks. Lifecycle checks bound parse, chunk,
+and embedding states, while SHA-256 length, file type, numeric, metadata, and
+vector fields form the later ingestion bridge. Deleting a knowledge base
+cascades through its documents, chunks, and RAG query audit records.
+
+`RagQuery` stores the original query and retrieved-chunk JSON snapshot. It may
+reference one answer Message only when a Conversation is also present, and a
+composite foreign key rejects an answer from a different Conversation.
+Deleting only the answer Message clears that optional reference and preserves
+the query record.
 
 Foreign-key columns used by conversation and message lookups are indexed.
 SQLAlchemy metadata uses a stable naming convention for primary keys, foreign

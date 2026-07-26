@@ -25,13 +25,14 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M1-S3`.
+Completed scope: `P1-M1-S1` through `P3-M1-S6`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
-contracts were revalidated. Plan 3 has started with the limited
-`P3-M1-S1～S3` foundation batch: release handoff review, Qdrant configuration,
-and empty RAG/Knowledge package boundaries only.
+contracts were revalidated. Plan 3 M1 now includes the `P3-M1-S1～S6`
+foundation and persistence batches: release handoff review, Qdrant
+configuration, explicit RAG/Knowledge ownership boundaries, and the four
+knowledge persistence models.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -93,6 +94,14 @@ persisted explicitly. `web_fetch` remains deferred and has no runtime surface.
 
 Plan 3 builds on `v0.2.1`; it does not downgrade the active baseline to
 `v0.2.0`.
+
+Alembic revision `20260726_0005` adds the SQLite `knowledge_bases`,
+`documents`, `document_chunks`, and `rag_queries` tables. Their ORM and Pydantic
+contracts preserve knowledge/document ownership, ingestion lifecycle states,
+SHA-256 hashes, source metadata, vector IDs, retrieved chunk snapshots, and
+optional answer-message linkage. Knowledge Base services and APIs remain
+deferred to `P3-M1-S7～S9`; upload, parsing, Chunking, Embedding, Qdrant client,
+retrieval, and frontend RAG runtime remain deferred to later Plan 3 steps.
 
 ## v0.1.0 Demo
 
