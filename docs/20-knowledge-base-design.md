@@ -3,15 +3,17 @@
 ## Scope
 
 Plan 3 Milestone 1 establishes the persistence and management boundary for
-Knowledge Bases. Through `P3-M2-S3`, the backend can create, list, read, update,
-and delete Knowledge Base metadata and can upload one validated Document
-through a service-owned HTTP API.
+Knowledge Bases. Through `P3-M2-S6`, the backend can create, list, read, update,
+and delete Knowledge Base metadata, upload one validated Document through a
+service-owned HTTP API, and parse Markdown, TXT, or text-layer PDF through an
+independent extraction boundary.
 
 The first M2 batch stores `.md`, `.txt`, and `.pdf` bytes and creates the
-initial Document row. It does not parse file content, create chunks or
-embeddings, connect a Qdrant client, retrieve sources, generate RAG answers, or
-expose a frontend Knowledge Base workspace. Those capabilities remain assigned
-to later Plan 3 steps.
+initial Document row. The second adds pure parsers, but upload still does not
+invoke them. The parsers do not clean or chunk content, update Document state,
+create embeddings, connect a Qdrant client, retrieve sources, generate RAG
+answers, or expose a frontend Knowledge Base workspace. Those capabilities
+remain assigned to later Plan 3 steps.
 
 ## Storage Responsibilities
 
@@ -125,6 +127,35 @@ forgets that pending cleanup; rollback removes the new file. Staging files are
 removed on normal validation and storage failures. A hard process termination
 can still leave staging or unreferenced final files, and orphan scanning is
 deferred.
+
+## Document Parser Boundary
+
+`app.rag.parsers` contains no FastAPI, SQLAlchemy, service, Provider, Qdrant, or
+upload orchestration dependencies. A caller supplies an already authorized
+file path and Document UUID. Every parser returns an immutable
+`ParsedDocument` with complete extracted `text`, small JSON-compatible
+`metadata`, and optional ordered `ParsedPage` values.
+
+Markdown is decoded as strict UTF-8 with optional BOM removal. Its original
+markup is preserved while a fence-aware state machine reports ATX/Setext
+headings and backtick/tilde code blocks. Heading-like content inside a code
+fence is not misclassified.
+
+TXT decoding is deterministic: UTF-8 BOM, UTF-16 LE/BE BOM, or strict UTF-8.
+There is no locale-dependent or probabilistic encoding fallback, and invalid
+bytes fail safely instead of being silently replaced.
+
+Text-layer PDFs use the bounded `pypdf` dependency. Extraction preserves
+one-based page order and joins page text with a stable double-newline boundary.
+A PDF with at least one text-bearing page succeeds even when another page is
+blank. A document with no extracted text returns a readable limitation stating
+that scanned/image-only PDF requires OCR, which Plan 3 does not implement.
+Malformed or unreadable files return a generic safe parse error without paths
+or third-party diagnostics.
+
+Upload does not call these parsers through M2 S6. S7～S9 own cleaning,
+Chunking, format dispatch, Document lifecycle transitions, and safe persistence
+of parser failures.
 
 ## DocumentChunk Integrity
 
@@ -276,6 +307,17 @@ The M2 S1～S3 TDD checkpoints are:
 - API GREEN: `20 passed, 1 warning`;
 - focused M1 plus upload regression: `136 passed, 1 warning`.
 
+The M2 S4～S6 parser TDD checkpoints are:
+
+- Markdown RED: parser package missing at collection;
+- Markdown GREEN: `4 passed`;
+- TXT RED: `parse_txt` missing at collection;
+- Markdown/TXT GREEN: `10 passed`;
+- PDF RED: `parse_pdf` missing at collection;
+- all three Parser GREEN after the UTF-32 BOM regression fix: `16 passed`;
+- parser plus adjacent upload/model/schema regression:
+  `117 passed, 1 warning`.
+
 The active Plan 3 execution table contains the security, scope, artifact, and
 Git gates. No verification command read or modified `backend/ai_agent_lab.db`.
 
@@ -285,7 +327,7 @@ The following remain outside `P3-M2-S1～S3`:
 
 - Document list, detail, chunk-query, delete, local-file deletion, and orphan
   recovery workflows;
-- Markdown, TXT, or text-PDF parsing, cleaning, and Chunking;
+- automatic parser dispatch, cleaning, Chunking, and lifecycle updates;
 - Embedding Provider adapters and embedding execution;
 - Qdrant client, collection lifecycle, vector upsert, and vector deletion;
 - Retriever, RAG Prompt, RAG query/chat runtime, and Agent Tool integration;

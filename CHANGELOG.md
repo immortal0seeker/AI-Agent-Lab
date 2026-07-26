@@ -6,6 +6,12 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added independent Markdown, TXT, and text-layer PDF parsers with a shared
+  immutable result contract, heading/code-block metadata, deterministic
+  UTF-8/UTF-16 BOM decoding, ordered PDF page provenance, and a readable
+  scanned-PDF/OCR limitation.
+- Added bounded `pypdf` support for text-layer PDF extraction without OCR,
+  layout recovery, table reconstruction, or image interpretation.
 - Added controlled multipart Document upload for `.md`, `.txt`, and `.pdf`
   files with bounded streaming, UUID-owned relative paths, 20 MiB and
   50-document defaults, SHA-256 validation, same-Knowledge-Base duplicate

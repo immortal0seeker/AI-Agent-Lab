@@ -28,9 +28,10 @@ sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
 the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
 audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
-`P3-M2-S3` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
+`P3-M2-S6` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
 ownership boundaries, four knowledge persistence models, a service-owned
-Knowledge Base CRUD API, and controlled validated Document upload.
+Knowledge Base CRUD API, controlled validated Document upload, and independent
+Markdown/TXT/text-layer-PDF parsers.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -91,7 +92,7 @@ Current backend layers:
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM provider abstractions and adapters |
 | `knowledge/` | Plan 3 structured knowledge metadata plus controlled Document storage; models live in `models/` and service policy lives in `services/` |
-| `rag/` | Plan 3 document-processing and Naive RAG pipeline boundary; no parser, processing, retrieval, or Qdrant client runtime exists through M2 S3 |
+| `rag/` | Plan 3 document-processing and Naive RAG boundary; pure Markdown/TXT/text-layer-PDF parsers exist through M2 S6, while cleaning, Chunking, pipeline, retrieval, and Qdrant client runtime remain deferred |
 | `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
 | `db/` | SQLAlchemy session and database setup |
 | `models/` | ORM models |
@@ -203,9 +204,17 @@ same-hash content within one Knowledge Base while allowing it across different
 Knowledge Bases. The service flushes but does not commit; Session callbacks
 remove newly promoted files on request rollback. One thin multipart route,
 `POST /api/v1/knowledge-bases/{knowledge_base_id}/documents`, returns the
-initial `DocumentRead`. Document query/delete, parsers, `DocumentChunk` writes,
-Embedding, retrieval, and Qdrant client behavior remain deferred. The complete
-contract is documented in [Knowledge Base Design](20-knowledge-base-design.md).
+initial `DocumentRead`.
+
+`app.rag.parsers` is a database- and API-independent extraction boundary.
+Markdown preserves source markup and reports headings and fenced code blocks;
+TXT uses deterministic strict UTF-8/BOM decoding; text-layer PDF extraction
+uses `pypdf` and preserves one-based pages. Text-empty PDFs return the explicit
+Plan 3 OCR limitation. Upload does not dispatch to these parsers through M2 S6.
+Document query/delete, cleaning, Chunking, lifecycle updates, `DocumentChunk`
+writes, Embedding, retrieval, and Qdrant client behavior remain deferred. The
+complete contract is documented in
+[Knowledge Base Design](20-knowledge-base-design.md).
 
 ## Tool Calling Foundation
 

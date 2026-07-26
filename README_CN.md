@@ -25,14 +25,16 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M2-S3`。
+已完成范围：`P1-M1-S1` 到 `P3-M2-S6`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
 `P3-M1-S9`：复核发布交接、配置 Qdrant、建立明确的 RAG/Knowledge ownership
 边界、新增四个知识持久化模型，并提供经过测试的后端 Knowledge Base CRUD
 service/API。Plan 3 M2 首批还新增受控 multipart Document 上传、有界本地存储、
-SHA-256/类型/大小校验、同一知识库去重和事务回滚文件清理。
+SHA-256/类型/大小校验、同一知识库去重和事务回滚文件清理。M2 第二批新增可独立
+测试的 Markdown、TXT 与文本层 PDF Parser、来源 metadata，以及明确的扫描 PDF/
+OCR 限制。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -88,9 +90,10 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 检索片段快照和可选回答 Message 关联。`KnowledgeBaseService` 与五个复数形式的
 `/api/v1/knowledge-bases` CRUD 路由现已提供 metadata 管理，包含部分 `PATCH`、
 安全的 not-found 响应与请求级事务。嵌套 Document POST 已支持 `.md`、`.txt`
-和 `.pdf` 上传并返回初始 `Document` 记录；解析、Chunking、Embedding、Qdrant
-client、检索、Document 查询/删除 API 和前端上传/RAG runtime 仍延期到后续
-Plan 3 Step。
+和 `.pdf` 上传并返回初始 `Document` 记录。纯 Parser 已可提取 Markdown 结构、
+确定性解码的 TXT 和带页码的文本层 PDF；上传接口尚未调用 Parser。清洗、
+Chunking、生命周期更新、Embedding、Qdrant client、检索、Document 查询/删除
+API 和前端上传/RAG runtime 仍延期到后续 Plan 3 Step。
 
 ## v0.1.0 演示
 
@@ -204,7 +207,19 @@ DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE=50
 上传必须非空，默认上限 20 MiB，每个知识库默认最多 50 个 Document；同一
 知识库按 SHA-256 拒绝重复内容，不同知识库允许相同内容。正常请求回滚会删除
 刚提升的文件，但进程异常终止仍可能留下孤儿文件。本批不处理 Document/知识库
-文件删除、孤儿扫描、解析和内容真实性校验。runtime 上传目录已忽略，不能提交。
+文件删除、孤儿扫描、上传时自动解析和内容真实性校验。runtime 上传目录已忽略，
+不能提交。
+
+### Document Parser
+
+`app.rag.parsers` 提供统一且不可变的 `ParsedDocument` 结果契约，以及独立的
+Markdown、TXT 和文本层 PDF Parser。Markdown 保留原始标记，同时报告标题与围栏
+代码块；TXT 严格支持 UTF-8、UTF-8 BOM 和带 BOM 的 UTF-16；PDF 使用 `pypdf`
+并保留从 1 开始的页码 metadata。扫描版或纯图片 PDF 会返回可读限制说明，因为
+Plan 3 不包含 OCR。
+
+截至 `P3-M2-S6`，上传路由尚未调用这些 Parser。`P3-M2-S7～S9` 仍负责清洗、
+Chunking、Parser 分发、生命周期更新和解析错误的安全持久化。
 
 ### 后端
 

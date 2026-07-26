@@ -56,7 +56,7 @@ blocked
 | Batch 2 | P3-M1-S4～S6 | 建立知识库核心数据模型 | 数据库迁移和模型测试 | 已完成（四模型、schema、迁移与回归均通过） |
 | Batch 3 | P3-M1-S7～S9 | 实现 Knowledge Base API | API 测试与 Codex self-review M1 | 已完成（service、API、正式文档与全量回归均通过） |
 | Batch 4 | P3-M2-S1～S3 | 实现文件上传和存储 | 上传 API 测试 | 已完成（受控存储、上传 API、校验、事务清理与全量回归通过） |
-| Batch 5 | P3-M2-S4～S6 | 实现 Markdown / TXT / PDF 文本解析 | Parser 测试 | 未完成 |
+| Batch 5 | P3-M2-S4～S6 | 实现 Markdown / TXT / PDF 文本解析 | Parser 测试 | 已完成（三类纯 Parser、来源 metadata、安全错误与全量回归通过） |
 | Batch 6 | P3-M2-S7～S9 | 实现文本清洗和 Chunking | Chunking 测试，Codex review M2 | 未完成 |
 | Batch 7 | P3-M3-S1～S3 | 实现 Embedding Provider 抽象 | mock embedding 测试 | 未完成 |
 | Batch 8 | P3-M3-S4～S6 | 实现 OpenAI-compatible Embedding 和配置 | provider 测试 | 未完成 |
@@ -190,9 +190,9 @@ feat(rag): add knowledge base models and api
 | P3-M2-S1 | 实现文件上传存储策略（已完成） | Codex | `document_storage.py` | 文件保存到受控目录，文件名冲突安全处理 | Codex |
 | P3-M2-S2 | 实现 Document Upload API（已完成） | Codex | `api/v1/documents.py` 上传接口 | 上传 Markdown / TXT / PDF 返回 Document 记录 | Codex |
 | P3-M2-S3 | 添加文件类型、大小、hash 校验（已完成） | Codex | 上传校验逻辑 | 超大文件、未知类型、重复文件测试通过 | Codex |
-| P3-M2-S4 | 实现 Markdown Parser | Codex | `parsers/markdown_parser.py` | Markdown 标题、正文、代码块提取测试通过 | Codex |
-| P3-M2-S5 | 实现 TXT Parser | Codex | `parsers/txt_parser.py` | TXT 文本读取和编码处理测试通过 | Codex |
-| P3-M2-S6 | 实现文本型 PDF Parser | Codex | `parsers/pdf_parser.py` | 文本型 PDF 可提取文本；扫描 PDF 返回可读限制说明 | Codex |
+| P3-M2-S4 | 实现 Markdown Parser（已完成） | Codex | `parsers/markdown_parser.py` | Markdown 标题、正文、代码块提取测试通过 | Codex |
+| P3-M2-S5 | 实现 TXT Parser（已完成） | Codex | `parsers/txt_parser.py` | TXT 文本读取和编码处理测试通过 | Codex |
+| P3-M2-S6 | 实现文本型 PDF Parser（已完成） | Codex | `parsers/pdf_parser.py` | 文本型 PDF 可提取文本；扫描 PDF 返回可读限制说明 | Codex |
 | P3-M2-S7 | 实现 Text Cleaner | Codex | `text_cleaner.py` | 空白、重复换行、不可见字符清洗测试通过 | Codex |
 | P3-M2-S8 | 实现 Chunker | Codex | `chunker.py` | chunk_size、overlap、chunk_index、token_count 测试通过 | Claude Code 可审 |
 | P3-M2-S9 | 串联解析、清洗、切分并更新 Document 状态 | Codex | parser pipeline 初版 | 上传后可生成 DocumentChunk 记录 | Codex review |
@@ -220,6 +220,30 @@ feat(rag): add knowledge base models and api
 
 ```text
 feat(knowledge): add controlled document upload
+```
+
+### P3-M2-S4～S6 文档 Parser 验收记录（2026-07-26）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 范围与设计 | 设计 spec 与实施计划均经确认；本批只新增共享 `ParsedDocument`/`ParsedPage` 契约、安全解析错误、Markdown/TXT/文本层 PDF 三个纯 Parser、`pypdf` 依赖及对应测试/文档。未接入上传、数据库、API 或状态机，未开始 S7～S9。 |
+| S4 Markdown | 严格 UTF-8/UTF-8 BOM 解码并保留原始 Markdown；fence-aware 状态机提取 ATX/Setext 标题和反引号/波浪号围栏代码块，代码块内的标题样文本不会误识别，未闭合围栏安全保留到文件尾。 |
+| S5 TXT | 确定性支持严格 UTF-8、UTF-8 BOM 与带 BOM 的 UTF-16 LE/BE；不使用 locale、概率检测或替换字符。Codex 自审发现 UTF-32 LE BOM 会命中 UTF-16 前缀，新增 RED 回归后显式拒绝 UTF-32，三类 Parser 聚焦集合为 `16 passed`。 |
+| S6 PDF | 使用 `pypdf>=6.0.0,<7.0.0`，本机安装 `6.14.2`；真实本地合成 PDF 验证单页/多页顺序、从 1 开始的页码和混合空白页。全无文本层时返回明确的扫描件/纯图片 PDF 需要 OCR 限制；损坏文件返回不泄露路径或底层诊断的通用错误。 |
+| TDD RED / GREEN | Markdown RED 为 parser package 缺失，GREEN `4 passed`；TXT RED 为 `parse_txt` 未导出，Markdown/TXT GREEN `10 passed`；PDF RED 为 `parse_pdf` 未导出，三类初次 GREEN `14 passed`；UTF-32 回归 RED 为 `1 failed, 1 passed`，修复后最终 Parser `16 passed`。Parser 加上传/model/schema 相邻回归 `117 passed, 1 warning`。 |
+| 依赖与完整回归 | editable install 成功，`pip check` 为 `No broken requirements found`。Backend `651 passed, 1 warning`，warning 为既知 Starlette TestClient/httpx 弃用提示。Frontend `18 files / 90 tests`、typecheck、production build（1813 modules）通过。 |
+| SQLite migration | 仅对新建系统临时 SQLite 执行 `upgrade head`、`current --check-heads` 与 `alembic check`；head 为 `20260726_0005`、`No new upgrade operations detected`，临时目录已验证删除。未读取、迁移、删除或重建 `backend/ai_agent_lab.db`。 |
+| 文档与当前事实 | README 中英文、CHANGELOG、架构、Knowledge Base 设计、活动 Plan 与设计/实施记录已同步；90 个 Markdown、69 个实际解析的本地链接/图片、0 读取错误、0 missing。当前完成范围止于 `P3-M2-S6`；上传尚不调用 Parser。 |
+| 安全、边界与仓库门禁 | 17 个预期变更路径均属于 S4～S6 allowlist；高置信 secret、真实 Provider host、generated PDF/database/upload artifact、`web_fetch` production、S7+ runtime 命中均为 0；`git diff --check` 无发现、暂存路径 0。`HEAD == origin/main == 66955fc9607fd4757e279eab01fae8fdea87b00d`；`v0.2.0^{}` 与 `v0.2.1^{}` 仍分别为 `0e3f3a66e1322c565f2056696f7e482cedbb5f6c`、`872310b4dc1b78e2a2487303699d68ec8b22f88b`。 |
+| Codex self-review | must fix：UTF-32 LE BOM 被 UTF-16 前缀优先匹配，已按 systematic debugging 与 TDD 修复并复验。later Step：S7 cleaner、S8 Chunker、S9 parser dispatch/状态/错误持久化，Document 查询/删除与文件删除协调。accepted limitation：PDF 只保证文本层提取，不做 OCR/复杂版面/表格/图片；Markdown 只提取当前约定的标题与围栏；保留既知 TestClient warning。not applicable：本批无 ORM/migration/API/frontend/Qdrant client/Provider、外部 review、Advanced RAG/Rerank/Evaluation/Memory/multimodal。无剩余 must-fix。 |
+
+**结论：** `P3-M2-S4～S6` 与 Batch 5 完成。当前证据支持下一批进入
+`P3-M2-S7～S9`；本批未提前实现清洗、Chunking 或 ingestion pipeline。
+
+本批建议 commit：
+
+```text
+feat(rag): add markdown txt and pdf parsers
 ```
 
 M2 完成后建议 commit：

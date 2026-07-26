@@ -25,7 +25,7 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M2-S3`.
+Completed scope: `P1-M1-S1` through `P3-M2-S6`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -34,7 +34,9 @@ handoff review, Qdrant configuration, explicit RAG/Knowledge ownership
 boundaries, four knowledge persistence models, and a tested backend Knowledge
 Base CRUD service/API. The first Plan 3 M2 batch adds controlled multipart
 Document upload, bounded local storage, SHA-256/type/size validation, same-KB
-duplicate rejection, and safe transaction rollback cleanup.
+duplicate rejection, and safe transaction rollback cleanup. The second M2
+batch adds independently testable Markdown, TXT, and text-layer PDF parsers
+with source metadata and an explicit scanned-PDF/OCR limitation.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -105,9 +107,11 @@ optional answer-message linkage. `KnowledgeBaseService` and the five plural
 `/api/v1/knowledge-bases` CRUD routes now expose metadata management with
 partial `PATCH`, safe not-found responses, and request-scoped transactions.
 The nested Document upload POST now accepts `.md`, `.txt`, and `.pdf` files and
-returns an initial `Document` record. Parsing, Chunking, Embedding, Qdrant
-client, retrieval, Document query/delete APIs, and frontend upload/RAG runtime
-remain deferred to later Plan 3 steps.
+returns an initial `Document` record. Pure parsers can extract Markdown
+structure, deterministically decoded TXT, and page-aware text-layer PDF
+content. Upload does not invoke them yet; cleaning, Chunking, lifecycle updates,
+Embedding, Qdrant client, retrieval, Document query/delete APIs, and frontend
+upload/RAG runtime remain deferred to later Plan 3 steps.
 
 ## v0.1.0 Demo
 
@@ -232,8 +236,21 @@ Uploads are non-empty, limited to 20 MiB, and deduplicated by SHA-256 within
 one Knowledge Base. Identical content is allowed in a different Knowledge Base.
 Request rollback removes a newly promoted file, but process termination can
 leave an orphan. Document/Knowledge Base file deletion, orphan scanning,
-parsing, and content validation are not implemented in this batch. The runtime
-upload directory is ignored and must never be committed.
+automatic parsing, and content validation at upload time are not implemented.
+The runtime upload directory is ignored and must never be committed.
+
+### Document Parsers
+
+`app.rag.parsers` exposes one immutable `ParsedDocument` result contract and
+independent parsers for stored Markdown, TXT, and text-layer PDF files.
+Markdown keeps its original markup while reporting headings and fenced code
+blocks. TXT supports strict UTF-8, UTF-8 BOM, and BOM-marked UTF-16. PDF parsing
+uses `pypdf`, preserves one-based page metadata, and returns a readable
+limitation for scanned or image-only PDFs because Plan 3 does not include OCR.
+
+These parsers are not wired into the upload route through `P3-M2-S6`.
+`P3-M2-S7～S9` still own cleaning, Chunking, parser dispatch, lifecycle updates,
+and safe persistence of parse failures.
 
 ### Backend
 
