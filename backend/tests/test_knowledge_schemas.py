@@ -22,6 +22,7 @@ from app.schemas import (
     DocumentRead,
     KnowledgeBaseCreate,
     KnowledgeBaseRead,
+    KnowledgeBaseUpdate,
     RagQueryCreate,
     RagQueryRead,
 )
@@ -59,6 +60,37 @@ def test_knowledge_base_create_defaults() -> None:
     assert schema.embedding_model is None
     assert schema.vector_store == "qdrant"
     assert schema.vector_collection_name is None
+
+
+def test_knowledge_base_update_tracks_only_supplied_fields() -> None:
+    update = KnowledgeBaseUpdate(
+        name="  Updated knowledge  ",
+        description=None,
+    )
+
+    assert update.name == "Updated knowledge"
+    assert update.description is None
+    assert update.model_dump(exclude_unset=True) == {
+        "name": "Updated knowledge",
+        "description": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"name": None},
+        {"name": "   "},
+        {"vector_store": None},
+        {"unknown": "value"},
+    ],
+)
+def test_knowledge_base_update_rejects_invalid_payload(
+    payload: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        KnowledgeBaseUpdate.model_validate(payload)
 
 
 def test_document_create_defaults_and_metadata() -> None:

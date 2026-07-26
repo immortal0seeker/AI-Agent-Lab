@@ -11,6 +11,14 @@ class ConversationNotFoundError(ServiceError):
         self.conversation_id = conversation_id
 
 
+class KnowledgeBaseNotFoundError(ServiceError):
+    def __init__(self, knowledge_base_id: UUID) -> None:
+        super().__init__(
+            f"Knowledge base not found: {knowledge_base_id}"
+        )
+        self.knowledge_base_id = knowledge_base_id
+
+
 class ChatModelNotFoundError(ServiceError):
     def __init__(self, provider: str, model: str) -> None:
         super().__init__(f"Model not found: {provider}/{model}")

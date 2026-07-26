@@ -54,7 +54,7 @@ blocked
 |---|---|---|---|---|
 | Batch 1 | P3-M1-S1～S3 | 确认 Plan2 地基，接入 Qdrant 配置 | 跑现有测试和 Qdrant health | 已完成（配置、回归与真实 Qdrant health 均通过） |
 | Batch 2 | P3-M1-S4～S6 | 建立知识库核心数据模型 | 数据库迁移和模型测试 | 已完成（四模型、schema、迁移与回归均通过） |
-| Batch 3 | P3-M1-S7～S9 | 实现 Knowledge Base API | API 测试，Codex + Claude review M1 | 未完成 |
+| Batch 3 | P3-M1-S7～S9 | 实现 Knowledge Base API | API 测试与 Codex self-review M1 | 已完成（service、API、正式文档与全量回归均通过） |
 | Batch 4 | P3-M2-S1～S3 | 实现文件上传和存储 | 上传 API 测试 | 未完成 |
 | Batch 5 | P3-M2-S4～S6 | 实现 Markdown / TXT / PDF 文本解析 | Parser 测试 | 未完成 |
 | Batch 6 | P3-M2-S7～S9 | 实现文本清洗和 Chunking | Chunking 测试，Codex review M2 | 未完成 |
@@ -137,6 +137,26 @@ health 均已验收，且本地开发配置已禁用遥测。下一批可进入
 
 **结论：** `P3-M1-S4～S6` 与 Batch 2 完成。当前数据模型、schema、
 迁移和验证证据可支持下一批进入 `P3-M1-S7～S9`；本批未提前实现下一批内容。
+
+### P3-M1-S7～S9 Knowledge Base Service、API 与 M1 review 验收记录（2026-07-26）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 执行基线 | 开始时 `main` 工作区与暂存区为空，`HEAD == origin/main == 13e0cba4313580195da3e26c9ab1240a68d1dcfb`；未切换分支、移动标签或改写历史。 |
+| Schema TDD | RED 因 `KnowledgeBaseUpdate` 尚不存在而在 collection 阶段 ImportError；实现部分更新、至少一个字段、非空 `name`/`vector_store` 和 `extra=forbid` 后为 `35 passed`。 |
+| Service TDD | RED 因 `KnowledgeBaseNotFoundError` 与 service 尚不存在而在 collection 阶段 ImportError；实现 create/list/detail/update/delete、确定性排序和仅 flush 的事务边界后，schema/service 聚焦集合为 `41 passed`。 |
+| API TDD | RED 为 `13 failed, 1 warning`，失败原因正是路由与 404 映射尚不存在；新增五个复数 kebab-case 路由、依赖与安全错误映射后，schema/service/API 聚焦集合为 `54 passed, 1 warning`。 |
+| CRUD 契约 | `POST` 201、集合/详情 `GET` 200、部分 `PATCH` 200、`DELETE` 204 空响应；显式 `null` 可清空 nullable 字段但不能清空 `name`/`vector_store`，未知详情/更新/删除统一返回不泄露 UUID 的 `knowledge_base_not_found`。 |
+| 聚焦验证 | schema、四模型、migration、service 与 API 的匹配集合为 `76 passed, 1 warning`。 |
+| 完整回归 | Backend `583 passed, 1 warning`，warning 为既知 Starlette TestClient/httpx 弃用提示；`pip check` 为 `No broken requirements found`。Frontend `18 files / 90 tests`、typecheck、production build（1813 modules）通过。 |
+| SQLite migration | 仅对新建系统临时 SQLite 执行 `upgrade head`、`current --check-heads` 与 `alembic check`；head 为 `20260726_0005`，无新 upgrade 操作，临时根目录已验证删除。未读取、迁移、删除或重建 `backend/ai_agent_lab.db`。 |
+| 文档与当前事实 | 新增 `docs/20-knowledge-base-design.md`，同步 README、架构、CHANGELOG 与活动 Plan；86 个 Markdown、69 个本地链接/图片、0 missing。当前完成范围止于 `P3-M1-S9`，未声称 Plan 3 整体完成。 |
+| 安全、边界与仓库门禁 | 21 个变更路径全部属于 S7～S9 allowlist；新增行高置信 secret、真实 HTTP host、`web_fetch` production、later/deferred runtime 路径命中均为 0；generated/database artifact 候选 0；`git diff --check` 无发现、暂存路径 0。`HEAD == origin/main == 13e0cba4313580195da3e26c9ab1240a68d1dcfb`；`v0.2.0^{}` 与 `v0.2.1^{}` 仍分别为 `0e3f3a66e1322c565f2056696f7e482cedbb5f6c`、`872310b4dc1b78e2a2487303699d68ec8b22f88b`。 |
+| Codex self-review | must fix：文档编辑阶段纠正 README 重复短语，并移除对不存在 `docs/05-api.md` 的计划路径；修正后文档门禁与回归通过，无剩余 must-fix。later Step：M2 upload/storage/Document API 与解析/Chunking，M3 Embedding/Qdrant client，M4 Retriever/RAG runtime，M5 前端。accepted limitation：保留既知 TestClient warning；M1 列表无分页/搜索/计数，删除仅处理 SQLite metadata，不执行 Qdrant side effect。not applicable：Claude/Fable 外部 review、Advanced RAG/Rerank/Evaluation/Memory/OCR/multimodal 均不适用于本批。 |
+
+**结论：** `P3-M1-S7～S9`、Batch 3 与 M1 完成；当前证据支持下一批进入
+`P3-M2-S1～S3`。本批未开始 Document upload/storage/API、解析、Chunking、
+Embedding、Qdrant client、Retriever、前端 RAG 或任何 Plan 4+ runtime。
 
 M1 完成后建议 commit：
 
@@ -397,7 +417,7 @@ Claude Code 审核后，Codex 负责：
 | Knowledge Base 数据模型完成 | implemented | `KnowledgeBase` ORM/schema、revision `20260726_0005`、模型/迁移测试 |
 | Document 数据模型完成 | implemented | `Document` ORM/schema、状态/hash/metadata 约束、模型/迁移测试 |
 | DocumentChunk 数据模型完成 | implemented | `DocumentChunk` ORM/schema、复合 ownership 外键、模型/迁移测试 |
-| 可以创建知识库 | pending | API 测试或页面截图 |
+| 可以创建知识库 | implemented | Knowledge Base service/API CRUD、OpenAPI 与临时 SQLite API 测试 |
 | 可以上传 Markdown | pending | 上传验证记录 |
 | 可以上传 TXT | pending | 上传验证记录 |
 | 可以上传文本型 PDF | pending | 上传验证记录 |

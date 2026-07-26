@@ -39,10 +39,10 @@ Latest existing tag: `v0.2.1`, the published Plan 2 audit-remediation patch at
 commit `872310b`. The original `v0.2.0` basic Agent release remains at
 `0e3f3a6`. All five Plan 3 bridge contracts were revalidated. Plan 3 starts
 from `v0.2.1`; its completed M1 scope now covers handoff review, Qdrant
-configuration, RAG/Knowledge package ownership, and the four knowledge
-persistence models.
+configuration, RAG/Knowledge package ownership, the four knowledge persistence
+models, and a tested backend Knowledge Base CRUD service/API.
 
-The repository has completed Plan 1, Plan 2, and `P3-M1-S1～S6`. Plan 1
+The repository has completed Plan 1, Plan 2, and `P3-M1-S1～S9`. Plan 1
 Milestone 1 assembled the engineering foundation, Milestone 2 added the
 database and Provider foundations, Milestone 3 completed the persisted Chat
 loop, and Milestone 4 added:

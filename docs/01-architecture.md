@@ -28,8 +28,9 @@ sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
 the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
 audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
-`P3-M1-S6` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
-ownership boundaries, and the four knowledge persistence models.
+`P3-M1-S9` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
+ownership boundaries, four knowledge persistence models, and a service-owned
+Knowledge Base CRUD API.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -86,11 +87,11 @@ Current backend layers:
 |---|---|
 | `api/` | HTTP routes and response shaping |
 | `schemas/` | Pydantic request and response contracts |
-| `services/` | Chat, conversation, Agent query, and application logic |
+| `services/` | Chat, conversation, Agent query, Knowledge Base CRUD, and application logic |
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM provider abstractions and adapters |
-| `knowledge/` | Plan 3 structured knowledge metadata and future orchestration boundary; S4～S6 models live in `models/` and service logic remains deferred |
-| `rag/` | Plan 3 document-processing and Naive RAG pipeline boundary; no processing, retrieval, or Qdrant client runtime exists through S6 |
+| `knowledge/` | Plan 3 structured knowledge metadata and future orchestration boundary; models live in `models/` and CRUD logic lives in `services/` |
+| `rag/` | Plan 3 document-processing and Naive RAG pipeline boundary; no processing, retrieval, or Qdrant client runtime exists through S9 |
 | `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
 | `db/` | SQLAlchemy session and database setup |
 | `models/` | ORM models |
@@ -127,7 +128,7 @@ operation without adding PostgreSQL-specific infrastructure preemptively.
 
 Plan 3 adds Qdrant as a separate vector-storage service configured through
 `QDRANT_URL`; it does not replace SQLite business or audit persistence. The
-S1～S6 scope contains no Qdrant client or Vector Store implementation.
+S1～S9 scope contains no Qdrant client or Vector Store implementation.
 
 The initial migration creates:
 
@@ -185,9 +186,19 @@ SQLAlchemy metadata uses a stable naming convention for primary keys, foreign
 keys, indexes, unique constraints, and check constraints so future Alembic
 migrations can reference schema objects predictably on SQLite.
 
-The create and read schemas feed thin HTTP routes and service-owned persistence
-workflows. Update schemas remain deferred until an implemented behavior needs
-them.
+The Knowledge Base create, read, and partial-update schemas feed five thin
+plural `/api/v1/knowledge-bases` routes. `KnowledgeBaseService` owns create,
+deterministically ordered list, detail, supplied-field update, and delete
+behavior. It flushes changes while the request-scoped database dependency owns
+commit, rollback, and session close. Unknown detail/update/delete IDs receive a
+safe `knowledge_base_not_found` response. Deletion affects SQLite metadata and
+its database cascades only; no Qdrant client or collection deletion exists in
+M1.
+
+The Document, DocumentChunk, and RagQuery create/read schemas currently support
+model and migration boundaries only. Their APIs and service workflows remain
+deferred to later Plan 3 steps. The complete M1 contract is documented in
+[Knowledge Base Design](20-knowledge-base-design.md).
 
 ## Tool Calling Foundation
 

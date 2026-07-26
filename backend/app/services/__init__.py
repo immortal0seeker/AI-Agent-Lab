@@ -9,8 +9,10 @@ from app.services.errors import (
     ChatModelNotFoundError,
     ChatProviderUnavailableError,
     ConversationNotFoundError,
+    KnowledgeBaseNotFoundError,
     ServiceError,
 )
+from app.services.knowledge_base_service import KnowledgeBaseService
 
 __all__ = [
     "ChatCompletionResult",
@@ -21,5 +23,7 @@ __all__ = [
     "ChatStreamDelta",
     "ConversationNotFoundError",
     "ConversationService",
+    "KnowledgeBaseNotFoundError",
+    "KnowledgeBaseService",
     "ServiceError",
 ]

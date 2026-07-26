@@ -31,6 +31,7 @@ from app.services.errors import (
     ChatModelNotFoundError,
     ChatProviderUnavailableError,
     ConversationNotFoundError,
+    KnowledgeBaseNotFoundError,
     ServiceError,
 )
 
@@ -70,6 +71,12 @@ def error_spec_for_exception(exc: Exception) -> ErrorSpec:
         return ErrorSpec(404, "agent_run_not_found", "Agent run not found")
     if isinstance(exc, ConversationNotFoundError):
         return ErrorSpec(404, "conversation_not_found", "Conversation not found")
+    if isinstance(exc, KnowledgeBaseNotFoundError):
+        return ErrorSpec(
+            404,
+            "knowledge_base_not_found",
+            "Knowledge base not found",
+        )
     if isinstance(exc, ChatModelNotFoundError):
         return ErrorSpec(
             400,

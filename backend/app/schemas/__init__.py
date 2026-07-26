@@ -22,7 +22,11 @@ from app.schemas.document import (
     DocumentRead,
 )
 from app.schemas.error import ErrorDetail, ErrorResponse
-from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseRead
+from app.schemas.knowledge_base import (
+    KnowledgeBaseCreate,
+    KnowledgeBaseRead,
+    KnowledgeBaseUpdate,
+)
 from app.schemas.llm_call import LLMCallCreate, LLMCallRead
 from app.schemas.message import MessageCreate, MessageRead
 from app.schemas.model import ModelRead
@@ -51,6 +55,7 @@ __all__ = [
     "ErrorResponse",
     "KnowledgeBaseCreate",
     "KnowledgeBaseRead",
+    "KnowledgeBaseUpdate",
     "LLMCallCreate",
     "LLMCallRead",
     "MessageCreate",

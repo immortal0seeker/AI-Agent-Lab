@@ -25,14 +25,14 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M1-S6`.
+Completed scope: `P1-M1-S1` through `P3-M1-S9`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
-contracts were revalidated. Plan 3 M1 now includes the `P3-M1-S1～S6`
-foundation and persistence batches: release handoff review, Qdrant
-configuration, explicit RAG/Knowledge ownership boundaries, and the four
-knowledge persistence models.
+contracts were revalidated. Plan 3 M1 is complete through `P3-M1-S9`: release
+handoff review, Qdrant configuration, explicit RAG/Knowledge ownership
+boundaries, four knowledge persistence models, and a tested backend Knowledge
+Base CRUD service/API.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -99,9 +99,11 @@ Alembic revision `20260726_0005` adds the SQLite `knowledge_bases`,
 `documents`, `document_chunks`, and `rag_queries` tables. Their ORM and Pydantic
 contracts preserve knowledge/document ownership, ingestion lifecycle states,
 SHA-256 hashes, source metadata, vector IDs, retrieved chunk snapshots, and
-optional answer-message linkage. Knowledge Base services and APIs remain
-deferred to `P3-M1-S7～S9`; upload, parsing, Chunking, Embedding, Qdrant client,
-retrieval, and frontend RAG runtime remain deferred to later Plan 3 steps.
+optional answer-message linkage. `KnowledgeBaseService` and the five plural
+`/api/v1/knowledge-bases` CRUD routes now expose metadata management with
+partial `PATCH`, safe not-found responses, and request-scoped transactions.
+Upload, parsing, Chunking, Embedding, Qdrant client, retrieval, and frontend RAG
+runtime remain deferred to later Plan 3 steps.
 
 ## v0.1.0 Demo
 

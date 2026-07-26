@@ -16,6 +16,10 @@ All notable changes to AI Agent Lab are documented in this file.
   schema contracts with ownership, lifecycle, hash, metadata, vector, and query
   audit fields. Alembic revision `20260726_0005` creates the four SQLite tables
   with composite ownership and answer-message consistency constraints.
+- Added a service-owned Knowledge Base metadata CRUD API with partial updates,
+  deterministic listing, safe not-found responses, request-scoped
+  commit/rollback, focused temporary-SQLite coverage, and the formal M1 data
+  model/API reference.
 
 ## [0.2.1] - 2026-07-20
 

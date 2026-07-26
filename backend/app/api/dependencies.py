@@ -15,6 +15,7 @@ from app.providers.llm.registry import ModelRegistry, load_default_registry
 from app.services.agent_service import AgentService
 from app.services.chat_service import ChatService
 from app.services.conversation_service import ConversationService
+from app.services.knowledge_base_service import KnowledgeBaseService
 from app.tools import ToolRegistry
 from app.tools.builtin import register_builtin_tools
 
@@ -66,6 +67,12 @@ def get_conversation_service(
     session: Session = Depends(get_db_session, scope="function"),
 ) -> ConversationService:
     return ConversationService(session)
+
+
+def get_knowledge_base_service(
+    session: Session = Depends(get_db_session, scope="function"),
+) -> KnowledgeBaseService:
+    return KnowledgeBaseService(session)
 
 
 def get_chat_service(
