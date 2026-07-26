@@ -6,6 +6,12 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added controlled multipart Document upload for `.md`, `.txt`, and `.pdf`
+  files with bounded streaming, UUID-owned relative paths, 20 MiB and
+  50-document defaults, SHA-256 validation, same-Knowledge-Base duplicate
+  rejection, safe upload errors, and rollback file cleanup.
+- Added `python-multipart` as a runtime dependency and explicit setuptools
+  package discovery so the backend editable install includes only `app*`.
 - Started Plan 3 from the published `v0.2.1` baseline with a pinned local
   Qdrant Compose service, named vector-data volume, backend `QDRANT_URL`
   setting, disabled Qdrant telemetry, and explicit `knowledge/` / `rag/`

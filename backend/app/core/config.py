@@ -5,6 +5,9 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+
+
 class Settings(BaseSettings):
     app_name: str = Field(default="AI Agent Lab Backend", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
@@ -49,6 +52,22 @@ class Settings(BaseSettings):
         default=None,
         alias="MODEL_REGISTRY_PATH",
     )
+    document_storage_root: Path = Field(
+        default=BACKEND_ROOT / "uploads",
+        alias="DOCUMENT_STORAGE_ROOT",
+    )
+    document_max_upload_bytes: int = Field(
+        default=20_971_520,
+        gt=0,
+        le=1_073_741_824,
+        alias="DOCUMENT_MAX_UPLOAD_BYTES",
+    )
+    document_max_files_per_knowledge_base: int = Field(
+        default=50,
+        gt=0,
+        le=10_000,
+        alias="DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE",
+    )
 
     @field_validator("model_registry_path", mode="before")
     @classmethod
@@ -56,6 +75,19 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @field_validator("document_storage_root", mode="before")
+    @classmethod
+    def resolve_document_storage_root(cls, value: object) -> Path:
+        if isinstance(value, str) and not value.strip():
+            raise ValueError("document storage root must not be blank")
+        try:
+            path = Path(value)  # type: ignore[arg-type]
+        except TypeError as exc:
+            raise ValueError("document storage root must be a path") from exc
+        if not path.is_absolute():
+            path = BACKEND_ROOT / path
+        return path.resolve()
 
     model_config = SettingsConfigDict(
         env_file=".env",

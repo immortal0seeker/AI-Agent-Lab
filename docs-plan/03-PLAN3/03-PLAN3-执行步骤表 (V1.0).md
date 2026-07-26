@@ -55,7 +55,7 @@ blocked
 | Batch 1 | P3-M1-S1～S3 | 确认 Plan2 地基，接入 Qdrant 配置 | 跑现有测试和 Qdrant health | 已完成（配置、回归与真实 Qdrant health 均通过） |
 | Batch 2 | P3-M1-S4～S6 | 建立知识库核心数据模型 | 数据库迁移和模型测试 | 已完成（四模型、schema、迁移与回归均通过） |
 | Batch 3 | P3-M1-S7～S9 | 实现 Knowledge Base API | API 测试与 Codex self-review M1 | 已完成（service、API、正式文档与全量回归均通过） |
-| Batch 4 | P3-M2-S1～S3 | 实现文件上传和存储 | 上传 API 测试 | 未完成 |
+| Batch 4 | P3-M2-S1～S3 | 实现文件上传和存储 | 上传 API 测试 | 已完成（受控存储、上传 API、校验、事务清理与全量回归通过） |
 | Batch 5 | P3-M2-S4～S6 | 实现 Markdown / TXT / PDF 文本解析 | Parser 测试 | 未完成 |
 | Batch 6 | P3-M2-S7～S9 | 实现文本清洗和 Chunking | Chunking 测试，Codex review M2 | 未完成 |
 | Batch 7 | P3-M3-S1～S3 | 实现 Embedding Provider 抽象 | mock embedding 测试 | 未完成 |
@@ -187,15 +187,40 @@ feat(rag): add knowledge base models and api
 
 | Step ID | 任务 | 建议工具 | 交付物 | 验证方式 | Review |
 |---|---|---|---|---|---|
-| P3-M2-S1 | 实现文件上传存储策略 | Codex | `document_storage.py` | 文件保存到受控目录，文件名冲突安全处理 | Codex |
-| P3-M2-S2 | 实现 Document Upload API | Codex | `api/v1/documents.py` 上传接口 | 上传 Markdown / TXT 返回 Document 记录 | Codex |
-| P3-M2-S3 | 添加文件类型、大小、hash 校验 | Codex | 上传校验逻辑 | 超大文件、未知类型、重复文件测试通过 | Codex |
+| P3-M2-S1 | 实现文件上传存储策略（已完成） | Codex | `document_storage.py` | 文件保存到受控目录，文件名冲突安全处理 | Codex |
+| P3-M2-S2 | 实现 Document Upload API（已完成） | Codex | `api/v1/documents.py` 上传接口 | 上传 Markdown / TXT / PDF 返回 Document 记录 | Codex |
+| P3-M2-S3 | 添加文件类型、大小、hash 校验（已完成） | Codex | 上传校验逻辑 | 超大文件、未知类型、重复文件测试通过 | Codex |
 | P3-M2-S4 | 实现 Markdown Parser | Codex | `parsers/markdown_parser.py` | Markdown 标题、正文、代码块提取测试通过 | Codex |
 | P3-M2-S5 | 实现 TXT Parser | Codex | `parsers/txt_parser.py` | TXT 文本读取和编码处理测试通过 | Codex |
 | P3-M2-S6 | 实现文本型 PDF Parser | Codex | `parsers/pdf_parser.py` | 文本型 PDF 可提取文本；扫描 PDF 返回可读限制说明 | Codex |
 | P3-M2-S7 | 实现 Text Cleaner | Codex | `text_cleaner.py` | 空白、重复换行、不可见字符清洗测试通过 | Codex |
 | P3-M2-S8 | 实现 Chunker | Codex | `chunker.py` | chunk_size、overlap、chunk_index、token_count 测试通过 | Claude Code 可审 |
 | P3-M2-S9 | 串联解析、清洗、切分并更新 Document 状态 | Codex | parser pipeline 初版 | 上传后可生成 DocumentChunk 记录 | Codex review |
+
+### P3-M2-S1～S3 受控 Document 上传验收记录（2026-07-26）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 范围与设计 | 新增已确认的设计与实施计划；本批只实现受控文件存储、一个嵌套 multipart POST、类型/大小/hash/同知识库重复校验与事务文件清理。未创建 parser、cleaner、Chunker、Embedding、Qdrant client、Retriever 或前端上传 runtime。 |
+| S1 受控存储 | 默认根目录为 `backend/uploads`，相对配置从 backend root 解析；以 64 KiB read request 流式写入 `.staging`，边写边计算小写 SHA-256，最终保存为 `<knowledge_base_uuid>/<document_uuid>.<md\|txt\|pdf>` 相对 POSIX 路径。受管目录、symlink/reparse、containment、空文件、类型和 20 MiB 默认上限均有测试。 |
+| S2 API 与事务 | 新增且只新增 `POST /api/v1/knowledge-bases/{knowledge_base_id}/documents`，成功返回 HTTP 201 `DocumentRead`。Route 保持薄；`DocumentService` 只 flush，由请求 Session 负责 commit/rollback；commit 失败和 rollback 会清理新提升文件。 |
+| S3 校验策略 | 每个 Knowledge Base 默认最多 50 个 Document，数量检查与 Knowledge Base 404 均发生在读取 stream 之前；同一 Knowledge Base 按 SHA-256 拒绝重复，不同 Knowledge Base 允许相同内容；错误稳定映射为安全的 400/409/413/415/503。 |
+| TDD RED / GREEN | config/storage RED 为缺少上传错误与存储导出；GREEN `34 passed`。service RED 为缺少 `DocumentService`；storage/service GREEN `26 passed`，相邻 config/model/schema/service 回归 `97 passed`。API RED 为 `20 failed, 1 warning`（路由与映射缺失）；API GREEN `20 passed, 1 warning`；聚焦回归 `136 passed, 1 warning`。 |
+| 依赖 | 新增 `python-multipart>=0.0.18,<0.1.0`，本机安装 `0.0.32`。首次 editable install 暴露 flat-layout 自动发现 `app`/`alembic` 冲突；显式限定 setuptools `app*` 后同一安装命令成功，`pip check` 为 `No broken requirements found`。 |
+| 完整回归 | Backend `635 passed, 1 warning`；warning 为既知 Starlette TestClient/httpx 弃用提示。Frontend `18 files / 90 tests`、typecheck、production build（1813 modules）通过。 |
+| SQLite migration | 仅对新建系统临时 SQLite 执行 `upgrade head`、`current --check-heads` 与 `alembic check`；head 为 `20260726_0005`、`No new upgrade operations detected`，临时根目录已验证删除。未读取、迁移、删除或重建 `backend/ai_agent_lab.db`。 |
+| 文档与当前事实 | README 中英文、CHANGELOG、项目概览、架构、Knowledge Base 设计、活动 Plan 与设计/实施记录已同步；88 个 Markdown、60 个实际解析的本地链接/图片、0 读取/解析错误、0 missing。当前完成范围止于 `P3-M2-S3`，未声称解析或 ingestion 完成。 |
+| 安全、边界与仓库门禁 | 25 个变更路径全部属于 S1～S3 allowlist；新增行高置信 secret、真实 Provider host、generated/database/upload artifact、`web_fetch` production、later runtime 命中均为 0；`git diff --check` 无发现，暂存路径 0。`HEAD == origin/main == 943c3370119db6299484ab6aceda7e6d47870a25`；`v0.2.0^{}` 与 `v0.2.1^{}` 仍分别为 `0e3f3a66e1322c565f2056696f7e482cedbb5f6c`、`872310b4dc1b78e2a2487303699d68ec8b22f88b`。 |
+| Codex self-review | must fix：恢复被无必要改写的 `app.knowledge` ownership docstring，相关集合 `49 passed, 1 warning` 且后端全量复验通过。later Step：S4～S6 parser，S7～S9 cleaner/Chunker/pipeline，Document 查询/删除与文件删除协调。accepted limitation：既知 TestClient warning、suffix-only 类型判断、hard-crash orphan、并发同 hash race、删除 Knowledge Base 暂不清理本地文件。not applicable：本批无 ORM/migration、Qdrant client、Provider、前端、外部 review 或 Plan 4+ 能力。无剩余阻塞项。 |
+
+**结论：** `P3-M2-S1～S3` 与 Batch 4 完成。当前证据支持下一批进入
+`P3-M2-S4～S6`；本批没有提前实现解析能力。
+
+本批建议 commit：
+
+```text
+feat(knowledge): add controlled document upload
+```
 
 M2 完成后建议 commit：
 

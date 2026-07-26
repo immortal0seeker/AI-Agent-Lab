@@ -9,12 +9,14 @@ from sqlalchemy.orm.session import sessionmaker
 from app.agents import SimpleAgentService
 from app.core.config import Settings, get_settings
 from app.db.session import SessionLocal
+from app.knowledge import DocumentStorage
 from app.providers.llm.base import BaseLLMProvider
 from app.providers.llm.factory import create_openai_compatible_provider
 from app.providers.llm.registry import ModelRegistry, load_default_registry
 from app.services.agent_service import AgentService
 from app.services.chat_service import ChatService
 from app.services.conversation_service import ConversationService
+from app.services.document_service import DocumentService
 from app.services.knowledge_base_service import KnowledgeBaseService
 from app.tools import ToolRegistry
 from app.tools.builtin import register_builtin_tools
@@ -73,6 +75,23 @@ def get_knowledge_base_service(
     session: Session = Depends(get_db_session, scope="function"),
 ) -> KnowledgeBaseService:
     return KnowledgeBaseService(session)
+
+
+def get_document_service(
+    session: Session = Depends(get_db_session, scope="function"),
+    settings: Settings = Depends(get_settings),
+) -> DocumentService:
+    storage = DocumentStorage(
+        settings.document_storage_root,
+        max_upload_bytes=settings.document_max_upload_bytes,
+    )
+    return DocumentService(
+        session,
+        storage=storage,
+        max_files_per_knowledge_base=(
+            settings.document_max_files_per_knowledge_base
+        ),
+    )
 
 
 def get_chat_service(

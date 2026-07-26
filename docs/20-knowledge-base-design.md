@@ -3,13 +3,15 @@
 ## Scope
 
 Plan 3 Milestone 1 establishes the persistence and management boundary for
-Knowledge Bases. Through `P3-M1-S9`, the backend can create, list, read, update,
-and delete Knowledge Base metadata through a service-owned HTTP API.
+Knowledge Bases. Through `P3-M2-S3`, the backend can create, list, read, update,
+and delete Knowledge Base metadata and can upload one validated Document
+through a service-owned HTTP API.
 
-This milestone does not upload or parse documents, create chunks or embeddings,
-connect to Qdrant, retrieve sources, generate RAG answers, or expose a frontend
-Knowledge Base workspace. Those capabilities remain assigned to later Plan 3
-steps.
+The first M2 batch stores `.md`, `.txt`, and `.pdf` bytes and creates the
+initial Document row. It does not parse file content, create chunks or
+embeddings, connect a Qdrant client, retrieve sources, generate RAG answers, or
+expose a frontend Knowledge Base workspace. Those capabilities remain assigned
+to later Plan 3 steps.
 
 ## Storage Responsibilities
 
@@ -20,13 +22,15 @@ SQLite remains the default and long-term supported primary database. It owns:
 - Document Chunk text, source metadata, and future vector identifiers;
 - RAG query audit metadata and retrieved-chunk snapshots.
 
-Qdrant is configured as Plan 3's vector-storage service, but M1 contains no
-Qdrant client or Vector Store runtime. The `vector_store`,
+Qdrant is configured as Plan 3's vector-storage service, but the scope through
+M2 S3 contains no Qdrant client or Vector Store runtime. The `vector_store`,
 `vector_collection_name`, and `vector_id` fields are persistence bridges, not
 evidence that a collection or vector has been created.
 
-Deleting a Knowledge Base in M1 deletes its SQLite-owned metadata through
-database cascades. It does not contact Qdrant or delete a Qdrant collection.
+Deleting a Knowledge Base deletes its SQLite-owned metadata through database
+cascades. Through M2 S3 it does not delete locally uploaded bytes, contact
+Qdrant, or delete a Qdrant collection; local-file deletion coordination is a
+documented later-step limitation.
 
 ## Ownership Graph
 
@@ -76,12 +80,51 @@ The `documents` table belongs to one Knowledge Base and records:
 | Diagnostics and source metadata | optional `error_message`, `metadata_json` |
 | Audit time | `created_at`, `updated_at` |
 
-The current milestone defines and validates these states but does not execute
-their transitions. Upload, parsing, cleaning, Chunking, and Embedding services
-remain deferred.
+Document upload now creates the initial `uploaded` / `pending` / `pending`
+state. Parsing, cleaning, Chunking, and Embedding transitions remain deferred.
 
 Deleting a Knowledge Base cascades to its Documents. The unique
 `(id, knowledge_base_id)` pair supports a composite ownership check for chunks.
+
+## Controlled Document Storage
+
+`DocumentStorage` owns local file I/O behind a framework-neutral async stream
+boundary. Its defaults are:
+
+| Setting | Default | Contract |
+|---|---:|---|
+| `DOCUMENT_STORAGE_ROOT` | `./uploads` | Relative values resolve below the backend root |
+| `DOCUMENT_MAX_UPLOAD_BYTES` | `20_971_520` | 20 MiB per non-empty file |
+| `DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE` | `50` | Checked before the upload stream is read |
+
+The runtime layout is:
+
+```text
+backend/uploads/
+├── .staging/
+│   └── <random>.part
+└── <knowledge_base_uuid>/
+    └── <document_uuid>.<md|txt|pdf>
+```
+
+Client filenames are display metadata only. Path prefixes are removed, control
+characters and invalid names are rejected, and only `.md`, `.txt`, and `.pdf`
+suffixes are accepted case-insensitively. The final name and path use generated
+UUIDs, so client input cannot overwrite an existing upload. SQLite stores only
+the relative POSIX path.
+
+Staging reads at most 64 KiB per request, enforces the configured byte limit
+before writing an overflowing chunk, and calculates a lowercase SHA-256 while
+streaming. The same hash is rejected within one Knowledge Base and allowed in a
+different Knowledge Base. The service-level query matches the local-first
+single-writer model; concurrent same-hash uploads remain an accepted limitation.
+
+The request database dependency remains the commit/rollback owner. A promoted
+file is registered on the Session before the Document flush. Successful commit
+forgets that pending cleanup; rollback removes the new file. Staging files are
+removed on normal validation and storage failures. A hard process termination
+can still leave staging or unreferenced final files, and orphan scanning is
+deferred.
 
 ## DocumentChunk Integrity
 
@@ -149,6 +192,7 @@ All routes use the plural kebab-case prefix `/api/v1/knowledge-bases`.
 | `GET` | `/api/v1/knowledge-bases/{knowledge_base_id}` | `200` | `KnowledgeBaseRead` |
 | `PATCH` | `/api/v1/knowledge-bases/{knowledge_base_id}` | `200` | Updated `KnowledgeBaseRead` |
 | `DELETE` | `/api/v1/knowledge-bases/{knowledge_base_id}` | `204` | Empty body |
+| `POST` | `/api/v1/knowledge-bases/{knowledge_base_id}/documents` | `201` | Initial `DocumentRead` |
 
 `PATCH` is a partial update. At least one field must be supplied. The mutable
 fields are `name`, `description`, `embedding_provider`, `embedding_model`,
@@ -158,6 +202,10 @@ bounded names fail schema validation.
 
 The route layer validates input, calls the service, and shapes the response. It
 does not own persistence logic.
+
+The Document upload request is `multipart/form-data` with one required `file`
+field. There are no Document list, detail, chunk-query, or delete routes through
+M2 S3.
 
 ## Error And Transaction Behavior
 
@@ -176,6 +224,18 @@ An unknown UUID on detail, update, or delete returns:
 The response is HTTP `404` and does not echo the missing UUID. Request
 validation failures use the shared safe `422` response. SQLAlchemy failures use
 the shared safe `503 database_error` response.
+
+Document upload errors use stable responses without filenames, file content,
+hashes, absolute paths, or internal diagnostics:
+
+| HTTP | Code | Meaning |
+|---:|---|---|
+| `400` | `document_file_invalid` | Missing/invalid filename or empty file |
+| `413` | `document_too_large` | Configured byte limit exceeded |
+| `415` | `document_type_unsupported` | Suffix is not `.md`, `.txt`, or `.pdf` |
+| `409` | `document_duplicate` | Same hash exists in this Knowledge Base |
+| `409` | `knowledge_base_document_limit_reached` | Knowledge Base reached its configured count |
+| `503` | `document_storage_error` | Controlled staging/promotion/cleanup failed |
 
 Successful requests commit after the route returns. Any exception rolls the
 request transaction back before the session closes. Tests use newly created
@@ -205,15 +265,26 @@ Fresh M1 verification then reached:
   new upgrade operations;
 - `86` Markdown files and `69` local links/images with `0` missing targets.
 
+The M2 S1～S3 TDD checkpoints are:
+
+- storage/config RED: upload errors and storage exports were absent;
+- storage/config GREEN: `34 passed`;
+- service RED: `DocumentService` was absent;
+- storage/service GREEN: `26 passed`;
+- adjacent config/model/schema/service regression: `97 passed`;
+- API RED: `20 failed, 1 warning` because the route and mappings were absent;
+- API GREEN: `20 passed, 1 warning`;
+- focused M1 plus upload regression: `136 passed, 1 warning`.
+
 The active Plan 3 execution table contains the security, scope, artifact, and
 Git gates. No verification command read or modified `backend/ai_agent_lab.db`.
 
 ## Deferred Capabilities
 
-The following remain outside `P3-M1-S7～S9`:
+The following remain outside `P3-M2-S1～S3`:
 
-- Document upload, controlled file storage, duplicate detection, and Document
-  APIs;
+- Document list, detail, chunk-query, delete, local-file deletion, and orphan
+  recovery workflows;
 - Markdown, TXT, or text-PDF parsing, cleaning, and Chunking;
 - Embedding Provider adapters and embedding execution;
 - Qdrant client, collection lifecycle, vector upsert, and vector deletion;

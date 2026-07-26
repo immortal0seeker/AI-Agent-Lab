@@ -25,14 +25,16 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M1-S9`.
+Completed scope: `P1-M1-S1` through `P3-M2-S3`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
 contracts were revalidated. Plan 3 M1 is complete through `P3-M1-S9`: release
 handoff review, Qdrant configuration, explicit RAG/Knowledge ownership
 boundaries, four knowledge persistence models, and a tested backend Knowledge
-Base CRUD service/API.
+Base CRUD service/API. The first Plan 3 M2 batch adds controlled multipart
+Document upload, bounded local storage, SHA-256/type/size validation, same-KB
+duplicate rejection, and safe transaction rollback cleanup.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -102,8 +104,10 @@ SHA-256 hashes, source metadata, vector IDs, retrieved chunk snapshots, and
 optional answer-message linkage. `KnowledgeBaseService` and the five plural
 `/api/v1/knowledge-bases` CRUD routes now expose metadata management with
 partial `PATCH`, safe not-found responses, and request-scoped transactions.
-Upload, parsing, Chunking, Embedding, Qdrant client, retrieval, and frontend RAG
-runtime remain deferred to later Plan 3 steps.
+The nested Document upload POST now accepts `.md`, `.txt`, and `.pdf` files and
+returns an initial `Document` record. Parsing, Chunking, Embedding, Qdrant
+client, retrieval, Document query/delete APIs, and frontend upload/RAG runtime
+remain deferred to later Plan 3 steps.
 
 ## v0.1.0 Demo
 
@@ -209,6 +213,28 @@ configuration disables Qdrant telemetry. On 2026-07-26, the pinned
 service is for local development only; do not expose port 6333 to an untrusted
 network.
 
+### Document Upload Storage
+
+The backend accepts one multipart upload at
+`POST /api/v1/knowledge-bases/{knowledge_base_id}/documents`. Local files are
+streamed through `backend/uploads/.staging/` and promoted to
+`<knowledge_base_uuid>/<document_uuid>.<md|txt|pdf>`; SQLite stores only that
+relative POSIX path. Configure the non-secret limits in an untracked
+`backend/.env` when needed:
+
+```text
+DOCUMENT_STORAGE_ROOT=./uploads
+DOCUMENT_MAX_UPLOAD_BYTES=20971520
+DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE=50
+```
+
+Uploads are non-empty, limited to 20 MiB, and deduplicated by SHA-256 within
+one Knowledge Base. Identical content is allowed in a different Knowledge Base.
+Request rollback removes a newly promoted file, but process termination can
+leave an orphan. Document/Knowledge Base file deletion, orphan scanning,
+parsing, and content validation are not implemented in this batch. The runtime
+upload directory is ignored and must never be committed.
+
 ### Backend
 
 ```bash
@@ -222,8 +248,9 @@ cd backend
 The backend defaults to `sqlite:///./ai_agent_lab.db`. Override it with
 `DATABASE_URL` in a local untracked environment file when needed. Alembic owns
 schema creation and currently creates `conversations`, `messages`, `llm_calls`,
-`agent_runs`, and `tool_calls`; the application does not create tables during
-startup. The Plan 2 migrations also enforce that an AgentRun's optional user
+`agent_runs`, `tool_calls`, `knowledge_bases`, `documents`, `document_chunks`,
+and `rag_queries`; the application does not create tables during startup. The
+Plan 2 migrations also enforce that an AgentRun's optional user
 Message belongs to the same Conversation and that each ToolCall has a positive,
 per-run unique `sequence_index`.
 

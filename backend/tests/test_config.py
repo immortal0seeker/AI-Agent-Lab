@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -22,6 +24,43 @@ def test_settings_accepts_qdrant_url_override() -> None:
     )
 
     assert settings.qdrant_url == "http://qdrant.internal:6333"
+
+
+def test_settings_default_document_upload_limits() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.document_storage_root.is_absolute()
+    assert settings.document_storage_root.name == "uploads"
+    assert settings.document_max_upload_bytes == 20_971_520
+    assert settings.document_max_files_per_knowledge_base == 50
+
+
+def test_settings_resolves_relative_document_storage_from_backend() -> None:
+    settings = Settings(
+        _env_file=None,
+        DOCUMENT_STORAGE_ROOT="runtime_uploads",
+    )
+
+    assert settings.document_storage_root.is_absolute()
+    assert settings.document_storage_root.name == "runtime_uploads"
+    assert settings.document_storage_root.parent.name == "backend"
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("DOCUMENT_MAX_UPLOAD_BYTES", 0),
+        ("DOCUMENT_MAX_UPLOAD_BYTES", 1_073_741_825),
+        ("DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE", 0),
+        ("DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE", 10_001),
+    ],
+)
+def test_settings_rejects_invalid_document_upload_limits(
+    field_name: str,
+    value: int,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **{field_name: value})
 
 
 @pytest.mark.parametrize("value", ["", "   "])

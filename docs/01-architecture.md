@@ -28,9 +28,9 @@ sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
 the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
 audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
-`P3-M1-S9` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
-ownership boundaries, four knowledge persistence models, and a service-owned
-Knowledge Base CRUD API.
+`P3-M2-S3` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
+ownership boundaries, four knowledge persistence models, a service-owned
+Knowledge Base CRUD API, and controlled validated Document upload.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -87,11 +87,11 @@ Current backend layers:
 |---|---|
 | `api/` | HTTP routes and response shaping |
 | `schemas/` | Pydantic request and response contracts |
-| `services/` | Chat, conversation, Agent query, Knowledge Base CRUD, and application logic |
+| `services/` | Chat, conversation, Agent query, Knowledge Base CRUD, Document upload, and application logic |
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM provider abstractions and adapters |
-| `knowledge/` | Plan 3 structured knowledge metadata and future orchestration boundary; models live in `models/` and CRUD logic lives in `services/` |
-| `rag/` | Plan 3 document-processing and Naive RAG pipeline boundary; no processing, retrieval, or Qdrant client runtime exists through S9 |
+| `knowledge/` | Plan 3 structured knowledge metadata plus controlled Document storage; models live in `models/` and service policy lives in `services/` |
+| `rag/` | Plan 3 document-processing and Naive RAG pipeline boundary; no parser, processing, retrieval, or Qdrant client runtime exists through M2 S3 |
 | `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
 | `db/` | SQLAlchemy session and database setup |
 | `models/` | ORM models |
@@ -128,7 +128,8 @@ operation without adding PostgreSQL-specific infrastructure preemptively.
 
 Plan 3 adds Qdrant as a separate vector-storage service configured through
 `QDRANT_URL`; it does not replace SQLite business or audit persistence. The
-S1～S9 scope contains no Qdrant client or Vector Store implementation.
+scope through `P3-M2-S3` contains no Qdrant client or Vector Store
+implementation.
 
 The initial migration creates:
 
@@ -195,10 +196,16 @@ safe `knowledge_base_not_found` response. Deletion affects SQLite metadata and
 its database cascades only; no Qdrant client or collection deletion exists in
 M1.
 
-The Document, DocumentChunk, and RagQuery create/read schemas currently support
-model and migration boundaries only. Their APIs and service workflows remain
-deferred to later Plan 3 steps. The complete M1 contract is documented in
-[Knowledge Base Design](20-knowledge-base-design.md).
+`DocumentService` now validates the Knowledge Base and its 50-document default
+limit before reading an upload, then delegates bounded staging, suffix checks,
+SHA-256 calculation, and UUID path promotion to `DocumentStorage`. It rejects
+same-hash content within one Knowledge Base while allowing it across different
+Knowledge Bases. The service flushes but does not commit; Session callbacks
+remove newly promoted files on request rollback. One thin multipart route,
+`POST /api/v1/knowledge-bases/{knowledge_base_id}/documents`, returns the
+initial `DocumentRead`. Document query/delete, parsers, `DocumentChunk` writes,
+Embedding, retrieval, and Qdrant client behavior remain deferred. The complete
+contract is documented in [Knowledge Base Design](20-knowledge-base-design.md).
 
 ## Tool Calling Foundation
 
@@ -390,6 +397,14 @@ Backend settings are loaded from `backend/.env` when backend commands run from
 the backend directory. Vite loads `frontend/.env` for frontend commands. The
 root `.env.example` is documentation-only in the current architecture and is
 not automatically consumed by either application.
+
+`DOCUMENT_STORAGE_ROOT` defaults to `backend/uploads`, relative values resolve
+from the backend root, `DOCUMENT_MAX_UPLOAD_BYTES` defaults to `20_971_520`,
+and `DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE` defaults to `50`. Uploads use
+temporary staging and UUID-owned final paths. SQLite owns the Document row;
+local storage owns the bytes. Request rollback coordinates the two for normal
+failures, while hard-crash orphan recovery and deletion cleanup remain
+deferred.
 
 ## Plan 1 Data Flow
 

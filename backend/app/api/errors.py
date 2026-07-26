@@ -15,6 +15,15 @@ from app.agents import (
 )
 from app.core.logging import safe_stack_locations
 from app.core.request_context import bind_request_id, get_request_id
+from app.knowledge import (
+    DocumentDuplicateError,
+    DocumentError,
+    DocumentFileInvalidError,
+    DocumentStorageError,
+    DocumentTooLargeError,
+    DocumentTypeUnsupportedError,
+    KnowledgeBaseDocumentLimitReachedError,
+)
 from app.providers.llm.base import (
     LLMProviderError,
     ProviderAuthError,
@@ -76,6 +85,42 @@ def error_spec_for_exception(exc: Exception) -> ErrorSpec:
             404,
             "knowledge_base_not_found",
             "Knowledge base not found",
+        )
+    if isinstance(exc, DocumentFileInvalidError):
+        return ErrorSpec(
+            400,
+            "document_file_invalid",
+            "The uploaded document is invalid",
+        )
+    if isinstance(exc, DocumentTooLargeError):
+        return ErrorSpec(
+            413,
+            "document_too_large",
+            "The uploaded document exceeds the size limit",
+        )
+    if isinstance(exc, DocumentTypeUnsupportedError):
+        return ErrorSpec(
+            415,
+            "document_type_unsupported",
+            "The uploaded document type is not supported",
+        )
+    if isinstance(exc, DocumentDuplicateError):
+        return ErrorSpec(
+            409,
+            "document_duplicate",
+            "The document already exists in this knowledge base",
+        )
+    if isinstance(exc, KnowledgeBaseDocumentLimitReachedError):
+        return ErrorSpec(
+            409,
+            "knowledge_base_document_limit_reached",
+            "The knowledge base document limit was reached",
+        )
+    if isinstance(exc, DocumentStorageError):
+        return ErrorSpec(
+            503,
+            "document_storage_error",
+            "The document storage operation failed",
         )
     if isinstance(exc, ChatModelNotFoundError):
         return ErrorSpec(
@@ -204,6 +249,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, unified_error_handler)
     app.add_exception_handler(HTTPException, unified_error_handler)
     app.add_exception_handler(ServiceError, unified_error_handler)
+    app.add_exception_handler(DocumentError, unified_error_handler)
     app.add_exception_handler(LLMProviderError, unified_error_handler)
     app.add_exception_handler(SQLAlchemyError, unified_error_handler)
     app.add_exception_handler(Exception, unified_error_handler)

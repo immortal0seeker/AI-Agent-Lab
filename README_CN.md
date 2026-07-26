@@ -25,13 +25,14 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M1-S9`。
+已完成范围：`P1-M1-S1` 到 `P3-M2-S3`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
 `P3-M1-S9`：复核发布交接、配置 Qdrant、建立明确的 RAG/Knowledge ownership
 边界、新增四个知识持久化模型，并提供经过测试的后端 Knowledge Base CRUD
-service/API。
+service/API。Plan 3 M2 首批还新增受控 multipart Document 上传、有界本地存储、
+SHA-256/类型/大小校验、同一知识库去重和事务回滚文件清理。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -86,8 +87,10 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 文档 ownership、摄取生命周期状态、SHA-256 hash、来源 metadata、vector ID、
 检索片段快照和可选回答 Message 关联。`KnowledgeBaseService` 与五个复数形式的
 `/api/v1/knowledge-bases` CRUD 路由现已提供 metadata 管理，包含部分 `PATCH`、
-安全的 not-found 响应与请求级事务。上传、解析、Chunking、Embedding、Qdrant
-client、检索和前端 RAG runtime 仍延期到后续 Plan 3 Step。
+安全的 not-found 响应与请求级事务。嵌套 Document POST 已支持 `.md`、`.txt`
+和 `.pdf` 上传并返回初始 `Document` 记录；解析、Chunking、Embedding、Qdrant
+client、检索、Document 查询/删除 API 和前端上传/RAG runtime 仍延期到后续
+Plan 3 Step。
 
 ## v0.1.0 演示
 
@@ -184,6 +187,25 @@ Invoke-RestMethod http://localhost:6333/healthz
 且 `/healthz` 返回 HTTP 200 和 `healthz check passed`。该无 API key 的
 Compose 服务仅用于本地开发，不得将 6333 端口暴露给不受信任网络。
 
+### Document 上传存储
+
+后端提供一个 multipart 接口：
+`POST /api/v1/knowledge-bases/{knowledge_base_id}/documents`。文件先流式写入
+`backend/uploads/.staging/`，再提升为
+`<knowledge_base_uuid>/<document_uuid>.<md|txt|pdf>`；SQLite 只保存相对
+POSIX 路径。如需覆盖非秘密配置，可在未跟踪的 `backend/.env` 中设置：
+
+```text
+DOCUMENT_STORAGE_ROOT=./uploads
+DOCUMENT_MAX_UPLOAD_BYTES=20971520
+DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE=50
+```
+
+上传必须非空，默认上限 20 MiB，每个知识库默认最多 50 个 Document；同一
+知识库按 SHA-256 拒绝重复内容，不同知识库允许相同内容。正常请求回滚会删除
+刚提升的文件，但进程异常终止仍可能留下孤儿文件。本批不处理 Document/知识库
+文件删除、孤儿扫描、解析和内容真实性校验。runtime 上传目录已忽略，不能提交。
+
 ### 后端
 
 ```bash
@@ -196,7 +218,8 @@ cd backend
 
 后端默认数据库为 `sqlite:///./ai_agent_lab.db`。如需调整，请通过本地未跟踪的
 环境变量设置 `DATABASE_URL`。数据库结构由 Alembic 管理，目前会创建
-`conversations`、`messages`、`llm_calls`、`agent_runs` 和 `tool_calls`；应用启动时
+`conversations`、`messages`、`llm_calls`、`agent_runs`、`tool_calls`、
+`knowledge_bases`、`documents`、`document_chunks` 和 `rag_queries`；应用启动时
 不会自动建表。Plan 2 迁移还会约束 AgentRun 关联的可选用户 Message 必须属于
 同一个 Conversation，并要求每个 ToolCall 具有正数、run 内唯一的
 `sequence_index`。

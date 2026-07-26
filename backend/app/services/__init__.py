@@ -5,6 +5,7 @@ from app.services.chat_service import (
     ChatStreamDelta,
 )
 from app.services.conversation_service import ConversationService
+from app.services.document_service import DocumentService
 from app.services.errors import (
     ChatModelNotFoundError,
     ChatProviderUnavailableError,
@@ -23,6 +24,7 @@ __all__ = [
     "ChatStreamDelta",
     "ConversationNotFoundError",
     "ConversationService",
+    "DocumentService",
     "KnowledgeBaseNotFoundError",
     "KnowledgeBaseService",
     "ServiceError",
