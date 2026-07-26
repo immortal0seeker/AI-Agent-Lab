@@ -26,10 +26,10 @@ dedicated frontend Agent workspace consumes the synchronous API and renders
 bounded ToolCall audit details. M5 adds safety regression coverage plus
 sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
-the user published `v0.2.0` from commit `0e3f3a6`. The current working tree
-prepares `v0.2.1` with hardened Tool JSON/filesystem limits, deny-by-default
-dispatch, a whole-run deadline, strict ToolCall order, a local Registry
-override, and frontend recovery. It does not start Plan 3 or move `v0.2.0`.
+the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
+audit patch from commit `872310b`. Plan 3 starts from `v0.2.1` with only Qdrant
+configuration and empty `knowledge/` and `rag/` ownership boundaries in
+`P3-M1-S1～S3`.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -53,6 +53,8 @@ AI-Agent-Lab/
 │       ├── schemas/
 │       ├── services/
 │       ├── providers/
+│       ├── knowledge/
+│       ├── rag/
 │       └── tools/
 │           ├── base.py
 │           ├── registry.py
@@ -87,6 +89,8 @@ Current backend layers:
 | `services/` | Chat, conversation, Agent query, and application logic |
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM provider abstractions and adapters |
+| `knowledge/` | Plan 3 structured knowledge metadata and orchestration boundary; no models or service are added in S1～S3 |
+| `rag/` | Plan 3 document-processing and Naive RAG pipeline boundary; no pipeline is added in S1～S3 |
 | `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
 | `db/` | SQLAlchemy session and database setup |
 | `models/` | ORM models |
@@ -120,6 +124,10 @@ reasonable portability, but PostgreSQL is only an optional compatibility path
 if the product later gains server deployment, multi-user access, or sustained
 concurrent writes. Future modules should optimize for reliable local SQLite
 operation without adding PostgreSQL-specific infrastructure preemptively.
+
+Plan 3 adds Qdrant as a separate vector-storage service configured through
+`QDRANT_URL`; it does not replace SQLite business or audit persistence. The
+S1～S3 foundation contains no Qdrant client or Vector Store implementation.
 
 The initial migration creates:
 

@@ -13,6 +13,10 @@ class Settings(BaseSettings):
         default="sqlite:///./ai_agent_lab.db",
         alias="DATABASE_URL",
     )
+    qdrant_url: str = Field(
+        default="http://localhost:6333",
+        alias="QDRANT_URL",
+    )
     backend_cors_origins: str = Field(
         default="http://localhost:5173",
         alias="BACKEND_CORS_ORIGINS",

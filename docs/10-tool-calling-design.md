@@ -16,8 +16,9 @@ a dedicated read-only frontend workspace with bounded ToolCall audit cards.
 lock the `web_fetch` deferral with regression coverage, refresh frontend
 verification, and prepare sanitized release documentation. `P2-M5-S7～S8`
 completed the final Codex review, published `v0.2.0`, and revalidated this Tool
-boundary for Plan 3. The current `v0.2.1` audit patch hardens the same boundary
-without adding a network Tool or later-Plan runtime.
+boundary for Plan 3. The subsequent published `v0.2.1` patch hardens the same
+boundary without adding a network Tool or later-Plan runtime. Plan 3 S1～S3
+reuse it unchanged.
 
 ## Tool Boundary
 

@@ -10,8 +10,9 @@ Agent create/query routes, while M4 S4～S6 add a dedicated frontend Agent
 workspace that submits one goal and renders the persisted AgentRun/ToolCall
 audit result. M5 S1～S6 harden its safety tests and refresh release verification
 and documentation. M5 S7～S8 complete the final Codex review and published
-`v0.2.0`. The current `v0.2.1` audit patch clarifies and enforces the Tool budget,
-permission, timeout, persistence, and recovery boundaries described below.
+`v0.2.0`. The subsequent published `v0.2.1` audit patch clarifies and enforces
+the Tool budget, permission, timeout, persistence, and recovery boundaries
+described below.
 
 The loop itself was delivered by `P2-M3-S1` through `P2-M3-S8`. Plan 2 does not
 add RAG, Embedding, Memory, MCP, Shell/file-writing Tools, a Planner, Human
@@ -205,7 +206,7 @@ touch the user's SQLite database.
 
 The tracked default model remains `supports_tools=false`; browser and release
 acceptance use local Mock data and do not prove live Provider Tool capability.
-The S7 final review and S8 `v0.2.0` tag gate are complete; the current working
-tree prepares `v0.2.1` without moving that tag. See
+The S7 final review, S8 `v0.2.0` tag gate, and published `v0.2.1` patch are
+complete. Plan 3 reuses this loop without modifying it in S1～S3. See
 [Agent API](12-agent-api.md) for the implemented HTTP schemas, transaction
 behavior, error mapping, query boundaries, and frontend integration.

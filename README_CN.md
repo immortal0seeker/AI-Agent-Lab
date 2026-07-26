@@ -8,9 +8,9 @@ AI Agent Lab 是一个分阶段构建的 AI Engineering Workspace，用来学习
 
 ## 当前阶段
 
-当前最新 Git tag：`v0.2.0`（Plan 2 基础 Agent），对应已发布提交
-`0e3f3a6`。Plan 2 已完成。当前工作区正在准备 Codex 发布后审计发现的
-`v0.2.1` 安全性与正确性补丁；Codex 没有创建补丁提交或 tag。
+当前最新 Git tag 是 Plan 2 审计修复补丁 `v0.2.1`，对应已发布提交
+`872310b`。原始 Plan 2 基础 Agent 发布 `v0.2.0` 仍指向 `0e3f3a6`；两个既有
+tag 都不得移动或改写。Plan 2 已完成。
 
 Plan 1 覆盖：
 
@@ -25,11 +25,12 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P2-M5-S8`。
+已完成范围：`P1-M1-S1` 到 `P3-M1-S3`。
 
-当前开发阶段：Plan 2 的全部里程碑和原始 `v0.2.0` 发布门禁已经完成，进入
-Plan 3 的五项桥接契约已经重新验证。正在处理的 `v0.2.1` 补丁保持原有 Plan
-边界，不会提前开始 Plan 3。
+当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
+都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 只开始
+`P3-M1-S1～S3` 地基批次：复核发布交接、配置 Qdrant，以及创建空的
+RAG/Knowledge 包边界。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -71,14 +72,13 @@ Chat URL。
 桌面端/移动端发布截图。S7～S8 已完成原始 `v0.2.0` review、release commit、
 annotated tag、push 与 tag-target 门禁。
 
-发布后的 `v0.2.1` 审计补丁新增共享的 64 KiB 标准 JSON Tool 参数上限、4096
+已发布的 `v0.2.1` 审计补丁新增共享的 64 KiB 标准 JSON Tool 参数上限、4096
 字符内置路径上限、私钥内容识别，以及禁止 symlink/reparse traversal；`list_dir`
 使用有界枚举，Agent dispatch 拒绝非只读 Tool，无效/阻止调用的参数会在持久化前
 清空，Agent run 有总超时，ToolCall 顺序被严格持久化。`web_fetch` 仍然延期且没有
 任何运行时表面。
 
-新鲜验证通过后的下一步：用户手动提交 `v0.2.1` 补丁并创建 annotated tag
-`v0.2.1`。既有 `v0.2.0` tag 不得移动或重建。
+Plan 3 以 `v0.2.1` 为当前基线，不会把基线降回 `v0.2.0`。
 
 ## v0.1.0 演示
 
@@ -158,6 +158,22 @@ Copy-Item frontend/.env.example frontend/.env
 从 `backend/` 运行的后端命令读取 `backend/.env`；从 `frontend/` 运行的 Vite
 命令读取 `frontend/.env`。这些本地文件必须保持未跟踪。已跟踪示例不包含真实凭据；
 `VITE_*` 变量会暴露到浏览器，因此绝不能保存秘密。
+
+### Qdrant
+
+Plan 3 只使用 Qdrant 保存向量；SQLite 继续保存业务与审计数据，是默认且长期
+支持的主数据库。从仓库根目录启动固定版本的本地服务并检查原生 health：
+
+```powershell
+docker compose up -d qdrant
+Invoke-RestMethod http://localhost:6333/healthz
+```
+
+后端 `QDRANT_URL` 默认是 `http://localhost:6333`；只允许在未跟踪的
+`backend/.env` 或进程环境中覆盖。tracked Compose 配置明确禁用 Qdrant 遥测。
+2026-07-26 已验证固定版本 `qdrant/qdrant:v1.15.4` 容器运行、重启次数为 0，
+且 `/healthz` 返回 HTTP 200 和 `healthz check passed`。该无 API key 的
+Compose 服务仅用于本地开发，不得将 6333 端口暴露给不受信任网络。
 
 ### 后端
 

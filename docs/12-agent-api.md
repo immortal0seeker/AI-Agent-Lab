@@ -14,6 +14,7 @@ GET  /api/v1/agents/runs/{run_id}/tool-calls
 The resource name is always plural `agents`; there is no singular
 `/api/v1/agent/runs` alias. The routes add no new Agent state, Tool, or Provider
 protocol. The later `v0.2.1` patch adds only ToolCall `sequence_index` storage.
+That patch is now published; Plan 3 S1～S3 do not change these routes.
 
 ## Create a Run
 
@@ -199,5 +200,5 @@ See [Simple Agent Loop](11-simple-agent-loop.md) and
 [Tool Calling Design](10-tool-calling-design.md) for the underlying runtime and
 security contracts. The S7 [Plan 2 final review](reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 revalidated these routes and their Plan 3 bridge role; S8 and the published
-`v0.2.0` tag gate are complete. The current working tree prepares `v0.2.1`
-without moving that tag.
+`v0.2.0` tag gate are complete. The published `v0.2.1` patch at `872310b`
+remains the Plan 3 baseline.

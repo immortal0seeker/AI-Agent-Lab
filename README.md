@@ -8,10 +8,9 @@ This repository is not a collection of disconnected demos. The goal is to build 
 
 ## Current Stage
 
-Latest existing Git tag: `v0.2.0` (Plan 2 basic Agent), published from commit
-`0e3f3a6`. Plan 2 is complete. The current working tree prepares a `v0.2.1`
-security and correctness patch found by the post-release Codex audit; Codex has
-not created the patch commit or tag.
+Latest existing Git tag: `v0.2.1` (Plan 2 audit-remediation patch), published
+from commit `872310b`. The original `v0.2.0` basic Agent release remains at
+`0e3f3a6`; neither existing tag may be moved or rewritten. Plan 2 is complete.
 
 Plan 1 covers:
 
@@ -26,12 +25,13 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P2-M5-S8`.
+Completed scope: `P1-M1-S1` through `P3-M1-S3`.
 
-Current development stage: all Plan 2 milestones and the original `v0.2.0`
-release gate are complete. All five Plan 3 bridge contracts were revalidated.
-The in-progress `v0.2.1` patch keeps the same Plan boundary and does not start
-Plan 3.
+Current development stage: all Plan 2 milestones, the original `v0.2.0`
+release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
+contracts were revalidated. Plan 3 has started with the limited
+`P3-M1-S1～S3` foundation batch: release handoff review, Qdrant configuration,
+and empty RAG/Knowledge package boundaries only.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -84,16 +84,15 @@ evidence, synchronize the current Tool/Agent documents, and add sanitized Plan 2
 desktop/mobile release screenshots. S7～S8 completed the original `v0.2.0`
 review, release commit, annotated tag, push, and tag-target gate.
 
-The post-release `v0.2.1` audit patch adds a shared 64 KiB standard-JSON Tool
+The published `v0.2.1` audit patch adds a shared 64 KiB standard-JSON Tool
 argument limit, 4096-character built-in path limit, private-key content checks,
 and no-symlink/reparse traversal. `list_dir` now bounds enumeration, Agent
 dispatch denies non-read-only Tools, invalid or blocked arguments are redacted
 before persistence, Agent runs have a total timeout, and ToolCall order is
 persisted explicitly. `web_fetch` remains deferred and has no runtime surface.
 
-Next action after verification: manually commit the `v0.2.1` patch and create
-the annotated `v0.2.1` tag. The existing `v0.2.0` tag is immutable and must not
-be moved or recreated.
+Plan 3 builds on `v0.2.1`; it does not downgrade the active baseline to
+`v0.2.0`.
 
 ## v0.1.0 Demo
 
@@ -179,6 +178,25 @@ Backend commands run from `backend/` read `backend/.env`; Vite commands run
 from `frontend/` read `frontend/.env`. Keep those local files untracked. The
 tracked examples contain no real credentials, and the frontend `VITE_*`
 variables must never contain secrets because Vite exposes them to the browser.
+
+### Qdrant
+
+Plan 3 uses Qdrant only for vector storage; SQLite remains the primary database
+for business and audit records. Start the pinned local service from the
+repository root, then check its native health endpoint:
+
+```powershell
+docker compose up -d qdrant
+Invoke-RestMethod http://localhost:6333/healthz
+```
+
+The backend defaults `QDRANT_URL` to `http://localhost:6333`. Override it only
+in an untracked `backend/.env` or process environment. The tracked Compose
+configuration disables Qdrant telemetry. On 2026-07-26, the pinned
+`qdrant/qdrant:v1.15.4` container was verified running with zero restarts and
+`/healthz` returned HTTP 200 with `healthz check passed`. This no-key Compose
+service is for local development only; do not expose port 6333 to an untrusted
+network.
 
 ### Backend
 

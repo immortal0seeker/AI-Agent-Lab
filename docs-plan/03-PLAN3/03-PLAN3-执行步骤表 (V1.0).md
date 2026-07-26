@@ -39,7 +39,7 @@ blocked
 
 | 阶段 | 里程碑 | 对应原 PLAN3 Step | 核心交付 | 预计时间 | 主要工具 | 审核节点 |
 |---|---|---|---|---:|---|---|
-| Phase 1 | M1 交接与知识库数据模型 | Step 1～4 | v0.2.0 检查、Qdrant 启动、KnowledgeBase / Document / Chunk / RAG Query 模型、KB API | 15～25 h | Codex | Codex + Claude Code |
+| Phase 1 | M1 交接与知识库数据模型 | Step 1～4 | v0.2.1 补丁基线检查、Qdrant 启动、KnowledgeBase / Document / Chunk / RAG Query 模型、KB API | 15～25 h | Codex | Codex + Claude Code |
 | Phase 2 | M2 文档上传与解析 Pipeline | Step 5～8 | 文件上传、Markdown / TXT / PDF 文本解析、清洗、Chunking | 15～25 h | Codex + Cursor | Codex review |
 | Phase 3 | M3 Embedding 与 Vector Store | Step 9～12 | Embedding Provider、OpenAI-compatible Embedding、Qdrant Vector Store、文档入库 Pipeline | 20～30 h | Codex | Codex + Claude Code |
 | Phase 4 | M4 Retriever 与 Naive RAG API | Step 13～17 | Retriever、RAG Prompt、RAG Query API、RAG Chat API、search_knowledge_base 工具 | 15～25 h | Codex | Codex + Claude Code |
@@ -52,7 +52,7 @@ blocked
 
 | 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 | 状态 |
 |---|---|---|---|---|
-| Batch 1 | P3-M1-S1～S3 | 确认 Plan2 地基，接入 Qdrant 配置 | 跑现有测试和 Qdrant health | 未完成 |
+| Batch 1 | P3-M1-S1～S3 | 确认 Plan2 地基，接入 Qdrant 配置 | 跑现有测试和 Qdrant health | 已完成（配置、回归与真实 Qdrant health 均通过） |
 | Batch 2 | P3-M1-S4～S6 | 建立知识库核心数据模型 | 数据库迁移和模型测试 | 未完成 |
 | Batch 3 | P3-M1-S7～S9 | 实现 Knowledge Base API | API 测试，Codex + Claude review M1 | 未完成 |
 | Batch 4 | P3-M2-S1～S3 | 实现文件上传和存储 | 上传 API 测试 | 未完成 |
@@ -76,7 +76,7 @@ blocked
 阶段目标：
 
 ```text
-确认 v0.2.0 Tool Calling 底座稳定，启动 Qdrant，并建立 Knowledge Base、Document、DocumentChunk、RAG Query 的数据模型和基础 API。
+确认 v0.2.1 Tool Calling 补丁底座稳定，启动 Qdrant，并建立 Knowledge Base、Document、DocumentChunk、RAG Query 的数据模型和基础 API。
 ```
 
 阶段验收：
@@ -91,7 +91,7 @@ blocked
 
 | Step ID | 任务 | 建议工具 | 交付物 | 验证方式 | Review |
 |---|---|---|---|---|---|
-| P3-M1-S1 | 检查 Plan 2 封版状态和 v0.2.0 tag | Codex | Plan 2 验收记录 | Chat、Tool Registry、read_file、list_dir、Agent API 均可用或有明确证据 | Codex |
+| P3-M1-S1 | 检查 Plan 2 封版状态、v0.2.0 历史 tag 和当前 v0.2.1 tag | Codex | Plan 2 验收记录 | Chat、Tool Registry、read_file、list_dir、Agent API 均可用或有明确证据，v0.2.1 指向当前基线 | Codex |
 | P3-M1-S2 | 配置 Qdrant 服务和环境变量 | Codex | `docker-compose.yml`、`.env.example`、Qdrant settings | Qdrant health 可访问 | Codex |
 | P3-M1-S3 | 创建 RAG / Knowledge 目录结构 | Codex | `backend/app/rag/`、`backend/app/knowledge/` 或约定目录 | 目录结构符合 PLAN3 推荐边界 | Codex |
 | P3-M1-S4 | 创建 KnowledgeBase ORM / schema | Codex | `KnowledgeBase` 模型和 schema | 模型测试通过 | Codex |
@@ -100,6 +100,24 @@ blocked
 | P3-M1-S7 | 实现 Knowledge Base Service | Codex | `knowledge_base_service.py` | 创建、列表、详情、更新、删除测试通过 | Codex |
 | P3-M1-S8 | 实现 Knowledge Base API | Codex | `api/v1/knowledge_bases.py` | API 测试通过，OpenAPI 可见 | Codex |
 | P3-M1-S9 | 完成 M1 review 和数据模型文档 | Codex | `docs/20-knowledge-base-design.md` 初版 | 文档说明表结构、状态字段、扩展点 | Codex + Claude review |
+
+### P3-M1-S1～S3 交接、Qdrant 配置与目录边界验收记录（2026-07-26）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| S1 Git 与发布基线 | 执行前 `main` 工作区和暂存区为空；`HEAD == origin/main == v0.2.1^{}` 为 `872310b4dc1b78e2a2487303699d68ec8b22f88b`；`v0.2.0^{}` 仍为 `0e3f3a66e1322c565f2056696f7e482cedbb5f6c`，未移动或改写既有历史。 |
+| S1 Plan 2 桥接 | Tool Registry、`read_file`、`list_dir`、Simple Agent、Agent API、release version 和 `web_fetch` 延期聚焦回归为 `322 passed, 1 warning`；warning 是既知 Starlette TestClient/httpx 弃用提示。 |
+| S2 RED / GREEN | 首轮配置/目录测试为 `5 failed, 8 passed`，失败原因正是缺少 `qdrant_url`、Compose 与两个包；最小实现后为 `13 passed`。 |
+| S2 配置 | 根 `docker-compose.yml` 固定 `qdrant/qdrant:v1.15.4`、映射 `6333:6333`、使用 `qdrant_data` 命名卷，并通过 `QDRANT__TELEMETRY_DISABLED=true` 禁用遥测；后端 Settings 与 `.env.example` 提供 `QDRANT_URL=http://localhost:6333`。SQLite 仍是业务与审计主数据库。 |
+| S2 runtime 复验 | 安装并启动 Docker Desktop 后，Docker Desktop `4.83.0`、Engine `29.6.2`、Compose `5.3.1` 成功启动固定版本容器；容器运行、重启次数为 0，日志报告 `Telemetry reporting disabled`，`/healthz` 返回 HTTP 200 和 `healthz check passed`。 |
+| S3 目录边界 | 只新增 `backend/app/knowledge/__init__.py` 与 `backend/app/rag/__init__.py`，分别声明结构化知识编排和 Naive RAG 流水线 ownership；未创建 ORM、schema、migration、service、API、parser、Embedding、Vector Store 或前端 RAG 文件。 |
+| 完整回归 | Backend `507 passed, 1 warning`，`pip check` 无破损依赖；Frontend `18 files / 90 tests`、typecheck、production build（1813 modules）通过。 |
+| SQLite migration | 仅对新建系统临时 SQLite 执行 `upgrade head`、`current --check-heads`、`alembic check`；head 为 `20260720_0004`，无新 migration，临时目录已验证并删除。未读取、迁移或重建用户数据库。 |
+| 文档、安全与边界 | 81 个 Markdown、67 个本地链接/图片、0 missing；新增行高置信 secret 命中 0；generated/database artifact、`web_fetch` runtime、新包中的 later-Plan runtime、真实 Provider host 命中均为 0。 |
+
+**结论：** `P3-M1-S1～S3` 与 Batch 1 完成。Qdrant 配置与真实 runtime
+health 均已验收，且本地开发配置已禁用遥测。下一批可进入
+`P3-M1-S4～S6`，本批没有提前实现这些数据模型步骤。
 
 M1 完成后建议 commit：
 
@@ -356,7 +374,7 @@ Claude Code 审核后，Codex 负责：
 
 | 验收项 | 状态 | 证据 |
 |---|---|---|
-| Qdrant 可启动 | pending | Qdrant health 输出 |
+| Qdrant 可启动 | implemented | Qdrant 1.15.4 容器运行、重启次数为 0；`/healthz` 返回 HTTP 200 |
 | Knowledge Base 数据模型完成 | pending | ORM / migration / test |
 | Document 数据模型完成 | pending | ORM / migration / test |
 | DocumentChunk 数据模型完成 | pending | ORM / migration / test |

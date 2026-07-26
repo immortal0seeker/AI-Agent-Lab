@@ -1,13 +1,13 @@
-# Plan 2 v0.2.0 Basic Agent Release And v0.2.1 Patch
+# Plan 2 v0.2.0 Basic Agent Release And Published v0.2.1 Patch
 
 ## Release Status And Boundary
 
 This document describes the completed Plan 2 release. The final Codex review
 passed, all five Plan 3 bridge contracts were revalidated, and the user
 published annotated tag `v0.2.0` from commit `0e3f3a6`, completing
-`P2-M5-S8`. The current working tree prepares a `v0.2.1` audit-remediation
-patch; its commit and tag do not yet exist, and the published `v0.2.0` tag must
-not be moved.
+`P2-M5-S8`. The user subsequently published annotated tag `v0.2.1` from
+commit `872310b` after the audit remediation. Both tags are immutable, and Plan
+3 starts from the newer patch baseline.
 
 Plan 2 adds a safe, traceable read-only Tool Calling path and a bounded Simple
 Agent loop on top of the Plan 1 Chat foundation. It does not add RAG, Embedding,
@@ -131,7 +131,7 @@ The full S7 Codex review is recorded in the
   [Plan 2 v0.2.0 final review](reviews/2026-07-19-plan2-v0.2.0-final-review.md).
 The user then created release commit `0e3f3a6`, annotated tag `v0.2.0`, and
 pushed `main`, completing the original release gate. A post-release audit found
-the Plan 2 boundary issues corrected by the current `v0.2.1` patch. After fresh
-verification, the user may manually commit and tag `v0.2.1`; Codex does not
-perform those Git mutations. The remaining limitations above are later-Plan or
-explicitly accepted boundaries, not permission to implement Plan 3 early.
+the Plan 2 boundary issues corrected by the subsequently published `v0.2.1`
+patch at `872310b`. The remaining limitations above are later-Plan or
+explicitly accepted boundaries. Plan 3 S1～S3 reuse these contracts and add no
+new Agent or Tool runtime.

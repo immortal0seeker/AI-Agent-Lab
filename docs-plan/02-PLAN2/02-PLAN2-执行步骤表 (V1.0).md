@@ -64,7 +64,7 @@ blocked
 | Batch 11 | P2-M4-S4～S6 | 前端展示 Agent Run 和 Tool Call | 浏览器手测 | 已完成 |
 | Batch 12 | P2-M5-S1～S3 | 补 Tool / Agent 测试 | 后端测试 | 已完成 |
 | Batch 13 | P2-M5-S4～S6 | 补文档、README、截图和限制说明 | 文档 review | 已完成 |
-| Batch 14 | P2-M5-S7～S8 | 最终 review、修复、v0.2.0 封版 | Codex final review | 进行中（S7 done；S8 tag pending） |
+| Batch 14 | P2-M5-S7～S8 | 最终 review、修复、v0.2.0 封版 | Codex final review | 已完成 |
 
 ---
 
@@ -456,7 +456,7 @@ feat(frontend): show agent tool calls
 | P2-M5-S5 | 更新 README 和 Plan 2 文档 | Codex | README、`docs/10-tool-calling-design.md`、`docs/11-simple-agent-loop.md` | 文档说明工具限制和启动方式 | Codex（done） |
 | P2-M5-S6 | 准备封版材料：截图、CHANGELOG、当前限制 | Cursor + Codex | Tool Call 截图、`CHANGELOG.md` | v0.2.0 功能边界清晰 | Codex（done） |
 | P2-M5-S7 | Plan 2 全量 review 和修复 | Codex | review 记录、修复 commit | 后端测试和前端检查通过 | Codex final review（done） |
-| P2-M5-S8 | 创建 v0.2.0 tag 并记录进入 Plan 3 的桥接状态 | Codex | `v0.2.0` tag、桥接检查表 | `git tag --list` 包含 v0.2.0 | 进行中（bridge done；tag 待用户手动创建） |
+| P2-M5-S8 | 创建 v0.2.0 tag 并记录进入 Plan 3 的桥接状态 | Codex | `v0.2.0` tag、桥接检查表 | `git tag --list` 包含 v0.2.0 | 已完成 |
 
 ### P2-M5-S1～S3 Tool / Agent 测试加固验收记录（2026-07-19）
 
@@ -530,6 +530,11 @@ annotated tag `v0.2.0` 并推送 `main`；Codex 已验证
 | 安全与边界 | 高置信凭据命中 0；私钥 marker 仅出现在预期安全代码、合成测试和修复计划；未读取真实 `.env`/secret/用户 SQLite 内容，未调用真实 Provider 或网络 Tool，未实现任何 Plan 3+ runtime。 |
 | Codex self-review | must-fix 已全部按 TDD 修复；later Plan 保留 AgentStep/Trace/usage/replay、list/poll/cancel/resume/retry、Human Approval；接受同步非流式、顺序执行、Mock-only Provider、协作式取消和 `web_fetch` 延期；无阻塞项。 |
 | Git/release 边界 | `HEAD == origin/main == v0.2.0^{}`，已发布标签不移动；staged paths 为 0，`v0.2.1` 标签不存在，由用户在手动提交后创建。 |
+
+**v0.2.1 发布更新（2026-07-26）：** 用户已把审计修复提交为
+`872310b4dc1b78e2a2487303699d68ec8b22f88b`，创建 annotated tag
+`v0.2.1` 并推送 `main`。Plan 3 以该补丁为当前起点；`v0.2.0` 保留在
+`0e3f3a66e1322c565f2056696f7e482cedbb5f6c`，两个既有 tag 均不移动。
 
 M5 完成后建议 commit：
 

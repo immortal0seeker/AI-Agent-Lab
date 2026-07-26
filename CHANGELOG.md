@@ -4,6 +4,15 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Started Plan 3 from the published `v0.2.1` baseline with a pinned local
+  Qdrant Compose service, named vector-data volume, backend `QDRANT_URL`
+  setting, disabled Qdrant telemetry, and explicit `knowledge/` / `rag/`
+  package boundaries.
+- Added focused foundation tests and Qdrant startup/health instructions while
+  preserving SQLite as the primary business and audit database.
+
 ## [0.2.1] - 2026-07-20
 
 ### Security And Reliability

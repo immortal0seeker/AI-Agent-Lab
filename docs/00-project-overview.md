@@ -35,12 +35,16 @@ The project emphasizes:
 
 ## Current Stage
 
-Latest existing tag: Plan 2 is complete as the published `v0.2.0` basic Agent
-release at commit `0e3f3a6`. All five Plan 3 bridge contracts were revalidated.
-The current working tree prepares a `v0.2.1` audit-remediation patch without
-moving the published tag or starting Plan 3.
+Latest existing tag: `v0.2.1`, the published Plan 2 audit-remediation patch at
+commit `872310b`. The original `v0.2.0` basic Agent release remains at
+`0e3f3a6`. All five Plan 3 bridge contracts were revalidated. Plan 3 starts
+from `v0.2.1`; its first batch is limited to handoff review, Qdrant
+configuration, and empty RAG/Knowledge package boundaries.
 
-The repository has completed `P1-M1-S1` through `P1-M4-S8`. Milestone 1 assembled the engineering foundation, Milestone 2 added the database and Provider foundations, Milestone 3 completed the persisted Chat loop, and Milestone 4 added:
+The repository has completed Plan 1, Plan 2, and `P3-M1-S1～S3`. Plan 1
+Milestone 1 assembled the engineering foundation, Milestone 2 added the
+database and Provider foundations, Milestone 3 completed the persisted Chat
+loop, and Milestone 4 added:
 
 - Repository structure
 - Root documentation
@@ -147,11 +151,11 @@ flow, add sanitized desktop/mobile Agent ToolCall screenshots, and synchronize
 the Plan 2 release documents and limitations. S7～S8 completed the final review,
 release commit, annotated `v0.2.0` tag, push, and tag-target gate.
 
-The post-release `v0.2.1` audit patch hardens JSON/path/private-key/link limits,
+The published `v0.2.1` audit patch hardens JSON/path/private-key/link limits,
 bounded directory enumeration, Agent permission/budget/timeout behavior,
 ToolCall ordering, local Registry setup, and frontend recovery. `web_fetch`
-remains absent. After fresh verification, the user may manually commit and tag
-`v0.2.1`; the existing `v0.2.0` tag remains immutable. See the
+remains absent. Plan 3 retains those contracts rather than rewriting them. See
+the
 [Tool Calling design](10-tool-calling-design.md),
 [Simple Agent Loop](11-simple-agent-loop.md),
 [Agent API](12-agent-api.md),

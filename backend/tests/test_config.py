@@ -12,6 +12,16 @@ def test_settings_default_agent_run_timeout_is_bounded() -> None:
 
     assert settings.agent_run_timeout_seconds == 120.0
     assert settings.model_registry_path is None
+    assert settings.qdrant_url == "http://localhost:6333"
+
+
+def test_settings_accepts_qdrant_url_override() -> None:
+    settings = Settings(
+        _env_file=None,
+        QDRANT_URL="http://qdrant.internal:6333",
+    )
+
+    assert settings.qdrant_url == "http://qdrant.internal:6333"
 
 
 @pytest.mark.parametrize("value", ["", "   "])
