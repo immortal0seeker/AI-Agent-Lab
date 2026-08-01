@@ -25,7 +25,7 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M2-S9`.
+Completed scope: `P1-M1-S1` through `P3-M3-S3`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -39,6 +39,9 @@ batch adds independently testable Markdown, TXT, and text-layer PDF parsers
 with source metadata and an explicit scanned-PDF/OCR limitation. The final M2
 batch adds deterministic text cleaning, bounded overlapping Chunking, and a
 synchronous upload-to-`DocumentChunk` pipeline with visible lifecycle errors.
+The first M3 batch adds a vendor-neutral asynchronous Embedding Provider
+contract, immutable validated batch vectors with token usage, and an ordered
+runtime Registry that selects Provider instances by exact configured name.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -117,8 +120,9 @@ content failures remain HTTP 201 resources with safe visible failure states.
 Patch revision `20260801_0006` makes same-Knowledge-Base document hashes unique,
 restricts deletion of a Knowledge Base that still owns Documents, and safely
 clears a deleted answer Message reference without losing its `RagQuery`.
-Embedding, Qdrant client, retrieval, Document query/delete APIs, and frontend
-upload/RAG runtime remain deferred to later Plan 3 steps.
+The concrete OpenAI-compatible Embedding adapter, Embedding settings/error
+initialization, Qdrant client, retrieval, Document query/delete APIs, and
+frontend upload/RAG runtime remain deferred to later Plan 3 steps.
 
 ## v0.1.0 Demo
 

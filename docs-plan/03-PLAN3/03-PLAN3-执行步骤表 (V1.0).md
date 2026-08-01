@@ -58,7 +58,7 @@ blocked
 | Batch 4 | P3-M2-S1～S3 | 实现文件上传和存储 | 上传 API 测试 | 已完成（受控存储、上传 API、校验、事务清理与全量回归通过） |
 | Batch 5 | P3-M2-S4～S6 | 实现 Markdown / TXT / PDF 文本解析 | Parser 测试 | 已完成（三类纯 Parser、来源 metadata、安全错误与全量回归通过） |
 | Batch 6 | P3-M2-S7～S9 | 实现文本清洗和 Chunking | Chunking 测试，Codex review M2 | 已完成（Cleaner、Chunker、同步 Pipeline、正式文档与全量回归通过） |
-| Batch 7 | P3-M3-S1～S3 | 实现 Embedding Provider 抽象 | mock embedding 测试 | 未完成 |
+| Batch 7 | P3-M3-S1～S3 | 实现 Embedding Provider 抽象 | mock embedding 测试 | 已完成（抽象、批量结果/usage、Registry、正式文档与全量回归通过） |
 | Batch 8 | P3-M3-S4～S6 | 实现 OpenAI-compatible Embedding 和配置 | provider 测试 | 未完成 |
 | Batch 9 | P3-M3-S7～S9 | 实现 Qdrant Vector Store | vector store 测试 | 未完成 |
 | Batch 10 | P3-M3-S10～S12 | 实现文档入库 Pipeline | 端到端入库测试，Codex + Claude review M3 | 未完成 |
@@ -328,6 +328,31 @@ fix(rag): harden plan 3 m1 m2 boundaries
 | P3-M3-S10 | 实现文档入库 Pipeline | Codex | `ingestion_pipeline.py` | 上传文档后完成 parse、chunk、embed、upsert | Codex |
 | P3-M3-S11 | 持久化 chunk vector_id 和 ingest 状态 | Codex | chunk 更新逻辑 | 数据库 chunk 记录关联 Qdrant point id | Codex |
 | P3-M3-S12 | 完成 M3 review 和入库文档 | Codex | `docs/22-document-ingestion-pipeline.md` | 端到端入库测试通过 | Codex + Claude review |
+
+### P3-M3-S1～S3 Embedding Provider 抽象验收记录（2026-08-01）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 范围与基线 | 从 `HEAD == origin/main == 70ef2f90307a11beb8755439085ce29b1f2bc7aa` 的干净 `main` 开始，只实现 S1～S3；未创建或切换分支，staged paths 保持 0，既有 `v0.2.0` / `v0.2.1` 标签未移动。 |
+| S1 抽象 | 新增 `EmbeddingProvider`，提供不可变规范名称以及异步 `embed_texts()` / `embed_query()`；内存 Mock 同时覆盖 batch 和 query。 |
+| S2 结果 | 新增不可变 `EmbeddingResult` / `EmbeddingUsage`；保留有序批向量、模型名与 token usage，拒绝空批、空向量、维度不一致、非有限值、布尔/字符串数值强制转换和无效 usage。 |
+| S3 Registry | 新增有序 `EmbeddingProviderRegistry`，按调用方配置名称精确选择实例；重复注册原子失败，缺失/类型错误可读，列表为防御性副本。 |
+| TDD | base/result RED 为 package 缺失，GREEN `17 passed`；Registry RED 为导出缺失，邻接 GREEN `58 passed`；Codex 自审新增严格类型 RED `4 failed, 17 passed`，修复后 Provider 邻接 GREEN `62 passed`。 |
+| 后端验证 | 最终聚焦集合 `303 passed, 1 warning`；完整 backend `765 passed, 1 warning`；warning 为既有 Starlette TestClient/httpx 弃用提示。`pip check` 为 `No broken requirements found.`。 |
+| SQLite 与前端 | 仅对新建系统临时 SQLite 完成 upgrade/current/check/downgrade/re-upgrade，head 为 `20260801_0006` 且临时目录已删除；frontend typecheck、`18 files / 90 tests`、production build `1813 modules` 通过。未读取或修改 `backend/ai_agent_lab.db`。 |
+| Docker 与文档 | Docker Desktop daemon 可访问；`qdrant/qdrant:v1.15.4` 运行于 `127.0.0.1:6333`，`/healthz` 返回 `healthz check passed`。97 个 Markdown、69 个本地链接/图片、0 missing。 |
+| 安全与边界 | 高置信 token 0；12 个私钥头均为既有 denylist/合成测试/历史计划，unexpected 0；`web_fetch` runtime 0；later-Plan runtime 0；tracked artifact 0。未调用真实 Provider、付费 API、网络 Tool，未创建 Qdrant collection/point。 |
+| Codex self-review | must fix：阻止 Pydantic 将 bool/数字字符串转换为向量或 token 整数，已用 RED/GREEN 修复。later Step：S4～S6 concrete adapter/config/error/docs，S7+ Vector Store/ingestion。accepted limitation：只有 Mock Provider，尚不证明真实 Embedding 服务。not applicable：数据库/API/前端 runtime/迁移/截图/外部 review。无剩余 must-fix。 |
+
+**结论：** `P3-M3-S1～S3` 与 Batch 7 完成，可进入
+`P3-M3-S4～S6`；本批未提前实现 concrete adapter、配置、Qdrant Vector Store、
+向量入库、Retriever 或 Plan 4+ 能力。
+
+本批建议 commit：
+
+```text
+feat(embedding): add provider abstraction and registry
+```
 
 M3 完成后建议 commit：
 

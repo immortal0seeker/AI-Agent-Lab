@@ -6,6 +6,11 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added a vendor-neutral asynchronous `EmbeddingProvider` contract with
+  immutable validated batch vectors, model identity, token usage, and separate
+  text/query methods.
+- Added an ordered runtime `EmbeddingProviderRegistry` that selects instances
+  by exact configured name and reports safe duplicate or missing registrations.
 - Added pure text cleaning with stable newline/blank-line normalization,
   bounded invisible-character removal, Markdown heading remapping, and
   independent PDF page preservation.

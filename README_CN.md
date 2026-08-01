@@ -25,7 +25,7 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M2-S9`。
+已完成范围：`P1-M1-S1` 到 `P3-M3-S3`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -36,6 +36,8 @@ SHA-256/类型/大小校验、同一知识库去重和事务回滚文件清理�
 测试的 Markdown、TXT 与文本层 PDF Parser、来源 metadata，以及明确的扫描 PDF/
 OCR 限制。M2 最后一批新增确定性的文本清洗、有界重叠 Chunking，以及同步的
 上传到 `DocumentChunk` Pipeline，并让生命周期失败状态可见。
+M3 首批新增厂商无关的异步 Embedding Provider 契约、包含 token usage 的不可变
+有界批量向量结果，以及可按配置名称精确选择 Provider 实例的有序运行时 Registry。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -93,8 +95,9 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 安全的 not-found 响应与请求级事务。嵌套 Document POST 已支持 `.md`、`.txt`
 和 `.pdf` 上传，并返回同步解析、清洗和基础 Chunking 的最终结果。成功上传会
 持久化有序 `DocumentChunk`，返回 `parsed` / `chunked`；预期的解析或内容失败
-仍是 HTTP 201 资源，并持久化安全、可见的失败状态。Embedding、Qdrant client、
-检索、Document 查询/删除 API 和前端上传/RAG runtime 仍延期到后续 Plan 3 Step。
+仍是 HTTP 201 资源，并持久化安全、可见的失败状态。具体 OpenAI-compatible
+Embedding adapter、Embedding 配置/错误初始化、Qdrant client、检索、Document
+查询/删除 API 和前端上传/RAG runtime 仍延期到后续 Plan 3 Step。
 补丁 revision `20260801_0006` 增加同一知识库内的 Document hash 唯一约束，禁止
 删除仍含 Document 的知识库，并在删除回答 Message 时只清空引用、保留 `RagQuery`。
 

@@ -28,13 +28,15 @@ sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
 the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
 audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
-`P3-M2-S9` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
+`P3-M3-S3` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
 ownership boundaries, four knowledge persistence models, a service-owned
 Knowledge Base CRUD API, controlled validated Document upload, and independent
 Markdown/TXT/text-layer-PDF parsers composed with pure cleaning, naive
 Chunking, and synchronous `DocumentChunk` persistence. The subsequent M1/M2
 audit patch binds Qdrant to loopback, enforces canonical stored paths and
-processing ceilings, and adds final database constraints without starting M3.
+processing ceilings, and adds final database constraints. M3 S1～S3 add the
+vendor-neutral Embedding Provider/result contract and an ordered runtime
+Registry; no concrete Embedding adapter or vector-store client exists yet.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -58,6 +60,8 @@ AI-Agent-Lab/
 │       ├── schemas/
 │       ├── services/
 │       ├── providers/
+│       │   ├── embedding/
+│       │   └── llm/
 │       ├── knowledge/
 │       ├── rag/
 │       └── tools/
@@ -93,9 +97,9 @@ Current backend layers:
 | `schemas/` | Pydantic request and response contracts |
 | `services/` | Chat, conversation, Agent query, Knowledge Base CRUD, Document upload/ingestion, and application logic |
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
-| `providers/` | LLM provider abstractions and adapters |
+| `providers/` | LLM abstractions/adapters plus the M3 Embedding abstraction, validated batch result, and runtime Registry |
 | `knowledge/` | Plan 3 structured knowledge metadata plus controlled Document storage; models live in `models/` and service policy lives in `services/` |
-| `rag/` | Plan 3 document-processing and Naive RAG boundary; pure Markdown/TXT/text-layer-PDF parsers, Cleaner, and naive Chunker exist through M2, while Embedding, retrieval, and Qdrant client runtime remain deferred |
+| `rag/` | Plan 3 document-processing and Naive RAG boundary; pure Markdown/TXT/text-layer-PDF parsers, Cleaner, and naive Chunker exist through M2, while Embedding execution, retrieval, and Qdrant client runtime remain deferred |
 | `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
 | `db/` | SQLAlchemy session and database setup |
 | `models/` | ORM models |
@@ -132,7 +136,7 @@ operation without adding PostgreSQL-specific infrastructure preemptively.
 
 Plan 3 adds Qdrant as a separate vector-storage service configured through
 `QDRANT_URL`; it does not replace SQLite business or audit persistence. The
-scope through `P3-M2-S9` contains no Qdrant client or Vector Store
+scope through `P3-M3-S3` contains no Qdrant client or Vector Store
 implementation.
 
 The initial migration creates:
@@ -535,6 +539,17 @@ Plan 1 provider target:
 - Registry capability labels describe behavior implemented for each configured model. Streaming is enabled for the example entry; Tool Calling stays disabled because the current batch proves the adapter protocol only and does not verify a real model or Agent path. JSON mode also remains disabled.
 - Registry metadata is immutable. Unknown fields, blank names, negative prices, duplicate identities, unreadable files, and invalid JSON fail explicitly.
 
+Plan 3 Embedding provider target through `P3-M3-S3`:
+
+- `EmbeddingProvider` defines vendor-neutral asynchronous batch-text and query
+  contracts and owns a normalized, immutable runtime name.
+- `EmbeddingResult` preserves ordered vectors, model identity, batch token
+  usage, consistent non-zero dimensions, and finite numeric values.
+- `EmbeddingProviderRegistry` registers instances in stable order and selects
+  one by an exact caller-owned configuration name.
+- Concrete HTTP adapters, Settings/secret initialization, Qdrant integration,
+  and embedding execution remain assigned to later M3 steps.
+
 The Provider stream contract is consumed by `ChatService.stream_complete()` and
 the protocol adapter at `POST /api/v1/chat/stream`. The service emits
 protocol-neutral domain events; the route owns SSE framing and stream-scoped
@@ -588,8 +603,8 @@ Simple Agent loop. The following remain outside the current architecture:
 - `web_fetch` or another network Tool
 - streaming Tool Calling
 - Agent Runtime v2, Planner, Human Approval, cancel/resume/retry, and replay
-- RAG pipelines
-- Embedding providers
+- Embedding-to-vector ingestion, retrieval, and RAG-answer pipelines
+- concrete Embedding adapters, configuration, and execution
 - Memory systems
 - MCP integrations
 - Voice and vision

@@ -3,18 +3,21 @@
 ## Scope
 
 Plan 3 Milestone 1 establishes the persistence and management boundary for
-Knowledge Bases. Through `P3-M2-S9`, the backend can create, list, read, update,
+Knowledge Bases. Through `P3-M3-S3`, the backend can create, list, read, update,
 and delete Knowledge Base metadata, upload one validated Document through a
 service-owned HTTP API, and synchronously parse, clean, and chunk Markdown,
-TXT, or text-layer PDF through independent processing boundaries.
+TXT, or text-layer PDF through independent processing boundaries. It also
+provides a vendor-neutral Embedding Provider/result contract and runtime
+Registry, without invoking that boundary from ingestion yet.
 
 The first M2 batch stores `.md`, `.txt`, and `.pdf` bytes and creates the
 initial Document row. The second adds pure parsers. The final M2 batch composes
 the Parser, Cleaner, and Chunker in the upload transaction, persists
-`DocumentChunk` rows, and exposes final parse/chunk states. M2 does not create
-embeddings, connect a Qdrant client, retrieve sources, generate RAG answers, or
-expose a frontend Knowledge Base workspace. Those capabilities remain assigned
-to later Plan 3 steps.
+`DocumentChunk` rows, and exposes final parse/chunk states. M3 S1～S3 add only
+the Embedding abstraction, validated batch output, and exact-name Provider
+selection. No completed scope creates embeddings, connects a Qdrant client,
+retrieves sources, generates RAG answers, or exposes a frontend Knowledge Base
+workspace. Those capabilities remain assigned to later Plan 3 steps.
 
 ## Storage Responsibilities
 
@@ -26,7 +29,7 @@ SQLite remains the default and long-term supported primary database. It owns:
 - RAG query audit metadata and retrieved-chunk snapshots.
 
 Qdrant is configured as Plan 3's vector-storage service, but the scope through
-M2 S9 contains no Qdrant client or Vector Store runtime. The `vector_store`,
+M3 S3 contains no Qdrant client or Vector Store runtime. The `vector_store`,
 `vector_collection_name`, and `vector_id` fields are persistence bridges, not
 evidence that a collection or vector has been created.
 
@@ -89,13 +92,28 @@ Document upload creates the row as `uploaded` / `pending` / `pending`, then
 synchronously processes it before commit. Success returns `parsed` / `chunked`
 / `pending`. Expected parser failures return `failed` / `failed` / `pending`;
 text that is empty after cleaning returns `parsed` / `failed` / `pending`.
-Embedding transitions remain deferred to M3.
+Embedding lifecycle transitions remain deferred to the M3 ingestion steps.
 
 The unique `(knowledge_base_id, file_hash)` pair is the final same-Knowledge-
 Base duplicate gate. Different Knowledge Bases may own the same hash. The
 Document foreign key uses RESTRICT so a non-empty Knowledge Base cannot be
 deleted. The unique `(id, knowledge_base_id)` pair supports a composite
 ownership check for chunks.
+
+## Embedding Provider Boundary
+
+`app.providers.embedding` owns the vendor-neutral runtime boundary introduced
+by M3 S1～S3. `EmbeddingProvider` exposes asynchronous `embed_texts()` and
+`embed_query()` methods and a normalized Provider name. `EmbeddingResult`
+returns ordered same-dimension finite vectors, the actual model identity, and
+immutable batch-level `EmbeddingUsage`; malformed empty, mixed-dimension, or
+non-finite output is rejected before any future Vector Store call.
+
+`EmbeddingProviderRegistry` stores Provider instances in registration order and
+selects one by the exact caller-owned configuration name. Duplicate and missing
+names fail explicitly. It does not read Settings, initialize API credentials,
+call a vendor endpoint, update Document states, or contact Qdrant. Those
+responsibilities remain in S4+.
 
 ## Controlled Document Storage
 
@@ -422,16 +440,34 @@ The 2026-08-01 M1/M2 audit-remediation verification reached:
 - Compose syntax passed; current Docker runtime health was not checked because
   the local daemon was unavailable.
 
+The M3 S1～S3 Embedding Provider verification reached:
+
+- base/result RED at missing package import; GREEN: `17 passed`;
+- Registry RED at missing exports; adjacent Provider GREEN: `58 passed`;
+- strict-number self-review RED: `4 failed, 17 passed`; final Provider-adjacent
+  GREEN: `62 passed`;
+- focused backend: `303 passed, 1 warning`; complete backend:
+  `765 passed, 1 warning`;
+- dependency integrity: `No broken requirements found`;
+- temporary-SQLite upgrade/current/check/downgrade/re-upgrade at head
+  `20260801_0006`, followed by verified temporary-directory cleanup;
+- frontend: `18` files / `90` tests, typecheck, and production build with
+  `1813` transformed modules;
+- live local `qdrant/qdrant:v1.15.4` on `127.0.0.1:6333` with
+  `healthz check passed`;
+- `97` Markdown files, `69` local links/images, and zero missing targets.
+
 The active Plan 3 execution table contains the security, scope, artifact, and
 Git gates. No verification command read or modified `backend/ai_agent_lab.db`.
 
 ## Deferred Capabilities
 
-The following remain outside completed Plan 3 M2:
+The following remain outside completed Plan 3 through M3 S3:
 
 - Document list, detail, chunk-query, delete, local-file deletion, and orphan
   recovery workflows;
-- Embedding Provider adapters and embedding execution;
+- concrete Embedding Provider adapters, Settings initialization, and embedding
+  execution;
 - Qdrant client, collection lifecycle, vector upsert, and vector deletion;
 - Retriever, RAG Prompt, RAG query/chat runtime, and Agent Tool integration;
 - frontend Knowledge Base, upload, RAG Chat, and source display;
