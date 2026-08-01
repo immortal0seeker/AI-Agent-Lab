@@ -35,6 +35,8 @@ from app.providers.llm.base import (
     ProviderServerError,
     ProviderTimeoutError,
 )
+from app.providers.embedding import EmbeddingProviderError
+from app.rag.vectorstores import VectorStoreError
 from app.schemas.error import ErrorDetail, ErrorResponse
 from app.services.errors import (
     ChatModelNotFoundError,
@@ -128,6 +130,18 @@ def error_spec_for_exception(exc: Exception) -> ErrorSpec:
             503,
             "document_storage_error",
             "The document storage operation failed",
+        )
+    if isinstance(exc, EmbeddingProviderError):
+        return ErrorSpec(
+            503,
+            "embedding_provider_unavailable",
+            "The embedding provider is unavailable",
+        )
+    if isinstance(exc, VectorStoreError):
+        return ErrorSpec(
+            503,
+            "vector_store_unavailable",
+            "The vector store is unavailable",
         )
     if isinstance(exc, ChatModelNotFoundError):
         return ErrorSpec(
@@ -257,6 +271,8 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(HTTPException, unified_error_handler)
     app.add_exception_handler(ServiceError, unified_error_handler)
     app.add_exception_handler(DocumentError, unified_error_handler)
+    app.add_exception_handler(EmbeddingProviderError, unified_error_handler)
+    app.add_exception_handler(VectorStoreError, unified_error_handler)
     app.add_exception_handler(LLMProviderError, unified_error_handler)
     app.add_exception_handler(SQLAlchemyError, unified_error_handler)
     app.add_exception_handler(Exception, unified_error_handler)

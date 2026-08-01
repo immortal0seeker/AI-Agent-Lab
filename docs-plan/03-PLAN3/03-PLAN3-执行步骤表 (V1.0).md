@@ -61,7 +61,7 @@ blocked
 | Batch 7 | P3-M3-S1～S3 | 实现 Embedding Provider 抽象 | mock embedding 测试 | 已完成（抽象、批量结果/usage、Registry、正式文档与全量回归通过） |
 | Batch 8 | P3-M3-S4～S6 | 实现 OpenAI-compatible Embedding 和配置 | provider 测试 | 已完成（批量/query adapter、独立配置、安全错误、维度双检、正式文档与全量回归通过） |
 | Batch 9 | P3-M3-S7～S9 | 实现 Qdrant Vector Store | vector store 测试 | 已完成（抽象、payload、collection/upsert/search/delete、真实临时 collection 与全量回归通过） |
-| Batch 10 | P3-M3-S10～S12 | 实现文档入库 Pipeline | 端到端入库测试，Codex + Claude review M3 | 未完成 |
+| Batch 10 | P3-M3-S10～S12 | 实现文档入库 Pipeline | 端到端入库测试，Codex self-review M3 | 已完成（parse/chunk/embed/upsert、vector_id/状态、回滚补偿、正式文档与全量回归通过） |
 | Batch 11 | P3-M4-S1～S3 | 实现 Retriever 和 RAG Prompt | 检索 + prompt 测试 | 未完成 |
 | Batch 12 | P3-M4-S4～S6 | 实现 RAG Query / Chat API | API 测试 | 未完成 |
 | Batch 13 | P3-M4-S7～S8 | 注册 search_knowledge_base 工具 | Agent 工具调用测试，Codex + Claude review M4 | 未完成 |
@@ -327,7 +327,7 @@ fix(rag): harden plan 3 m1 m2 boundaries
 | P3-M3-S9 | 定义 Qdrant payload 规范 | Codex | payload builder | payload 包含 Plan 4 所需字段 | Codex |
 | P3-M3-S10 | 实现文档入库 Pipeline | Codex | `ingestion_pipeline.py` | 上传文档后完成 parse、chunk、embed、upsert | Codex |
 | P3-M3-S11 | 持久化 chunk vector_id 和 ingest 状态 | Codex | chunk 更新逻辑 | 数据库 chunk 记录关联 Qdrant point id | Codex |
-| P3-M3-S12 | 完成 M3 review 和入库文档 | Codex | `docs/22-document-ingestion-pipeline.md` | 端到端入库测试通过 | Codex + Claude review |
+| P3-M3-S12 | 完成 M3 review 和入库文档 | Codex | `docs/22-document-ingestion-pipeline.md` | 端到端入库测试通过 | Codex self-review |
 
 ### P3-M3-S1～S3 Embedding Provider 抽象验收记录（2026-08-01）
 
@@ -403,10 +403,28 @@ feat(embedding): add openai compatible provider
 feat(vectorstore): add qdrant vector store
 ```
 
-M3 完成后建议 commit：
+### P3-M3-S10～S12 文档向量入库与 M3 Review 验收记录（2026-08-01）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 范围与基线 | 从 `HEAD == origin/main == e78320199fc7c36dd8ea8c08140aaa47c6ae31b4` 的干净 `main` 开始，只实现 S10～S12；未创建或切换分支，未使用 worktree，staged paths 保持 0，既有 `v0.2.0` / `v0.2.1` peeled targets 未移动。 |
+| S10 Pipeline | 新增独立异步 `app.rag.ingestion_pipeline`：验证 Chunk ownership/顺序，ensure collection，单批 embed，验证数量/维度，构建既有 source payload，upsert 并精确验证返回 point IDs；现有上传 service await 完整 parse/clean/chunk/embed/upsert。 |
+| S11 状态与 ID | point UUID 固定等于 Chunk UUID；成功持久化全部规范 `vector_id` 并将 Document 标记 `parsed/chunked/ready`。parse、chunk、Provider、VectorStore 失败分别持久化准确 failed 状态；外部失败保留 chunks 但不留下 partial IDs。 |
+| 事务与安全错误 | 请求 Session 保持唯一 commit owner；upsert 成功后登记 async rollback cleanup，commit 失败回滚 SQLite/文件并按 KB + Document ownership 删除 vectors，Qdrant client 始终 finalizer close。依赖初始化失败在读上传流前返回固定 503，运行期外部失败只保存固定安全消息。 |
+| TDD | pipeline 缺失 RED 后 GREEN `8 passed`；callback/factory/error mapping 缺失 RED 后 GREEN `22 passed, 1 warning`；service/API 旧签名与 pending 状态 RED `38 failed, 11 passed`，实现后 GREEN `49 passed, 1 warning`；最终 focused `312 passed, 1 warning`。 |
+| 真实 Qdrant | Compose config 通过；Qdrant 1.15.4 running、restart 0、`127.0.0.1:6333`、healthz 200。随机临时 collection 配合临时 SQLite/文件和 Mock Embedding 完成 ready、DB/point IDs 一致、search 1 hit、Document delete 后 0 hit；最终 collection prefix 数为 0。 |
+| 全量验证 | backend `900 passed, 1 warning`，`pip check` 无破损；系统临时 SQLite Alembic upgrade/current/check/downgrade/re-upgrade 通过，head `20260801_0006` 且临时目录已删除；frontend typecheck、`18 files / 90 tests`、build `1813 modules` 通过。未读取或修改 `backend/ai_agent_lab.db`。 |
+| S12 文档、安全与 Git | 新增 `docs/22-document-ingestion-pipeline.md` 与 M3 正式 review，同步 README 中英文、CHANGELOG、Architecture、Knowledge Base/Embedding 文档和执行表；106 个 Markdown、84 个本地链接/图片、0 missing。高置信 secret/private-key header/later-Plan runtime/network-Tool runtime/tracked artifact 均为 0。`git diff --check` 通过；26 个预期路径（17 modified、9 untracked），staged 0。 |
+| Codex self-review | must fix：修复 pipeline 顶层导出导致的 config 循环导入、rollback closure 捕获 ORM 对象风险和陈旧文档状态，均已复验。fix later：M4 Retriever/RAG API/Tool 与后续 Document/前端工作。accepted limitation：未调用真实 Embedding 服务、无拆批/retry/cost audit、hard crash 或清理 outage 可能留 orphan points。not applicable：新 migration、前端页面/截图、外部 review、tag。无剩余 must-fix。 |
+
+**结论：** `P3-M3-S10～S12`、Batch 10 与完整 M3 已完成，可进入
+`P3-M4-S1～S3`；本批未提前实现 Retriever、RAG Prompt/API、Agent Tool、前端或任何
+Plan 4+ runtime。
+
+本批建议 commit：
 
 ```text
-feat(rag): add embedding provider vector store and ingestion pipeline
+feat(rag): add document vector ingestion pipeline
 ```
 
 ---
@@ -588,7 +606,7 @@ Claude Code 审核后，Codex 负责：
 | 可以解析文档 | implemented | Markdown/TXT/PDF parser 测试与资源上限回归 |
 | 可以清洗文本 | implemented | fence-aware cleaner 与结构行号重映射测试 |
 | 可以切分 Chunk | implemented | chunker、放大上限、heading 边界与 ingestion 测试 |
-| 可以调用 Embedding Provider | pending | provider 测试 |
+| 可以调用 Embedding Provider | implemented | Mock Embedding 端到端入库、Provider adapter 与安全失败测试；未调用真实付费服务 |
 | 可以写入 Qdrant | implemented | mock/adapter 测试与真实临时 collection create/check/upsert/search/delete 冒烟 |
 | 可以基于 query 检索 Chunk | pending | retriever 测试 |
 | 可以基于检索结果生成回答 | pending | RAG API 测试 |
@@ -597,8 +615,8 @@ Claude Code 审核后，Codex 负责：
 | 前端可以进行 RAG Chat | pending | 页面截图 |
 | 前端可以展示来源片段 | pending | 页面截图 |
 | search_knowledge_base 工具可用 | pending | Agent Tool 测试 |
-| README 已更新 | implemented | 中英文 README 的 M1/M2 当前契约与限制 |
-| docs 已更新 | implemented | Architecture、Knowledge Base 设计和 M1/M2 审计记录 |
+| README 已更新 | implemented | 中英文 README 已同步至 M3 S12 入库状态、配置、补偿与限制 |
+| docs 已更新 | implemented | Architecture、Knowledge Base/Embedding/Document Ingestion 设计及 M3 正式 review |
 | 已创建 v0.3.0 tag | pending | `git tag --list` 输出 |
 
 ---
@@ -611,7 +629,7 @@ Claude Code 审核后，Codex 负责：
 |---|---|---|
 | `search_knowledge_base` 工具可用 | pending | 后续 Agent 和 Trace 能统一观察 RAG 调用 |
 | `rag_queries` 或等价查询记录可用 | pending | Plan 4 可以扩展为检索 Trace |
-| `document_chunks` 至少包含 document_id、chunk_index、content、metadata、vector_id | pending | Parent-Child / metadata filter / rerank 都依赖这些字段 |
+| `document_chunks` 至少包含 document_id、chunk_index、content、metadata、vector_id | implemented | ORM/迁移字段、入库持久化及 point ID 等于 Chunk UUID 的服务/API 测试 |
 | RAG Query API 返回 answer、sources、retrieval metadata | pending | Evaluation 和 Trace 需要统一结果结构 |
 | Qdrant payload 中保留 knowledge_base_id、document_id、chunk_id | implemented | payload builder、ownership 校验与搜索结果二次隔离测试 |
 

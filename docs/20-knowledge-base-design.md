@@ -3,13 +3,13 @@
 ## Scope
 
 Plan 3 Milestone 1 establishes the persistence and management boundary for
-Knowledge Bases. Through `P3-M3-S9`, the backend can create, list, read, update,
+Knowledge Bases. Through `P3-M3-S12`, the backend can create, list, read, update,
 and delete Knowledge Base metadata, upload one validated Document through a
 service-owned HTTP API, and synchronously parse, clean, and chunk Markdown,
 TXT, or text-layer PDF through independent processing boundaries. It also
 provides a vendor-neutral Embedding Provider/result contract, runtime Registry,
-OpenAI-compatible adapter, standalone Qdrant VectorStore, and stable Chunk
-payload, without invoking the embedding/vector boundaries from ingestion yet.
+OpenAI-compatible adapter, Qdrant VectorStore, stable Chunk payload, and the
+document vector-ingestion pipeline that connects those boundaries.
 
 The first M2 batch stores `.md`, `.txt`, and `.pdf` bytes and creates the
 initial Document row. The second adds pure parsers. The final M2 batch composes
@@ -17,11 +17,11 @@ the Parser, Cleaner, and Chunker in the upload transaction, persists
 `DocumentChunk` rows, and exposes final parse/chunk states. M3 S1～S6 add the
 Embedding abstraction, validated batch output, exact-name Provider selection,
 concrete protocol adapter, and lazy initialization. M3 S7～S9 add the
-VectorStore abstraction, Qdrant adapter, and stable Chunk payload. No completed
-ingestion scope creates or persists embeddings, calls the VectorStore, updates
-vector IDs/status, retrieves sources, generates RAG answers, or exposes a
-frontend Knowledge Base workspace. Those capabilities remain assigned to later
-Plan 3 steps.
+VectorStore abstraction, Qdrant adapter, and stable Chunk payload. M3 S10～S12
+complete the upload-to-parse-to-clean-to-chunk-to-embed-to-upsert flow, persist
+each Qdrant point ID on its owning Chunk, and transition the Document embedding
+state. Retrieval, RAG answers, and the frontend Knowledge Base workspace remain
+assigned to later Plan 3 steps.
 
 ## Storage Responsibilities
 
@@ -29,15 +29,15 @@ SQLite remains the default and long-term supported primary database. It owns:
 
 - Knowledge Base configuration metadata;
 - Document identity, file metadata, and ingestion lifecycle state;
-- Document Chunk text, source metadata, and future vector identifiers;
+- Document Chunk text, source metadata, and persisted vector identifiers;
 - RAG query audit metadata and retrieved-chunk snapshots.
 
-Qdrant is Plan 3's vector-storage service. Through M3 S9, its standalone
-VectorStore runtime can create/check a COSINE collection, upsert points, search
-under a Knowledge Base filter, and delete under Knowledge Base plus Document
-ownership filters. The `vector_store` and `vector_collection_name` fields can
-select this runtime later; a nullable `vector_id` is still only a persistence
-bridge because S7～S9 do not update any SQLite row or ingestion state.
+Qdrant is Plan 3's vector-storage service. Its VectorStore runtime can
+create/check a COSINE collection, upsert points, search under a Knowledge Base
+filter, and delete under Knowledge Base plus Document ownership filters. The
+ingestion pipeline selects the configured collection and stores each returned
+point UUID in `document_chunks.vector_id`; Qdrant still owns only vectors and
+search payloads, while SQLite owns lifecycle and audit state.
 
 Deleting a Knowledge Base that still owns any Document returns HTTP 409. The
 database RESTRICT constraint is the final concurrency gate, and the service
@@ -95,10 +95,12 @@ The `documents` table belongs to one Knowledge Base and records:
 | Audit time | `created_at`, `updated_at` |
 
 Document upload creates the row as `uploaded` / `pending` / `pending`, then
-synchronously processes it before commit. Success returns `parsed` / `chunked`
-/ `pending`. Expected parser failures return `failed` / `failed` / `pending`;
-text that is empty after cleaning returns `parsed` / `failed` / `pending`.
-Embedding lifecycle transitions remain deferred to the M3 ingestion steps.
+processes it within the request transaction. Full success returns `parsed` /
+`chunked` / `ready`. Expected parser failures return `failed` / `failed` /
+`failed`; text that is empty after cleaning returns `parsed` / `failed` /
+`failed`. Embedding Provider or VectorStore operation failures preserve the
+parsed chunks and return `parsed` / `chunked` / `failed` with a fixed safe
+diagnostic and no persisted `vector_id` values.
 
 The unique `(knowledge_base_id, file_hash)` pair is the final same-Knowledge-
 Base duplicate gate. Different Knowledge Bases may own the same hash. The
@@ -127,9 +129,9 @@ wrong-dimension vectors. The factory reads independent lazy Embedding Settings
 and unwraps the masked key only during initialization. Safe exceptions do not
 copy remote bodies, source text, vector values, or credentials. Document state
 updates, Qdrant calls, persisted vector IDs, and ingestion orchestration remain
-outside this Provider boundary. Standalone Qdrant calls now belong to the
-VectorStore boundary below; state/vector-ID orchestration is deferred to
-S10～S12.
+outside this Provider boundary and are composed by `DocumentIngestionService`
+plus `app.rag.ingestion_pipeline`. VectorStore calls still belong to the
+boundary below.
 
 ## VectorStore And Qdrant Payload Boundary
 
@@ -278,11 +280,18 @@ headings are capped at the `DocumentChunk.heading` length of 512 characters.
 `DocumentIngestionService` owns the composition. It resolves the stored path
 against the expected Knowledge Base UUID, Document UUID, and suffix while
 rejecting malformed ownership, symlink, and reparse paths. It dispatches the
-existing parser, cleans, chunks, writes ordered `DocumentChunk` rows, and
-flushes without committing. Expected parser/content errors persist safe
-Document states and no chunks. Storage, SQLAlchemy, and unexpected programming
-errors are not converted into content failures; they propagate so the request
-transaction rolls back the Document, chunks, and promoted file.
+existing parser, cleans, chunks, writes ordered `DocumentChunk` rows, marks the
+Document as embedding, then invokes the vector-ingestion boundary without
+committing. That boundary checks Chunk ownership/order, ensures the collection,
+embeds all Chunk content as one bounded batch, builds traceable payloads, and
+upserts points whose UUIDs equal the owning Chunk UUIDs.
+
+Expected parser/content errors persist safe Document states and no chunks.
+Expected Provider/VectorStore errors preserve the parsed chunks, clear all
+vector IDs, and persist a safe embedding failure. Storage, SQLAlchemy, and
+unexpected programming errors propagate so the request transaction rolls back
+the Document, chunks, and promoted file. If an upsert succeeded before that
+rollback, a request-scoped compensation callback deletes the Document's points.
 
 ## DocumentChunk Integrity
 
@@ -302,7 +311,9 @@ assigned to a different Knowledge Base than its parent Document.
 `uq_document_chunks_document_id_chunk_index` keeps chunk order unique within a
 Document. Deleting the parent Document cascades to its chunks.
 
-The presence of `vector_id` does not imply that M1 writes vectors to Qdrant.
+On successful ingestion, every Chunk stores the canonical Qdrant point UUID in
+`vector_id`; that UUID is intentionally the same as the Chunk UUID. Failed
+vector ingestion never leaves partial SQLite vector identifiers.
 
 ## RagQuery Bridge
 
@@ -366,8 +377,8 @@ Deleting a Knowledge Base that still owns a Document returns HTTP `409` with
 deleting the knowledge base`.
 
 The Document upload request is `multipart/form-data` with one required `file`
-field. There are no Document list, detail, chunk-query, or delete routes through
-M2 S9.
+field. Upload now runs the complete vector-ingestion pipeline. There are still
+no Document list, detail, chunk-query, retry, or delete routes through M3 S12.
 
 ## Error And Transaction Behavior
 
@@ -398,6 +409,8 @@ hashes, absolute paths, or internal diagnostics:
 | `409` | `document_duplicate` | Same hash exists in this Knowledge Base |
 | `409` | `knowledge_base_document_limit_reached` | Knowledge Base reached its configured count |
 | `503` | `document_storage_error` | Controlled staging/promotion/cleanup failed |
+| `503` | `embedding_provider_unavailable` | Embedding Provider configuration or initialization failed before upload |
+| `503` | `vector_store_unavailable` | VectorStore initialization failed before upload |
 
 Processing-limit failures remain successful HTTP 201 Document resources. They
 use the fixed message `Document exceeds the processing limit.`, set parse/chunk
@@ -409,9 +422,19 @@ transport failures. Invalid encoded or unreadable content persists
 cleaning persists `parse_status=parsed` and `chunk_status=failed`. Both expose a
 bounded safe `error_message` and create no chunks.
 
+Embedding or vector-operation failures are also successful HTTP 201 Document
+resources because the resource and parsed chunks remain inspectable. They set
+`embedding_status=failed`, expose only `Document embedding failed.` or
+`Document vector storage failed.`, and persist no vector IDs. Initialization
+errors happen before file streaming and use the safe 503 responses above.
+
 Successful requests commit after the route returns. Any exception rolls the
-request transaction back before the session closes. Tests use newly created
-temporary SQLite databases and never read or modify the user database.
+request transaction back before the session closes. Request-scoped asynchronous
+callbacks compensate Qdrant writes on rollback and close the Qdrant client at
+session finalization. Compensation is best-effort: an abrupt process crash or a
+Qdrant cleanup outage can still leave orphan points, which a later maintenance
+workflow must reconcile. Tests use newly created temporary SQLite databases and
+never read or modify the user database.
 
 ## Verification
 
@@ -558,19 +581,35 @@ The M3 S7～S9 Qdrant VectorStore verification reached:
   targets; zero high-confidence secrets, added private-key headers, executable
   later-Plan runtime, or tracked artifacts.
 
+The M3 S10～S12 document vector-ingestion verification reached:
+
+- pipeline RED at missing module and GREEN `8 passed`; callback/factory/error
+  mapping GREEN `22 passed, 1 warning`; service/API RED
+  `38 failed, 11 passed` and GREEN `49 passed, 1 warning`;
+- focused backend `312 passed, 1 warning`; complete backend
+  `900 passed, 1 warning`; dependency integrity `No broken requirements found`;
+- temporary-SQLite upgrade/current/check/downgrade/re-upgrade at head
+  `20260801_0006`, followed by verified temporary-directory cleanup;
+- frontend `18` files / `90` tests, typecheck, and production build with
+  `1813` transformed modules;
+- live local Qdrant full ingestion using temporary SQLite/files and a Mock
+  Embedding Provider: ready state, matching Chunk/point IDs, one search hit,
+  ownership-scoped delete to zero hits, and verified random collection cleanup;
+- `106` Markdown files, `84` valid local links/images, and zero missing targets;
+  zero high-confidence secrets, private-key headers, executable later-Plan or
+  network-Tool runtime, and tracked artifacts.
+
 The active Plan 3 execution table contains the security, scope, artifact, and
 Git gates. No verification command read or modified `backend/ai_agent_lab.db`.
 
 ## Deferred Capabilities
 
-The following remain outside completed Plan 3 through M3 S9:
+The following remain outside completed Plan 3 through M3 S12:
 
 - Document list, detail, chunk-query, delete, local-file deletion, and orphan
   recovery workflows;
 - live Embedding service acceptance, automatic retry/splitting, persisted call
-  audit/cost, and document embedding execution;
-- upload-to-Embedding-to-Qdrant orchestration, persisted `vector_id`, and
-  Document embedding lifecycle transitions;
+  audit/cost, and hard-crash orphan reconciliation;
 - Retriever, RAG Prompt, RAG query/chat runtime, and Agent Tool integration;
 - frontend Knowledge Base, upload, RAG Chat, and source display;
 - Advanced RAG, Hybrid Search, Rerank, Evaluation, Memory, OCR, and multimodal

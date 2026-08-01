@@ -10,11 +10,20 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.api.dependencies import get_db_session
+from app.api.dependencies import (
+    get_db_session,
+    get_embedding_provider,
+    get_vector_store,
+)
 from app.api.errors import error_spec_for_exception
 from app.core.config import Settings, get_settings
 from app.db.base import Base
 from app.db.session import create_db_engine
+from app.db.session_callbacks import (
+    discard_async_rollback_callbacks,
+    run_async_rollback_callbacks,
+    run_async_session_finalizers,
+)
 from app.knowledge import (
     DocumentDuplicateError,
     DocumentFileInvalidError,
@@ -23,9 +32,15 @@ from app.knowledge import (
     DocumentTypeUnsupportedError,
     KnowledgeBaseDocumentLimitReachedError,
 )
+from app.providers.embedding import EmbeddingProviderConfigurationError
+from app.rag.vectorstores import VectorStoreConfigurationError
 from app.main import app
 from app.models import Document, DocumentChunk
 from tests.pdf_factory import build_pdf
+from tests.ingestion_fakes import (
+    DeterministicEmbeddingProvider,
+    InMemoryVectorStore,
+)
 
 
 @pytest.fixture
@@ -37,6 +52,7 @@ def api_context(
         sessionmaker[Session],
         Settings,
         Path,
+        InMemoryVectorStore,
     ]
 ]:
     from app import models as _models  # noqa: F401
@@ -53,22 +69,31 @@ def api_context(
         DOCUMENT_MAX_UPLOAD_BYTES=1024,
         DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE=50,
     )
+    embedding_provider = DeterministicEmbeddingProvider()
+    vector_store = InMemoryVectorStore()
 
     async def override_db_session() -> AsyncIterator[Session]:
         session = factory()
         try:
             yield session
             session.commit()
+            discard_async_rollback_callbacks(session)
         except Exception:
             session.rollback()
+            await run_async_rollback_callbacks(session)
             raise
         finally:
+            await run_async_session_finalizers(session)
             session.close()
 
     app.dependency_overrides[get_db_session] = override_db_session
     app.dependency_overrides[get_settings] = lambda: settings
+    app.dependency_overrides[get_embedding_provider] = (
+        lambda: embedding_provider
+    )
+    app.dependency_overrides[get_vector_store] = lambda: vector_store
     with TestClient(app) as client:
-        yield client, factory, settings, storage_root
+        yield client, factory, settings, storage_root, vector_store
     app.dependency_overrides.clear()
     engine.dispose()
 
@@ -125,7 +150,7 @@ def _assert_safe_error(
 def test_openapi_exposes_only_nested_document_upload(
     api_context: Any,
 ) -> None:
-    client, _, _, _ = api_context
+    client, _, _, _, _ = api_context
     document = client.get("/openapi.json").json()
     paths = document["paths"]
     upload_path = (
@@ -192,7 +217,7 @@ def test_document_upload_accepts_supported_types(
     expected_type: str,
     expected_format: str,
 ) -> None:
-    client, factory, _, storage_root = api_context
+    client, factory, _, storage_root, vector_store = api_context
     knowledge_base_id = _create_knowledge_base(client)
 
     response = client.post(
@@ -209,7 +234,7 @@ def test_document_upload_accepts_supported_types(
     assert payload["file_hash"] == hashlib.sha256(content).hexdigest()
     assert payload["parse_status"] == "parsed"
     assert payload["chunk_status"] == "chunked"
-    assert payload["embedding_status"] == "pending"
+    assert payload["embedding_status"] == "ready"
     assert payload["error_message"] is None
     assert payload["metadata"]["format"] == expected_format
     assert not Path(payload["file_path"]).is_absolute()
@@ -232,6 +257,13 @@ def test_document_upload_accepts_supported_types(
         assert chunks
         assert [chunk.chunk_index for chunk in chunks] == list(
             range(len(chunks))
+        )
+        assert all(chunk.vector_id == str(chunk.id) for chunk in chunks)
+        assert set(vector_store.points) == {chunk.id for chunk in chunks}
+        assert all(
+            point.payload.document_id == document.id
+            and point.payload.knowledge_base_id == document.knowledge_base_id
+            for point in vector_store.points.values()
         )
 
 
@@ -278,7 +310,7 @@ def test_document_upload_persists_content_processing_failure(
     parse_status: str,
     error_message: str,
 ) -> None:
-    client, factory, _, storage_root = api_context
+    client, factory, _, storage_root, _ = api_context
     knowledge_base_id = _create_knowledge_base(client)
 
     response = client.post(
@@ -290,7 +322,7 @@ def test_document_upload_persists_content_processing_failure(
     payload = response.json()
     assert payload["parse_status"] == parse_status
     assert payload["chunk_status"] == "failed"
-    assert payload["embedding_status"] == "pending"
+    assert payload["embedding_status"] == "failed"
     assert payload["error_message"] == error_message
     assert str(storage_root) not in response.text
     assert _document_count(factory) == 1
@@ -300,7 +332,7 @@ def test_document_upload_persists_content_processing_failure(
 def test_document_upload_sanitizes_client_path(
     api_context: Any,
 ) -> None:
-    client, _, _, _ = api_context
+    client, _, _, _, _ = api_context
     knowledge_base_id = _create_knowledge_base(client)
 
     response = client.post(
@@ -326,7 +358,7 @@ def test_document_upload_sanitizes_client_path(
 def test_document_upload_requires_multipart_file(
     api_context: Any,
 ) -> None:
-    client, factory, _, storage_root = api_context
+    client, factory, _, storage_root, _ = api_context
     knowledge_base_id = _create_knowledge_base(client)
 
     response = client.post(
@@ -361,7 +393,7 @@ def test_document_upload_rejects_invalid_file(
     status_code: int,
     error_code: str,
 ) -> None:
-    client, factory, _, storage_root = api_context
+    client, factory, _, storage_root, _ = api_context
     knowledge_base_id = _create_knowledge_base(client)
 
     response = client.post(
@@ -385,7 +417,7 @@ def test_document_upload_rejects_invalid_file(
 def test_document_upload_rejects_oversized_file(
     api_context: Any,
 ) -> None:
-    client, factory, settings, storage_root = api_context
+    client, factory, settings, storage_root, _ = api_context
     settings.document_max_upload_bytes = 8
     knowledge_base_id = _create_knowledge_base(client)
     content = b"123456789"
@@ -409,7 +441,7 @@ def test_document_upload_rejects_oversized_file(
 def test_document_upload_returns_safe_missing_knowledge_base(
     api_context: Any,
 ) -> None:
-    client, factory, _, storage_root = api_context
+    client, factory, _, storage_root, _ = api_context
     content = b"private missing content"
     missing_id = uuid4()
 
@@ -433,7 +465,7 @@ def test_document_upload_returns_safe_missing_knowledge_base(
 def test_document_upload_rejects_same_knowledge_base_duplicate(
     api_context: Any,
 ) -> None:
-    client, factory, _, storage_root = api_context
+    client, factory, _, storage_root, _ = api_context
     knowledge_base_id = _create_knowledge_base(client)
     content = b"duplicate content"
     first = client.post(
@@ -461,7 +493,7 @@ def test_document_upload_rejects_same_knowledge_base_duplicate(
 def test_document_upload_rejects_knowledge_base_document_limit(
     api_context: Any,
 ) -> None:
-    client, factory, settings, storage_root = api_context
+    client, factory, settings, storage_root, _ = api_context
     settings.document_max_files_per_knowledge_base = 1
     knowledge_base_id = _create_knowledge_base(client)
     first = client.post(
@@ -490,7 +522,7 @@ def test_document_upload_rejects_knowledge_base_document_limit(
 def test_document_upload_returns_safe_storage_error(
     api_context: Any,
 ) -> None:
-    client, factory, settings, storage_root = api_context
+    client, factory, settings, storage_root, _ = api_context
     knowledge_base_id = _create_knowledge_base(client)
     storage_root.write_text(
         "private-storage-diagnostic",
@@ -518,7 +550,7 @@ def test_document_upload_returns_safe_storage_error(
 def test_document_upload_commit_failure_rolls_back_file(
     api_context: Any,
 ) -> None:
-    client, factory, settings, storage_root = api_context
+    client, factory, settings, storage_root, vector_store = api_context
     knowledge_base_id = _create_knowledge_base(client)
 
     class FailingCommitSession(Session):
@@ -538,10 +570,13 @@ def test_document_upload_commit_failure_rolls_back_file(
         try:
             yield session
             session.commit()
+            discard_async_rollback_callbacks(session)
         except Exception:
             session.rollback()
+            await run_async_rollback_callbacks(session)
             raise
         finally:
+            await run_async_session_finalizers(session)
             session.close()
 
     app.dependency_overrides[get_db_session] = override_failing_session
@@ -562,9 +597,63 @@ def test_document_upload_commit_failure_rolls_back_file(
     )
     assert _document_count(factory) == 0
     assert _stored_files(storage_root) == []
+    assert vector_store.points == {}
+    assert len(vector_store.deleted_documents) == 1
     staging = storage_root / ".staging"
     assert not staging.exists() or not any(staging.iterdir())
     app.dependency_overrides[get_settings] = lambda: settings
+
+
+def test_document_upload_returns_safe_embedding_configuration_error(
+    api_context: Any,
+) -> None:
+    client, factory, _, storage_root, vector_store = api_context
+    knowledge_base_id = _create_knowledge_base(client)
+    app.dependency_overrides.pop(get_embedding_provider)
+    content = b"private provider configuration content"
+
+    response = client.post(
+        f"/api/v1/knowledge-bases/{knowledge_base_id}/documents",
+        files={"file": ("provider.txt", content, "text/plain")},
+    )
+
+    _assert_safe_error(
+        response,
+        status_code=503,
+        error_code="embedding_provider_unavailable",
+        storage_root=storage_root,
+        content=content,
+    )
+    assert _document_count(factory) == 0
+    assert _chunk_count(factory) == 0
+    assert _stored_files(storage_root) == []
+    assert vector_store.points == {}
+
+
+def test_document_upload_returns_safe_vector_store_configuration_error(
+    api_context: Any,
+) -> None:
+    client, factory, _, storage_root, vector_store = api_context
+    knowledge_base_id = _create_knowledge_base(client)
+    app.dependency_overrides.pop(get_vector_store)
+    content = b"private vector configuration content"
+
+    response = client.post(
+        f"/api/v1/knowledge-bases/{knowledge_base_id}/documents",
+        files={"file": ("vector.txt", content, "text/plain")},
+    )
+
+    _assert_safe_error(
+        response,
+        status_code=503,
+        error_code="vector_store_unavailable",
+        storage_root=storage_root,
+        content=content,
+    )
+    assert _document_count(factory) == 0
+    assert _chunk_count(factory) == 0
+    assert _stored_files(storage_root) == []
+    assert vector_store.points == {}
 
 
 @pytest.mark.parametrize(
@@ -599,6 +688,18 @@ def test_document_upload_commit_failure_rolls_back_file(
             409,
             "knowledge_base_document_limit_reached",
             "The knowledge base document limit was reached",
+        ),
+        (
+            EmbeddingProviderConfigurationError(),
+            503,
+            "embedding_provider_unavailable",
+            "The embedding provider is unavailable",
+        ),
+        (
+            VectorStoreConfigurationError(),
+            503,
+            "vector_store_unavailable",
+            "The vector store is unavailable",
         ),
         (
             DocumentStorageError(),

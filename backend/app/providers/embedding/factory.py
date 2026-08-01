@@ -1,10 +1,29 @@
 import httpx
 
 from app.core.config import Settings
-from app.providers.embedding.base import EmbeddingProviderConfigurationError
+from app.providers.embedding.base import (
+    EmbeddingProvider,
+    EmbeddingProviderConfigurationError,
+)
 from app.providers.embedding.openai_compatible_embedding import (
     OpenAICompatibleEmbeddingProvider,
 )
+from app.providers.embedding.registry import EmbeddingProviderNotFoundError
+
+
+def create_embedding_provider(
+    settings: Settings,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> EmbeddingProvider:
+    if settings.embedding_provider != "openai_compatible":
+        raise EmbeddingProviderNotFoundError(
+            f"Embedding Provider not found: {settings.embedding_provider}"
+        )
+    return create_openai_compatible_embedding_provider(
+        settings,
+        client=client,
+    )
 
 
 def create_openai_compatible_embedding_provider(

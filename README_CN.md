@@ -25,7 +25,7 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M3-S9`。
+已完成范围：`P1-M1-S1` 到 `P3-M3-S12`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -43,6 +43,9 @@ HTTP/响应错误、独立延迟加载配置，以及严格的配置维度校验
 M3 第三批新增厂商无关的异步 VectorStore 契约、基于官方 Qdrant 1.15.x client 的
 COSINE collection 创建/检查、向量 upsert、按知识库过滤 search、按 Document 过滤
 delete，以及为 M4 保留 content 与来源 metadata 的严格 Chunk payload builder。
+M3 最后一批把同步上传事务继续串联到确定性批量 Embedding 与 Qdrant upsert，将每个
+Chunk UUID 持久化为 point ID，把 Document 标为 `ready` 或安全 `failed`，并在正常的
+请求事务回滚时补偿删除本次 vectors。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -101,9 +104,10 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 和 `.pdf` 上传，并返回同步解析、清洗和基础 Chunking 的最终结果。成功上传会
 持久化有序 `DocumentChunk`，返回 `parsed` / `chunked`；预期的解析或内容失败
 仍是 HTTP 201 资源，并持久化安全、可见的失败状态。VectorStore 现已能独立创建/
-检查 collection，并写入、按知识库过滤检索和按 Document 删除经过校验的 Chunk point；
-Embedding ingestion、`vector_id`/状态持久化、Retriever 编排、Document 查询/删除 API
-和前端上传/RAG runtime 仍延期到后续 Plan 3 Step。
+检查 collection，并写入、按知识库过滤检索和按 Document 删除经过校验的 Chunk point。
+上传 Pipeline 现已调用配置的 Embedding Provider 与 VectorStore，持久化
+`DocumentChunk.vector_id`，并在等待 Qdrant 写入完成后返回 `embedding_status=ready`；
+Retriever 编排、Document 查询/删除 API 和前端上传/RAG runtime 仍延期。
 补丁 revision `20260801_0006` 增加同一知识库内的 Document hash 唯一约束，禁止
 删除仍含 Document 的知识库，并在删除回答 Message 时只清空引用、保留 `RagQuery`。
 
@@ -265,9 +269,15 @@ UTF-8 字节估算 `ceil(bytes / 4)`，不是 tokenizer 计费数据。默认还
 结构或会产生超过 10,000 个 chunk 的文档；持久化 heading 最长 512 字符。
 
 成功上传返回 HTTP 201，状态为 `parse_status=parsed`、
-`chunk_status=chunked`、`embedding_status=pending`。编码无效或不可读内容返回
-HTTP 201 的 `failed` / `failed`；清洗后为空则返回 `parsed` / `failed`。两类
-预期内容失败都会持久化安全 `error_message`，且不生成 chunk。
+`chunk_status=chunked`、`embedding_status=ready`；每个 Chunk 都满足
+`vector_id == str(chunk.id)`。编码无效或不可读内容返回 HTTP 201 的
+`failed` / `failed` / `failed`；清洗后为空则返回 `parsed` / `failed` / `failed`。
+Provider 或 VectorStore 失败会保留已解析/切分的 Chunk，返回
+`embedding_status=failed`、固定安全消息，并保证所有 `vector_id` 为空。
+
+上传请求仍为同步执行。Qdrant upsert 成功后会登记请求事务清理；若随后 SQLite commit
+失败，系统会在关闭 Qdrant client 前 best-effort 删除该 Document 的 vectors。详见
+[Document Ingestion Pipeline](docs/22-document-ingestion-pipeline.md)。
 
 ### 后端
 
@@ -438,6 +448,7 @@ npm run build
 - [Plan 2 基础 Agent 发布与补丁说明](docs/13-plan-2-basic-agent.md)
 - [Knowledge Base 设计](docs/20-knowledge-base-design.md)
 - [Embedding Provider](docs/21-embedding-provider.md)
+- [Document Ingestion Pipeline](docs/22-document-ingestion-pipeline.md)
 - [Plan 1 最终复审记录](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - [Plan 2 最终复审记录](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
@@ -458,9 +469,10 @@ usage/cost 记录，`web_fetch` 也继续明确延期且没有运行时表面。
 [Plan 2 发布与补丁说明](docs/13-plan-2-basic-agent.md)和
 [Plan 2 最终复审记录](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)。
 Embedding Provider 验证仍只使用 Mock：尚无真实模型服务验收、自动重试/拆批或持久化
-embedding 成本记录。Qdrant VectorStore 已有独立单测和本地临时 collection smoke，
-但尚无上传到 embedding 再到向量的 ingestion 或 Retriever 流水线；Provider usage
-仍只存在于内存，Provider 与 VectorStore 都会在存储前校验配置维度。
+embedding 成本记录。上传到 Embedding 再到 Qdrant 的 ingestion 已有 Mock API 覆盖和
+本地临时 collection smoke，但 Retriever/RAG 回答 runtime 尚未实现；Provider usage
+仍只存在于内存。正常请求回滚会补偿 vectors，但 Qdrant 写入后进程硬崩溃仍可能留下
+需要后续 reconciliation 的 orphan points。
 
 ## Roadmap
 

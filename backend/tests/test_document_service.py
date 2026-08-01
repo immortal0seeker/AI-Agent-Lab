@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -24,6 +25,10 @@ from app.services import (
     DocumentService,
     KnowledgeBaseNotFoundError,
     KnowledgeBaseService,
+)
+from tests.ingestion_fakes import (
+    DeterministicEmbeddingProvider,
+    InMemoryVectorStore,
 )
 
 
@@ -85,7 +90,19 @@ def _stored_files(root: Path) -> list[Path]:
     ]
 
 
-def test_service_uploads_document_with_initial_states(
+def build_document_service(
+    session: Session,
+    **kwargs: Any,
+) -> DocumentService:
+    return DocumentService(
+        session,
+        embedding_provider=DeterministicEmbeddingProvider(),
+        vector_store=InMemoryVectorStore(),
+        **kwargs,
+    )
+
+
+def test_service_uploads_document_and_persists_ready_vectors(
     db: tuple[Session, Engine],
     tmp_path: Path,
 ) -> None:
@@ -96,7 +113,7 @@ def test_service_uploads_document_with_initial_states(
         tmp_path / "uploads",
         max_upload_bytes=1024,
     )
-    service = DocumentService(
+    service = build_document_service(
         session,
         storage=storage,
         max_files_per_knowledge_base=50,
@@ -119,10 +136,17 @@ def test_service_uploads_document_with_initial_states(
     assert document.file_hash == hashlib.sha256(content).hexdigest()
     assert document.parse_status == "parsed"
     assert document.chunk_status == "chunked"
-    assert document.embedding_status == "pending"
+    assert document.embedding_status == "ready"
     assert document.error_message is None
     assert document.metadata_json["format"] == "markdown"
     assert _chunk_count(session) == 1
+    chunk = session.scalar(
+        select(DocumentChunk).where(
+            DocumentChunk.document_id == document.id
+        )
+    )
+    assert chunk is not None
+    assert chunk.vector_id == str(chunk.id)
     assert (storage.root / Path(document.file_path)).read_bytes() == content
 
     session.commit()
@@ -140,7 +164,7 @@ def test_service_retains_document_when_content_processing_fails(
         tmp_path / "uploads",
         max_upload_bytes=1024,
     )
-    service = DocumentService(
+    service = build_document_service(
         session,
         storage=storage,
         max_files_per_knowledge_base=50,
@@ -156,6 +180,7 @@ def test_service_retains_document_when_content_processing_fails(
 
     assert document.parse_status == "failed"
     assert document.chunk_status == "failed"
+    assert document.embedding_status == "failed"
     assert document.error_message == "Document parsing failed."
     assert _document_count(session) == 1
     assert _chunk_count(session) == 0
@@ -178,7 +203,7 @@ def test_service_passes_processing_limits_to_ingestion(
         max_markdown_structures=10,
         max_chunks=10,
     )
-    service = DocumentService(
+    service = build_document_service(
         session,
         storage=storage,
         max_files_per_knowledge_base=50,
@@ -209,7 +234,7 @@ def test_service_checks_knowledge_base_before_reading_stream(
         tmp_path / "uploads",
         max_upload_bytes=1024,
     )
-    service = DocumentService(
+    service = build_document_service(
         session,
         storage=storage,
         max_files_per_knowledge_base=50,
@@ -251,7 +276,7 @@ def test_service_rejects_document_limit_before_reading_stream(
         tmp_path / "uploads",
         max_upload_bytes=1024,
     )
-    service = DocumentService(
+    service = build_document_service(
         session,
         storage=storage,
         max_files_per_knowledge_base=1,
@@ -282,7 +307,7 @@ def test_service_rejects_same_knowledge_base_duplicate(
         tmp_path / "uploads",
         max_upload_bytes=1024,
     )
-    service = DocumentService(
+    service = build_document_service(
         session,
         storage=storage,
         max_files_per_knowledge_base=50,
@@ -318,7 +343,7 @@ def test_service_normalizes_unique_race_and_cleans_promoted_file(
     session, _ = db
     knowledge_base_id = _create_knowledge_base(session, "Race")
     storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=1024)
-    service = DocumentService(
+    service = build_document_service(
         session,
         storage=storage,
         max_files_per_knowledge_base=50,
@@ -371,7 +396,7 @@ def test_service_allows_same_hash_in_different_knowledge_bases(
         tmp_path / "uploads",
         max_upload_bytes=1024,
     )
-    service = DocumentService(
+    service = build_document_service(
         session,
         storage=storage,
         max_files_per_knowledge_base=50,
@@ -408,7 +433,7 @@ def test_service_rolls_back_promoted_file(
         tmp_path / "uploads",
         max_upload_bytes=1024,
     )
-    service = DocumentService(
+    service = build_document_service(
         session,
         storage=storage,
         max_files_per_knowledge_base=50,
@@ -439,7 +464,7 @@ def test_service_commit_retains_promoted_file(
         tmp_path / "uploads",
         max_upload_bytes=1024,
     )
-    service = DocumentService(
+    service = build_document_service(
         session,
         storage=storage,
         max_files_per_knowledge_base=50,
@@ -468,7 +493,7 @@ def test_service_storage_failure_leaves_no_document(
     knowledge_base_id = _create_knowledge_base(session, "Failure")
     storage_root = tmp_path / "not-a-directory"
     storage_root.write_text("synthetic", encoding="utf-8")
-    service = DocumentService(
+    service = build_document_service(
         session,
         storage=DocumentStorage(storage_root, max_upload_bytes=1024),
         max_files_per_knowledge_base=50,

@@ -8,8 +8,8 @@ adapter can turn a non-empty batch of strings, or one query string, into
 validated vectors without leaking vendor response shapes into RAG services.
 
 Qdrant collection management is implemented separately by the VectorStore
-boundary introduced in P3-M3-S7～S9. This document still does not describe
-document vector ingestion, which remains assigned to P3-M3-S10～S12.
+boundary introduced in P3-M3-S7～S9. The completed document vector-ingestion
+composition is described in [Document Ingestion Pipeline](22-document-ingestion-pipeline.md).
 
 ## Runtime Boundary
 
@@ -102,8 +102,9 @@ result order from `data[].index` and rejects:
 
 Automatic token truncation and batch splitting are intentionally absent. Model
 limits vary between compatible services, and silent truncation would change
-retrieval meaning. A later ingestion service may add a documented bounded
-batching policy without changing the Provider contract.
+retrieval meaning. The current ingestion pipeline sends the complete bounded
+Document Chunk list in one Provider batch; a later policy may split it without
+changing the Provider contract.
 
 ## Error Contract
 
@@ -145,8 +146,9 @@ code. Remote response bodies are not copied into exceptions.
 
 - No automatic retry, fallback, caching, rate-limit backoff, batch splitting,
   or persisted embedding-call audit row.
-- The separate Qdrant VectorStore is not called by this Provider adapter.
-- Document ingestion still stops after local Chunk persistence with
-  `embedding_status=pending`.
+- The Provider adapter remains storage-independent; the ingestion pipeline
+  composes it with the separate Qdrant VectorStore.
+- M3 does not persist embedding-call usage/cost or provide automatic retry and
+  orphan reconciliation workflows.
 - No Retriever, RAG answer generation, Advanced RAG, Rerank, Evaluation,
   Memory, OCR, or multimodal behavior is included here.

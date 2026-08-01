@@ -9,7 +9,15 @@ from sqlalchemy.orm.session import sessionmaker
 from app.agents import SimpleAgentService
 from app.core.config import Settings, get_settings
 from app.db.session import SessionLocal
+from app.db.session_callbacks import (
+    discard_async_rollback_callbacks,
+    register_async_session_finalizer,
+    run_async_rollback_callbacks,
+    run_async_session_finalizers,
+)
 from app.knowledge import DocumentStorage
+from app.providers.embedding import EmbeddingProvider
+from app.providers.embedding.factory import create_embedding_provider
 from app.providers.llm.base import BaseLLMProvider
 from app.providers.llm.factory import create_openai_compatible_provider
 from app.providers.llm.registry import ModelRegistry, load_default_registry
@@ -20,6 +28,10 @@ from app.services.document_service import DocumentService
 from app.services.knowledge_base_service import KnowledgeBaseService
 from app.tools import ToolRegistry
 from app.tools.builtin import register_builtin_tools
+from app.rag.vectorstores import (
+    VectorStore,
+    create_qdrant_vector_store,
+)
 
 
 async def get_db_session() -> AsyncIterator[Session]:
@@ -27,10 +39,13 @@ async def get_db_session() -> AsyncIterator[Session]:
     try:
         yield session
         session.commit()
+        discard_async_rollback_callbacks(session)
     except Exception:
         session.rollback()
+        await run_async_rollback_callbacks(session)
         raise
     finally:
+        await run_async_session_finalizers(session)
         session.close()
 
 
@@ -77,9 +92,26 @@ def get_knowledge_base_service(
     return KnowledgeBaseService(session)
 
 
+def get_embedding_provider(
+    settings: Settings = Depends(get_settings),
+) -> EmbeddingProvider:
+    return create_embedding_provider(settings)
+
+
+def get_vector_store(
+    session: Session = Depends(get_db_session, scope="function"),
+    settings: Settings = Depends(get_settings),
+) -> VectorStore:
+    store = create_qdrant_vector_store(settings)
+    register_async_session_finalizer(session, store.close)
+    return store
+
+
 def get_document_service(
     session: Session = Depends(get_db_session, scope="function"),
     settings: Settings = Depends(get_settings),
+    embedding_provider: EmbeddingProvider = Depends(get_embedding_provider),
+    vector_store: VectorStore = Depends(get_vector_store),
 ) -> DocumentService:
     storage = DocumentStorage(
         settings.document_storage_root,
@@ -94,6 +126,8 @@ def get_document_service(
         chunk_size=settings.rag_chunk_size,
         chunk_overlap=settings.rag_chunk_overlap,
         processing_limits=settings.document_processing_limits,
+        embedding_provider=embedding_provider,
+        vector_store=vector_store,
     )
 
 

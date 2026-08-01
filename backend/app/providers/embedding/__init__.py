@@ -19,6 +19,7 @@ from app.providers.embedding.openai_compatible_embedding import (
     OpenAICompatibleEmbeddingProvider,
 )
 from app.providers.embedding.factory import (
+    create_embedding_provider,
     create_openai_compatible_embedding_provider,
 )
 from app.providers.embedding.registry import (
@@ -49,5 +50,6 @@ __all__ = [
     "EmbeddingResult",
     "EmbeddingUsage",
     "OpenAICompatibleEmbeddingProvider",
+    "create_embedding_provider",
     "create_openai_compatible_embedding_provider",
 ]

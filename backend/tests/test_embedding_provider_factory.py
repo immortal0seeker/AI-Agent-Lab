@@ -5,8 +5,12 @@ import httpx
 import pytest
 
 from app.core.config import Settings
-from app.providers.embedding import EmbeddingProviderConfigurationError
+from app.providers.embedding import (
+    EmbeddingProviderConfigurationError,
+    EmbeddingProviderNotFoundError,
+)
 from app.providers.embedding.factory import (
+    create_embedding_provider,
     create_openai_compatible_embedding_provider,
 )
 
@@ -126,3 +130,24 @@ def test_factory_creates_provider_from_embedding_settings() -> None:
     assert provider_name == "openai_compatible"
     assert result.model == "resolved-model"
     assert result.dimension == 3
+
+
+def test_configured_factory_selects_openai_compatible_provider() -> None:
+    settings = configured_settings(EMBEDDING_PROVIDER="openai_compatible")
+
+    provider = create_embedding_provider(settings)
+
+    assert provider.name == "openai_compatible"
+
+
+def test_configured_factory_rejects_unknown_provider_before_credentials() -> None:
+    settings = configured_settings(
+        EMBEDDING_PROVIDER="missing_provider",
+        OPENAI_COMPATIBLE_EMBEDDING_API_KEY=None,
+    )
+
+    with pytest.raises(
+        EmbeddingProviderNotFoundError,
+        match="Embedding Provider not found: missing_provider",
+    ):
+        create_embedding_provider(settings)

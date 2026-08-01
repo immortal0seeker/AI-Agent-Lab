@@ -18,6 +18,8 @@ from app.rag import (
     DEFAULT_DOCUMENT_PROCESSING_LIMITS,
     DocumentProcessingLimits,
 )
+from app.providers.embedding import EmbeddingProvider
+from app.rag.vectorstores import VectorStore
 from app.services.document_ingestion_service import DocumentIngestionService
 from app.services.knowledge_base_service import KnowledgeBaseService
 
@@ -76,6 +78,8 @@ class DocumentService:
         max_files_per_knowledge_base: int,
         chunk_size: int = 1000,
         chunk_overlap: int = 150,
+        embedding_provider: EmbeddingProvider,
+        vector_store: VectorStore,
         processing_limits: DocumentProcessingLimits = (
             DEFAULT_DOCUMENT_PROCESSING_LIMITS
         ),
@@ -88,6 +92,8 @@ class DocumentService:
             storage=storage,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
+            embedding_provider=embedding_provider,
+            vector_store=vector_store,
             processing_limits=processing_limits,
         )
         _register_file_transaction_listeners(session)
@@ -158,7 +164,7 @@ class DocumentService:
                 if _is_document_hash_duplicate(exc):
                     raise DocumentDuplicateError() from exc
                 raise
-            return self._ingestion.process_document(document)
+            return await self._ingestion.process_document(document)
         finally:
             if staged is not None:
                 self._storage.discard_staged(staged)

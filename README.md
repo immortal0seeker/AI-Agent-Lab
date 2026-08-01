@@ -25,7 +25,7 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M3-S9`.
+Completed scope: `P1-M1-S1` through `P3-M3-S12`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -49,6 +49,10 @@ The third M3 batch adds a vendor-neutral asynchronous VectorStore contract,
 an official Qdrant 1.15.x adapter for COSINE collection create/check, vector
 upsert, Knowledge-Base-filtered search, and Document-filtered deletion, plus a
 strict Chunk payload builder that preserves content and source metadata for M4.
+The final M3 batch connects the synchronous upload transaction to deterministic
+batch Embedding and Qdrant upsert, persists every Chunk UUID as its point ID,
+marks the Document `ready` or a safe `failed` state, and compensates vectors on
+normal request-transaction rollback.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -127,11 +131,10 @@ content failures remain HTTP 201 resources with safe visible failure states.
 Patch revision `20260801_0006` makes same-Knowledge-Base document hashes unique,
 restricts deletion of a Knowledge Base that still owns Documents, and safely
 clears a deleted answer Message reference without losing its `RagQuery`.
-The VectorStore can now create/check a collection and independently write,
-filter-search, and delete validated Chunk points. Embedding ingestion,
-persisted `vector_id`/status transitions, Retriever orchestration, Document
-query/delete APIs, and frontend upload/RAG runtime remain deferred to later
-Plan 3 steps.
+The upload pipeline now calls the configured Embedding Provider and VectorStore,
+persists `DocumentChunk.vector_id`, and returns `embedding_status=ready` after a
+successful waited Qdrant write. Retriever orchestration, Document query/delete
+APIs, and frontend upload/RAG runtime remain deferred to later Plan 3 steps.
 
 ## v0.1.0 Demo
 
@@ -315,10 +318,17 @@ that would produce more than 10,000 chunks. Chunk headings are bounded to 512
 characters.
 
 Successful uploads return HTTP 201 with `parse_status=parsed`,
-`chunk_status=chunked`, and `embedding_status=pending`. Invalid encoded text or
-unreadable content returns HTTP 201 with `parse_status=failed` and
-`chunk_status=failed`; text that becomes empty after cleaning returns
-`parsed` / `failed`. Both cases persist a safe `error_message` and no chunks.
+`chunk_status=chunked`, and `embedding_status=ready`; every stored Chunk has
+`vector_id == str(chunk.id)`. Invalid encoded text or unreadable content returns
+HTTP 201 with `failed` / `failed` / `failed`; text that becomes empty after
+cleaning returns `parsed` / `failed` / `failed`. Provider or VectorStore
+failures keep parsed/chunked rows, return `embedding_status=failed`, persist a
+fixed safe message, and leave every Chunk `vector_id` empty.
+
+The upload request remains synchronous. A successful Qdrant upsert registers
+request-transaction cleanup so a later SQLite commit failure best-effort deletes
+the Document vectors before closing the Qdrant client. See
+[Document Ingestion Pipeline](docs/22-document-ingestion-pipeline.md).
 
 ### Backend
 
@@ -510,6 +520,7 @@ Release documentation:
 - [Plan 2 basic Agent release and patch](docs/13-plan-2-basic-agent.md)
 - [Knowledge Base design](docs/20-knowledge-base-design.md)
 - [Embedding Provider](docs/21-embedding-provider.md)
+- [Document Ingestion Pipeline](docs/22-document-ingestion-pipeline.md)
 - [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - [Plan 2 final review record](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
@@ -535,10 +546,11 @@ explicitly deferred with no runtime surface. See the
 the complete current boundaries.
 Embedding Provider verification is still mock-only: there is no live model
 service acceptance, automatic retry/batching, or persisted embedding-cost
-record. Qdrant VectorStore operations have separate unit coverage and a local
-temporary-collection smoke, but no upload-to-embedding-to-vector ingestion or
-Retriever pipeline yet. Returned Provider usage remains in memory, and both
-Provider and VectorStore enforce the configured dimension before storage.
+record. Upload-to-Embedding-to-Qdrant ingestion has Mock API coverage and a
+local temporary-collection smoke, but Retriever/RAG-answer runtime is not yet
+implemented. Returned Provider usage remains in memory. Normal request rollback
+compensates vectors, while a hard process crash after Qdrant write can still
+leave orphan points for later reconciliation.
 
 ## Roadmap
 

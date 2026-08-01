@@ -12,8 +12,20 @@ from app.db.base import Base
 from app.db.session import create_db_engine
 from app.knowledge import DocumentStorage, DocumentStorageError
 from app.models import Document, DocumentChunk, KnowledgeBase
+from app.providers.embedding import (
+    EmbeddingProvider,
+    EmbeddingProviderUnknownError,
+)
 from app.rag import DocumentProcessingLimits
+from app.rag.vectorstores import (
+    VectorStore,
+    VectorStoreOperationError,
+)
 from app.services import DocumentIngestionService
+from tests.ingestion_fakes import (
+    DeterministicEmbeddingProvider,
+    InMemoryVectorStore,
+)
 from tests.pdf_factory import build_pdf
 
 
@@ -101,12 +113,19 @@ def stored_chunks(
 def ingestion_service(
     session: Session,
     storage: DocumentStorage,
+    *,
+    embedding_provider: EmbeddingProvider | None = None,
+    vector_store: VectorStore | None = None,
 ) -> DocumentIngestionService:
     return DocumentIngestionService(
         session,
         storage=storage,
         chunk_size=100,
         chunk_overlap=10,
+        embedding_provider=(
+            embedding_provider or DeterministicEmbeddingProvider()
+        ),
+        vector_store=vector_store or InMemoryVectorStore(),
     )
 
 
@@ -123,11 +142,13 @@ def test_ingestion_processes_markdown_and_persists_heading(
         content=b"\r\n# Title\r\n\r\n\r\nSynthetic body",
     )
 
-    processed = ingestion_service(session, storage).process_document(document)
+    processed = asyncio.run(
+        ingestion_service(session, storage).process_document(document)
+    )
 
     assert processed.parse_status == "parsed"
     assert processed.chunk_status == "chunked"
-    assert processed.embedding_status == "pending"
+    assert processed.embedding_status == "ready"
     assert processed.error_message is None
     assert processed.metadata_json["format"] == "markdown"
     chunks = stored_chunks(session, document)
@@ -135,6 +156,7 @@ def test_ingestion_processes_markdown_and_persists_heading(
     assert chunks[0].knowledge_base_id == document.knowledge_base_id
     assert chunks[0].heading == "Title"
     assert chunks[0].content == "# Title\n\nSynthetic body"
+    assert all(chunk.vector_id == str(chunk.id) for chunk in chunks)
 
 
 def test_ingestion_dispatches_txt_parser(
@@ -150,7 +172,9 @@ def test_ingestion_dispatches_txt_parser(
         content=b"Plain synthetic text",
     )
 
-    processed = ingestion_service(session, storage).process_document(document)
+    processed = asyncio.run(
+        ingestion_service(session, storage).process_document(document)
+    )
 
     assert processed.metadata_json == {
         "format": "txt",
@@ -174,7 +198,9 @@ def test_ingestion_dispatches_pdf_and_persists_page_numbers(
         content=build_pdf(["First page", "Second page"]),
     )
 
-    processed = ingestion_service(session, storage).process_document(document)
+    processed = asyncio.run(
+        ingestion_service(session, storage).process_document(document)
+    )
 
     assert processed.metadata_json == {"format": "pdf", "page_count": 2}
     chunks = stored_chunks(session, document)
@@ -200,11 +226,13 @@ def test_ingestion_persists_safe_parser_failure(
         content=content,
     )
 
-    processed = ingestion_service(session, storage).process_document(document)
+    processed = asyncio.run(
+        ingestion_service(session, storage).process_document(document)
+    )
 
     assert processed.parse_status == "failed"
     assert processed.chunk_status == "failed"
-    assert processed.embedding_status == "pending"
+    assert processed.embedding_status == "failed"
     assert processed.error_message == "Document parsing failed."
     assert processed.metadata_json == {}
     assert stored_chunks(session, document) == []
@@ -236,9 +264,11 @@ def test_ingestion_persists_safe_processing_limit_failure(
         chunk_size=100,
         chunk_overlap=10,
         processing_limits=limits,
+        embedding_provider=DeterministicEmbeddingProvider(),
+        vector_store=InMemoryVectorStore(),
     )
 
-    processed = service.process_document(document)
+    processed = asyncio.run(service.process_document(document))
 
     assert processed.parse_status == "failed"
     assert processed.chunk_status == "failed"
@@ -272,9 +302,11 @@ def test_ingestion_persists_chunk_limit_without_partial_rows(
         chunk_size=100,
         chunk_overlap=0,
         processing_limits=limits,
+        embedding_provider=DeterministicEmbeddingProvider(),
+        vector_store=InMemoryVectorStore(),
     )
 
-    processed = service.process_document(document)
+    processed = asyncio.run(service.process_document(document))
 
     assert processed.parse_status == "parsed"
     assert processed.chunk_status == "failed"
@@ -295,7 +327,9 @@ def test_ingestion_persists_scanned_pdf_limitation(
         content=build_pdf([None]),
     )
 
-    processed = ingestion_service(session, storage).process_document(document)
+    processed = asyncio.run(
+        ingestion_service(session, storage).process_document(document)
+    )
 
     assert processed.parse_status == "failed"
     assert processed.chunk_status == "failed"
@@ -319,11 +353,13 @@ def test_ingestion_persists_cleaned_empty_failure(
         content=b" \r\n\t\r\n",
     )
 
-    processed = ingestion_service(session, storage).process_document(document)
+    processed = asyncio.run(
+        ingestion_service(session, storage).process_document(document)
+    )
 
     assert processed.parse_status == "parsed"
     assert processed.chunk_status == "failed"
-    assert processed.embedding_status == "pending"
+    assert processed.embedding_status == "failed"
     assert processed.error_message == "Document contains no usable text."
     assert processed.metadata_json == {
         "format": "txt",
@@ -349,9 +385,86 @@ def test_ingestion_does_not_convert_storage_error_to_content_failure(
     )
 
     with pytest.raises(DocumentStorageError):
-        ingestion_service(session, storage).process_document(document)
+        asyncio.run(
+            ingestion_service(session, storage).process_document(document)
+        )
 
     assert document.parse_status == "parsing"
     assert document.chunk_status == "pending"
     assert document.error_message is None
     assert stored_chunks(session, document) == []
+
+
+def test_ingestion_persists_safe_embedding_failure_without_vector_ids(
+    db: tuple[Session, Engine],
+    tmp_path: Path,
+) -> None:
+    session, _ = db
+    storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=4096)
+    document = create_stored_document(
+        session,
+        storage,
+        filename="notes.txt",
+        content=b"Synthetic text",
+    )
+    provider = DeterministicEmbeddingProvider(
+        fail_with=EmbeddingProviderUnknownError(
+            "private provider diagnostic"
+        )
+    )
+    store = InMemoryVectorStore()
+
+    processed = asyncio.run(
+        ingestion_service(
+            session,
+            storage,
+            embedding_provider=provider,
+            vector_store=store,
+        ).process_document(document)
+    )
+
+    assert processed.parse_status == "parsed"
+    assert processed.chunk_status == "chunked"
+    assert processed.embedding_status == "failed"
+    assert processed.error_message == "Document embedding failed."
+    assert all(chunk.vector_id is None for chunk in stored_chunks(session, document))
+    assert store.points == {}
+    assert "private" not in processed.error_message
+
+
+def test_ingestion_compensates_vector_failure_and_persists_safe_status(
+    db: tuple[Session, Engine],
+    tmp_path: Path,
+) -> None:
+    session, _ = db
+    storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=4096)
+    document = create_stored_document(
+        session,
+        storage,
+        filename="notes.txt",
+        content=b"Synthetic text",
+    )
+    store = InMemoryVectorStore(
+        fail_upsert_with=VectorStoreOperationError(
+            "private vector diagnostic"
+        )
+    )
+
+    processed = asyncio.run(
+        ingestion_service(
+            session,
+            storage,
+            vector_store=store,
+        ).process_document(document)
+    )
+
+    assert processed.parse_status == "parsed"
+    assert processed.chunk_status == "chunked"
+    assert processed.embedding_status == "failed"
+    assert processed.error_message == "Document vector storage failed."
+    assert all(chunk.vector_id is None for chunk in stored_chunks(session, document))
+    assert store.points == {}
+    assert store.deleted_documents == [
+        (document.knowledge_base_id, document.id)
+    ]
+    assert "private" not in processed.error_message

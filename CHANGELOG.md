@@ -6,6 +6,14 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added synchronous upload-to-vector ingestion that composes parsing, cleaning,
+  Chunking, configured batch Embedding, Qdrant collection validation, and
+  waited point upsert behind an independently tested pipeline boundary.
+- Persisted canonical Chunk UUID point IDs and final Document embedding states;
+  expected Provider/VectorStore failures retain safe failed records without
+  partial vector IDs.
+- Added the formal Document ingestion operations guide and Plan 3 M3 review,
+  with Mock API end-to-end coverage and a cleaned real temporary-Qdrant smoke.
 - Added a vendor-neutral asynchronous VectorStore contract with validated
   collection, point, query, result, and safe error boundaries.
 - Added a Qdrant 1.15.x adapter and lazy collection/timeout configuration for
@@ -67,6 +75,13 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Security And Reliability
 
+- Added request-transaction async rollback callbacks so a SQLite commit failure
+  after Qdrant upsert best-effort deletes the Document vectors before the owned
+  Qdrant client is closed; callback failures cannot mask the original error.
+- Provider and VectorStore initialization failures now return stable safe HTTP
+  503 errors before a Document/file is created, while runtime ingestion failures
+  persist fixed messages without copying content, vectors, credentials, URLs,
+  response bodies, or internal diagnostics.
 - VectorStore operations fail closed on collection dimension/distance/shape
   mismatch, reject non-finite or wrong-dimension vectors and malformed payloads,
   suppress Qdrant exception causes, and never copy remote diagnostics into safe
