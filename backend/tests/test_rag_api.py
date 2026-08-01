@@ -231,7 +231,7 @@ def test_openapi_exposes_rag_query_and_chat_routes(
     assert "/api/v1/rag/chat" in paths
 
 
-def test_rag_query_api_returns_results_and_metadata_without_writes(
+def test_rag_query_api_returns_results_metadata_and_audit_id(
     rag_api_context: Any,
 ) -> None:
     client, session_factory, _, embedding_provider, vector_store, llm_provider = (
@@ -249,7 +249,9 @@ def test_rag_query_api_returns_results_and_metadata_without_writes(
     )
 
     assert response.status_code == 200
-    assert response.json() == {
+    payload = response.json()
+    rag_query_id = UUID(payload.pop("rag_query_id"))
+    assert payload == {
         "results": [
             {
                 "knowledge_base_id": str(KNOWLEDGE_BASE_ID),
@@ -281,7 +283,14 @@ def test_rag_query_api_returns_results_and_metadata_without_writes(
     with session_factory() as session:
         assert session.scalar(select(func.count()).select_from(Message)) == 0
         assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
-        assert session.scalar(select(func.count()).select_from(RagQuery)) == 0
+        stored = session.get(RagQuery, rag_query_id)
+        assert stored is not None
+        assert stored.query == "What is the architecture?"
+        assert stored.top_k == 3
+        assert stored.conversation_id is None
+        assert stored.answer_message_id is None
+        assert stored.latency_ms is not None
+        assert stored.retrieved_chunks_json[0]["chunk_id"] == str(CHUNK_ID)
 
 
 def test_rag_query_api_does_not_resolve_llm_dependencies(
@@ -349,6 +358,7 @@ def test_rag_chat_api_returns_answer_sources_and_persists_messages(
         "total_tokens": 12,
     }
     UUID(payload["llm_call_id"])
+    rag_query_id = UUID(payload["rag_query_id"])
     assert len(llm_provider.requests) == 1
     assert llm_provider.requests[0].messages[0].role == "system"
     assert llm_provider.requests[0].messages[-1].content is not None
@@ -367,7 +377,14 @@ def test_rag_chat_api_returns_answer_sources_and_persists_messages(
     with session_factory() as session:
         assert session.scalar(select(func.count()).select_from(Message)) == 2
         assert session.scalar(select(func.count()).select_from(LLMCall)) == 1
-        assert session.scalar(select(func.count()).select_from(RagQuery)) == 0
+        stored = session.get(RagQuery, rag_query_id)
+        assert stored is not None
+        assert stored.conversation_id == conversation_id
+        assert stored.answer_message_id == UUID(
+            payload["assistant_message"]["id"]
+        )
+        assert stored.top_k == 3
+        assert stored.retrieved_chunks_json[0]["chunk_id"] == str(CHUNK_ID)
 
 
 @pytest.mark.parametrize(

@@ -21,6 +21,7 @@ async def query_knowledge_base(
 ) -> RagQueryResponse:
     result = await service.query(data)
     return RagQueryResponse(
+        rag_query_id=result.rag_query.id,
         results=result.results,
         metadata=result.metadata,
     )
@@ -37,6 +38,7 @@ async def create_rag_chat_completion(
 def _to_chat_response(result: RagChatResult) -> RagChatResponse:
     return RagChatResponse(
         conversation_id=result.conversation.id,
+        rag_query_id=result.rag_query.id,
         user_message=MessageRead.model_validate(result.user_message),
         assistant_message=MessageRead.model_validate(
             result.assistant_message

@@ -121,6 +121,7 @@ class RagAnswerMetadata(RagRetrievalMetadata):
 class RagQueryResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    rag_query_id: UUID
     results: tuple[RetrievalResult, ...]
     metadata: RagRetrievalMetadata
 
@@ -129,6 +130,7 @@ class RagChatResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     conversation_id: UUID
+    rag_query_id: UUID
     user_message: MessageRead
     assistant_message: MessageRead
     answer: str
@@ -153,6 +155,7 @@ class RagQueryCreate(BaseModel):
     conversation_id: UUID | None = None
     knowledge_base_id: UUID
     query: str
+    top_k: StrictInt = Field(default=5, ge=1, le=100)
     retrieved_chunks_json: list[dict[str, Any]] = Field(default_factory=list)
     answer_message_id: UUID | None = None
     latency_ms: int | None = Field(default=None, ge=0)

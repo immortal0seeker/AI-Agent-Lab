@@ -25,7 +25,7 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M4-S6`。
+已完成范围：`P1-M1-S1` 到 `P3-M4-S8`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -53,6 +53,11 @@ M4 第二批新增有界、独立的 RAG Prompt Builder；`/api/v1/rag/query` �
 不会解析 LLM 配置；非流式 `/api/v1/rag/chat` 复用既有 Conversation，持久化原始
 用户问题、assistant 回答和 `LLMCall`，并返回 answer、带编号 sources 与检索/Prompt
 metadata。
+M4 最后一批让每次成功的 Query、Chat 或 Agent Tool 检索都持久化一条 `RagQuery`
+审计，记录请求 Top-K、有序来源快照、检索延迟，以及可选 Conversation/answer 关联；
+两个 RAG API 都返回 `rag_query_id`。只读 `search_knowledge_base` Tool 复用同一
+service，将 Top-K 限制为 20、来源摘要限制为 600 字符，并把检索文本标记为不可信
+数据；其依赖延迟到真正调用 Tool 时初始化，不影响普通 Plan 2 Agent 请求。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -116,8 +121,9 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 `DocumentChunk.vector_id`，并在等待 Qdrant 写入完成后返回 `embedding_status=ready`；
 独立 Retriever 现可返回一个知识库内有序、来源完整的 Top-K Chunks。RAG Query API
 可在不调用 LLM 的前提下调试检索结果；RAG Chat API 可生成一次非流式知识库回答并写入
-既有会话。RagQuery 审计写入、Agent Tool、Document 查询/删除 API 和前端上传/RAG
-runtime 仍延期。
+既有会话。Revision `20260801_0007` 为 `rag_queries` 增加严格持久化的 `top_k`；
+Query、Chat 与 `search_knowledge_base` Tool 成功检索时都会写入可追踪审计并返回 ID。
+Document 查询/删除 API 和前端上传/RAG runtime 仍延期。
 补丁 revision `20260801_0006` 增加同一知识库内的 Document hash 唯一约束，禁止
 删除仍含 Document 的知识库，并在删除回答 Message 时只清空引用、保留 `RagQuery`。
 
@@ -223,7 +229,8 @@ QDRANT_TIMEOUT_SECONDS=10
 的维度、距离或 named-vector 结构不同则 fail-closed。search 始终过滤
 `knowledge_base_id`，Document 向量删除同时匹配 Knowledge Base 与 Document ID。
 payload 保存规范 UUID、filename、chunk index、content、可选 heading/page 和嵌套来源
-metadata；这些操作尚未接入上传 ingestion。
+metadata；上传 ingestion 已使用这些操作，并把每个 Chunk UUID 持久化为 Qdrant
+point ID。
 
 tracked Compose 配置明确禁用 Qdrant 遥测。2026-08-01 已验证固定版本
 `qdrant/qdrant:v1.15.4` 容器运行、重启次数为 0，
@@ -264,9 +271,11 @@ RAG_MAX_CONTEXT_CHARACTERS=12000
 ### Naive RAG API
 
 `POST /api/v1/rag/query` 接受知识库 UUID、query、Top-K 和可选 score threshold，
-返回有序检索结果与 metadata，且不会解析或调用 LLM Provider。
+返回有序检索结果、metadata 与可追踪 `rag_query_id`，且不会解析或调用 LLM Provider。
 `POST /api/v1/rag/chat` 还接受已有 Conversation UUID 与 Provider/model，执行一次
-非流式知识库回答，并返回 answer、带编号 sources、usage 与检索/Prompt metadata。
+非流式知识库回答，并返回 answer、带编号 sources、usage、检索/Prompt metadata 与
+关联的 `rag_query_id`。声明 Tool 能力的 Simple Agent 可以用 `knowledge_base_id`、
+`query` 和可选 1～20 的 `top_k` 调用只读 `search_knowledge_base` Tool。
 完整契约与安全错误见 [Naive RAG Query 与 Chat](docs/23-naive-rag.md)。
 
 ### Document 处理
@@ -492,8 +501,9 @@ Embedding Provider 验证仍只使用 Mock：尚无真实模型服务验收、�
 embedding 成本记录。上传到 Embedding 再到 Qdrant 的 ingestion 已有 Mock API 覆盖和
 本地临时 collection smoke。独立 Retriever 与 Naive RAG Query/Chat API 已有 Mock
 边界覆盖，以及完成清理的临时 Qdrant、临时 SQLite、Mock LLM API smoke。RAG Chat
-目前非流式、要求已有 Conversation，尚不创建 RagQuery 审计记录，也未暴露 Agent Tool/
-前端；Embedding Provider usage 仍只存在于内存。
+目前非流式、要求已有 Conversation；Query/Chat/Tool 已创建 RagQuery 审计，但后端
+Agent Tool 尚无专用前端，且没有 RAG streaming、Advanced RAG、Trace runtime 或
+前端 Knowledge Base/RAG 流程。Embedding Provider usage 仍只存在于内存。
 正常请求回滚会补偿 vectors，但 Qdrant 写入后进程硬崩溃仍可能留下需要后续
 reconciliation 的 orphan points。
 

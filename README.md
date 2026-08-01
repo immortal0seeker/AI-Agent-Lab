@@ -25,7 +25,7 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M4-S6`.
+Completed scope: `P1-M1-S1` through `P3-M4-S8`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -63,6 +63,13 @@ retrieval-only `/api/v1/rag/query` endpoint that does not resolve an LLM, and a
 non-streaming `/api/v1/rag/chat` endpoint that reuses existing Conversations,
 persists the raw user question, assistant answer, and `LLMCall`, and returns
 answer, indexed sources, and retrieval/Prompt metadata.
+The final M4 batch persists one `RagQuery` audit for every successful Query,
+Chat, or Agent Tool retrieval, including requested Top-K, ordered source
+snapshots, retrieval latency, and optional Conversation/answer links. Both RAG
+APIs return `rag_query_id`. The read-only `search_knowledge_base` Tool reuses
+that service, bounds Top-K to 20 and source excerpts to 600 characters, marks
+retrieved text as untrusted data, and is initialized lazily so an ordinary
+Plan 2 Agent run does not require Embedding or Qdrant configuration.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -147,8 +154,10 @@ successful waited Qdrant write. The standalone Retriever now returns ordered,
 source-rich Top-K Chunks for one Knowledge Base. The RAG query endpoint exposes
 retrieval results without an LLM call, while the RAG chat endpoint produces one
 grounded non-streaming answer and writes it to existing conversation history.
-RagQuery audit writes, Agent Tool integration, Document query/delete APIs, and
-frontend upload/RAG runtime remain deferred.
+Revision `20260801_0007` adds a strict persisted `top_k` field to
+`rag_queries`. Successful Query, Chat, and `search_knowledge_base` Tool calls
+now write traceable audit rows and return their IDs. Document query/delete APIs
+and frontend upload/RAG runtime remain deferred.
 
 ## v0.1.0 Demo
 
@@ -261,8 +270,8 @@ existing collection has a different dimension, distance, or named-vector
 shape. Search always filters `knowledge_base_id`; Document vector deletion
 matches both Knowledge Base and Document IDs. Each payload stores canonical
 Knowledge Base/Document/Chunk UUIDs, filename, chunk index, content, optional
-heading/page, and nested source metadata. These operations are not yet wired
-into upload ingestion.
+heading/page, and nested source metadata. The upload ingestion pipeline now
+uses these operations and persists each Chunk UUID as its Qdrant point ID.
 
 The tracked Compose configuration disables Qdrant telemetry. On 2026-08-01,
 the pinned
@@ -312,10 +321,13 @@ committed.
 
 `POST /api/v1/rag/query` accepts a Knowledge Base UUID, query, Top-K, and
 optional score threshold. It returns ordered retrieval results and metadata
-without resolving or calling an LLM Provider. `POST /api/v1/rag/chat` also
+plus a traceable `rag_query_id`, without resolving or calling an LLM Provider.
+`POST /api/v1/rag/chat` also
 accepts an existing Conversation UUID plus Provider/model selection, performs
 one non-streaming grounded answer turn, and returns answer, indexed sources,
-usage, and retrieval/Prompt metadata. See
+usage, retrieval/Prompt metadata, and the linked `rag_query_id`. A tools-capable
+Simple Agent can call the read-only `search_knowledge_base` Tool with
+`knowledge_base_id`, `query`, and optional `top_k` from 1 through 20. See
 [Naive RAG Query and Chat](docs/23-naive-rag.md) for complete contracts and
 safe error behavior.
 
@@ -577,8 +589,10 @@ record. Upload-to-Embedding-to-Qdrant ingestion has Mock API coverage and a
 local temporary-collection smoke. The standalone Retriever and Naive RAG
 Query/Chat APIs have Mock boundary coverage plus a cleaned temporary-Qdrant,
 temporary-SQLite, Mock-LLM API smoke. RAG Chat is non-streaming, requires an
-existing Conversation, and does not yet create RagQuery audit rows or expose an
-Agent Tool/frontend. Returned Embedding Provider usage remains in memory. Normal request
+existing Conversation, and the backend-only Agent Tool has no dedicated
+frontend. Query/Chat/Tool now create RagQuery audit rows, but no RAG streaming,
+Advanced RAG, Trace runtime, or frontend Knowledge Base/RAG flow exists.
+Returned Embedding Provider usage remains in memory. Normal request
 rollback compensates vectors, while a hard process crash after Qdrant write can
 still leave orphan points for later reconciliation.
 

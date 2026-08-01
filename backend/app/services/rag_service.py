@@ -1,10 +1,11 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
+from time import perf_counter
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.models import Conversation, KnowledgeBase, LLMCall, Message
+from app.models import Conversation, KnowledgeBase, LLMCall, Message, RagQuery
 from app.providers.llm.base import (
     BaseLLMProvider,
     ChatMessage,
@@ -36,6 +37,7 @@ from app.services.llm_usage import ProviderLatencyTimer, build_llm_call_metrics
 
 @dataclass(frozen=True, slots=True)
 class RagQueryResult:
+    rag_query: RagQuery
     results: tuple[RetrievalResult, ...]
     metadata: RagRetrievalMetadata
 
@@ -46,6 +48,7 @@ class RagChatResult:
     user_message: Message
     assistant_message: Message
     llm_call: LLMCall
+    rag_query: RagQuery
     answer: str
     sources: tuple[RagSource, ...]
     metadata: RagAnswerMetadata
@@ -66,13 +69,24 @@ class RagQueryService:
 
     async def query(self, request: RagRetrievalRequest) -> RagQueryResult:
         self._get_knowledge_base(request.knowledge_base_id)
+        started = perf_counter()
         results = await self._retriever.retrieve(
             query=request.query,
             knowledge_base_id=request.knowledge_base_id,
             top_k=request.top_k,
             score_threshold=request.score_threshold,
         )
+        rag_query = RagQuery(
+            knowledge_base_id=request.knowledge_base_id,
+            query=request.query,
+            top_k=request.top_k,
+            retrieved_chunks_json=_snapshot_retrieval_results(results),
+            latency_ms=max(0, int((perf_counter() - started) * 1000)),
+        )
+        self._session.add(rag_query)
+        self._session.flush()
         return RagQueryResult(
+            rag_query=rag_query,
             results=results,
             metadata=RagRetrievalMetadata(
                 knowledge_base_id=request.knowledge_base_id,
@@ -134,12 +148,8 @@ class RagService(RagQueryService):
             persisted_history = self._conversations.list_messages(
                 conversation.id
             )
-            retrieval_results = await self._retriever.retrieve(
-                query=request.query,
-                knowledge_base_id=request.knowledge_base_id,
-                top_k=request.top_k,
-                score_threshold=request.score_threshold,
-            )
+            retrieval = await super().query(request)
+            retrieval_results = retrieval.results
             prompt = self._prompt_builder.build(
                 query=request.query,
                 retrieval_results=retrieval_results,
@@ -194,6 +204,8 @@ class RagService(RagQueryService):
             )
             self._session.add(llm_call)
             self._session.flush()
+            retrieval.rag_query.conversation_id = conversation.id
+            retrieval.rag_query.answer_message_id = assistant_message.id
             self._conversations.record_successful_turn(
                 conversation,
                 provider=request.provider,
@@ -204,6 +216,7 @@ class RagService(RagQueryService):
                 user_message=user_message,
                 assistant_message=assistant_message,
                 llm_call=llm_call,
+                rag_query=retrieval.rag_query,
                 answer=response.content,
                 sources=prompt.sources,
                 metadata=RagAnswerMetadata(
@@ -221,3 +234,14 @@ class RagService(RagQueryService):
         except Exception:
             self._session.rollback()
             raise
+
+
+def _snapshot_retrieval_results(
+    results: tuple[RetrievalResult, ...],
+) -> list[dict[str, object]]:
+    snapshots: list[dict[str, object]] = []
+    for source_index, result in enumerate(results, start=1):
+        snapshot = result.model_dump(mode="json")
+        snapshot["source_index"] = source_index
+        snapshots.append(snapshot)
+    return snapshots

@@ -86,6 +86,7 @@ def test_knowledge_models_persist_graph_defaults_and_json(
         conversation=conversation,
         answer_message=answer,
         query="What is this?",
+        top_k=7,
         retrieved_chunks_json=[{"chunk_id": "synthetic"}],
     )
     session.add_all([chunk, query])
@@ -108,6 +109,7 @@ def test_knowledge_models_persist_graph_defaults_and_json(
     assert chunk.metadata_json == {"section": "intro"}
     assert loaded.rag_queries == [query]
     assert query.answer_message_id == answer.id
+    assert query.top_k == 7
     assert query.retrieved_chunks_json == [{"chunk_id": "synthetic"}]
 
 
@@ -137,6 +139,27 @@ def test_json_defaults_are_isolated(db: tuple[Session, Engine]) -> None:
         first_query.retrieved_chunks_json
         is not second_query.retrieved_chunks_json
     )
+    assert first_query.top_k == 5
+    assert second_query.top_k == 5
+
+
+@pytest.mark.parametrize("top_k", [0, 101])
+def test_rag_query_rejects_top_k_outside_supported_range(
+    db: tuple[Session, Engine],
+    top_k: int,
+) -> None:
+    session, _ = db
+    knowledge_base = KnowledgeBase(name="Invalid query Top-K")
+    session.add(
+        RagQuery(
+            knowledge_base=knowledge_base,
+            query="Question",
+            top_k=top_k,
+        )
+    )
+
+    with pytest.raises(IntegrityError):
+        session.commit()
 
 
 def test_deleting_knowledge_base_with_document_is_restricted(

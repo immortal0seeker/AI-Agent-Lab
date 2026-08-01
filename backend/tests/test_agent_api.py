@@ -19,9 +19,11 @@ from app.agents import (
     AgentRunNotFoundError,
 )
 from app.api.dependencies import (
+    get_agent_tool_registry,
     get_db_session,
     get_llm_providers,
     get_model_registry,
+    get_rag_tool_query_executor,
     get_tool_registry,
 )
 from app.api.errors import error_spec_for_exception
@@ -337,6 +339,47 @@ def test_agent_dependency_creates_fresh_builtin_tool_registry() -> None:
     assert [tool.name for tool in second.list_tools()] == [
         "read_file",
         "list_dir",
+    ]
+
+
+def test_agent_dependency_registers_search_tool_without_eager_adapters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    factory_calls: list[str] = []
+
+    def fail_embedding_factory(settings: object) -> None:
+        del settings
+        factory_calls.append("embedding")
+        raise AssertionError("Embedding factory must remain lazy")
+
+    def fail_vector_factory(settings: object) -> None:
+        del settings
+        factory_calls.append("vector")
+        raise AssertionError("Vector factory must remain lazy")
+
+    monkeypatch.setattr(
+        "app.api.dependencies.create_embedding_provider",
+        fail_embedding_factory,
+    )
+    monkeypatch.setattr(
+        "app.api.dependencies.create_qdrant_vector_store",
+        fail_vector_factory,
+    )
+    executor = get_rag_tool_query_executor(
+        session=object(),  # type: ignore[arg-type]
+        settings=object(),  # type: ignore[arg-type]
+    )
+
+    registry = get_agent_tool_registry(
+        registry=get_tool_registry(),
+        query_executor=executor,
+    )
+
+    assert factory_calls == []
+    assert [tool.name for tool in registry.list_tools()] == [
+        "read_file",
+        "list_dir",
+        "search_knowledge_base",
     ]
 
 

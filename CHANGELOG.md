@@ -6,6 +6,20 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added one traceable `RagQuery` audit row for every successful retrieval-only
+  Query, grounded Chat, and Agent knowledge-search Tool call. Audits preserve
+  requested Top-K, ordered source snapshots, retrieval latency, and optional
+  Conversation/answer links; both RAG APIs now return `rag_query_id`.
+- Added Alembic revision `20260801_0007` with a non-null defaulted `top_k`
+  column and a 1～100 database check, including pre-existing-row backfill and
+  upgrade/downgrade coverage.
+- Added the bounded read-only `search_knowledge_base` Tool with strict UUID/
+  query/Top-K validation, a Tool maximum of 20, 600-character source excerpts,
+  untrusted-data labeling, structured source IDs, stable safe failures, and
+  lazy Agent-only RAG initialization.
+- Added Agent integration coverage plus a cleaned real local Qdrant,
+  temporary-SQLite, deterministic Mock Embedding/LLM API smoke proving
+  Knowledge Base isolation, ToolCall persistence, and exactly one RAG audit.
 - Added a bounded independent RAG Prompt Builder with stable one-based source
   indices, no-source instructions, conversation-history placement, prompt-
   injection constraints, and exact context truncation.
@@ -16,8 +30,7 @@ All notable changes to AI Agent Lab are documented in this file.
   `LLMCall`, and returns answer, actually injected sources, usage, and bounded
   retrieval/Prompt metadata.
 - Added Mock service/API/error/rollback coverage plus a cleaned local Qdrant,
-  temporary SQLite, and Mock LLM query/chat API smoke; `rag_queries` writes and
-  Agent Tool integration remain deferred to M4 S7～S8.
+  temporary SQLite, and Mock LLM query/chat API smoke.
 - Added an independent Naive Vector Retriever that validates query/Knowledge
   Base/Top-K/threshold inputs, creates one query embedding, performs an isolated
   VectorStore search, and preserves result order without reranking.

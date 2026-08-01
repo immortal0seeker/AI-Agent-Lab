@@ -283,7 +283,7 @@ def make_service(
     )
 
 
-def test_rag_query_retrieves_without_llm_or_database_writes(
+def test_rag_query_persists_audit_without_llm_or_message_writes(
     tmp_path: Path,
 ) -> None:
     session, engine = create_test_session(tmp_path)
@@ -329,7 +329,50 @@ def test_rag_query_retrieves_without_llm_or_database_writes(
     assert llm_provider.requests == []
     assert session.scalar(select(func.count()).select_from(Message)) == 0
     assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
-    assert session.scalar(select(func.count()).select_from(RagQuery)) == 0
+    stored = session.scalar(select(RagQuery))
+    assert stored is result.rag_query
+    assert stored.knowledge_base_id == KNOWLEDGE_BASE_ID
+    assert stored.query == "What is the architecture?"
+    assert stored.top_k == 3
+    assert stored.conversation_id is None
+    assert stored.answer_message_id is None
+    assert stored.latency_ms is not None and stored.latency_ms >= 0
+    assert stored.retrieved_chunks_json[0]["source_index"] == 1
+    assert stored.retrieved_chunks_json[0]["chunk_id"] == str(CHUNK_ID)
+    assert stored.retrieved_chunks_json[0]["document_id"] == str(DOCUMENT_ID)
+    assert stored.retrieved_chunks_json[0]["content"] == (
+        "The workspace uses layered services."
+    )
+
+    session.close()
+    engine.dispose()
+
+
+def test_rag_query_persists_top_k_for_zero_hits(tmp_path: Path) -> None:
+    session, engine = create_test_session(tmp_path)
+    session.add(KnowledgeBase(id=KNOWLEDGE_BASE_ID, name="Project docs"))
+    session.commit()
+    service = make_service(
+        session,
+        embedding_provider=RecordingEmbeddingProvider(),
+        vector_store=RecordingVectorStore(),
+        llm_provider=RecordingLLMProvider(),
+    )
+
+    result = asyncio.run(
+        service.query(
+            RagRetrievalRequest(
+                knowledge_base_id=KNOWLEDGE_BASE_ID,
+                query="Unknown answer",
+                top_k=9,
+            )
+        )
+    )
+
+    assert result.results == ()
+    assert result.rag_query.top_k == 9
+    assert result.rag_query.retrieved_chunks_json == []
+    assert session.scalars(select(RagQuery)).all() == [result.rag_query]
 
     session.close()
     engine.dispose()
@@ -362,6 +405,7 @@ def test_rag_query_rejects_missing_knowledge_base_before_embedding(
     assert embedding_provider.queries == []
     assert vector_store.search_queries == []
     assert llm_provider.requests == []
+    assert session.scalar(select(func.count()).select_from(RagQuery)) == 0
 
     session.close()
     engine.dispose()
@@ -473,7 +517,16 @@ def test_rag_chat_persists_grounded_turn_and_llm_call(
     assert result.llm_call.output_tokens == 4
     assert result.llm_call.total_tokens == 13
     assert result.llm_call.estimated_cost == Decimal("0.00001050")
-    assert session.scalar(select(func.count()).select_from(RagQuery)) == 0
+    rag_queries = session.scalars(select(RagQuery)).all()
+    assert rag_queries == [result.rag_query]
+    assert result.rag_query.conversation_id == conversation_id
+    assert result.rag_query.answer_message_id == result.assistant_message.id
+    assert result.rag_query.top_k == 3
+    assert result.rag_query.retrieved_chunks_json[0]["source_index"] == 1
+    assert result.rag_query.retrieved_chunks_json[0]["chunk_id"] == str(
+        CHUNK_ID
+    )
+    assert result.rag_query.latency_ms is not None
 
     session.refresh(conversation)
     assert conversation.default_provider == "openai_compatible"
@@ -674,6 +727,7 @@ def test_rag_chat_rolls_back_new_user_message_when_retrieval_fails(
         "Earlier answer",
     ]
     assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
+    assert session.scalar(select(func.count()).select_from(RagQuery)) == 0
 
     session.close()
     engine.dispose()

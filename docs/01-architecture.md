@@ -28,7 +28,7 @@ sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
 the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
   audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
-  `P3-M4-S6` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
+  `P3-M4-S8` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
 ownership boundaries, four knowledge persistence models, a service-owned
 Knowledge Base CRUD API, controlled validated Document upload, and independent
 Markdown/TXT/text-layer-PDF parsers composed with pure cleaning, naive
@@ -45,6 +45,9 @@ the stable Chunk payload bridge required by M4. M3 S10～S12 add an independentl
   an independent Top-K Retriever and immutable source result contract. M4
   S4～S6 add a bounded Prompt Builder, a retrieval-only Query service/route, and
   a non-streaming RAG Chat service/route that persists Message and LLMCall rows.
+  M4 S7～S8 persist a RagQuery audit for each successful Query/Chat/Tool
+  retrieval and add a bounded read-only Knowledge Base search Tool to the
+  existing Simple Agent through lazy request-scoped RAG initialization.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -79,7 +82,8 @@ AI-Agent-Lab/
 │           ├── validation.py
 │           └── builtin/
 │               ├── list_dir.py
-│               └── read_file.py
+│               ├── read_file.py
+│               └── search_knowledge_base.py
 ├── frontend/
 │   └── src/
 │       ├── api/
@@ -107,8 +111,8 @@ Current backend layers:
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM abstractions/adapters plus the M3 Embedding abstraction, validated batch result, runtime Registry, and OpenAI-compatible adapter/factory |
 | `knowledge/` | Plan 3 structured knowledge metadata plus controlled Document storage; models live in `models/` and service policy lives in `services/` |
-| `rag/` | Plan 3 document-processing and Naive RAG boundary; parsers, Cleaner, naive Chunker, ingestion pipeline, VectorStore/Qdrant, source payload, Top-K Retriever, and bounded Prompt Builder exist through M4 S6 |
-| `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
+| `rag/` | Plan 3 document-processing and Naive RAG boundary; parsers, Cleaner, naive Chunker, ingestion pipeline, VectorStore/Qdrant, source payload, Top-K Retriever, bounded Prompt Builder, and audited Query/Chat orchestration exist through M4 S8 |
+| `tools/` | Tool contracts, Registry, schema validation, read-only policy, and the bounded `search_knowledge_base` adapter |
 | `db/` | SQLAlchemy session/database setup plus request-scoped async rollback callbacks and resource finalizers |
 | `models/` | ORM models |
 | `core/` | Config, logging, and error handling |
@@ -144,10 +148,11 @@ operation without adding PostgreSQL-specific infrastructure preemptively.
 
 Plan 3 adds Qdrant as a separate vector-storage service configured through
 `QDRANT_URL`, `QDRANT_COLLECTION_NAME`, and `QDRANT_TIMEOUT_SECONDS`; it does
-not replace SQLite business or audit persistence. Through `P3-M3-S9`, the
+not replace SQLite business or audit persistence. The
 Qdrant adapter can create/check one COSINE collection, upsert validated points,
 search under a mandatory Knowledge Base filter, and delete under Knowledge Base
-plus Document ownership filters. Upload ingestion does not call it yet.
+plus Document ownership filters. Upload ingestion writes Chunk points through
+that adapter, while Query/Chat/Tool retrieval writes audit state only to SQLite.
 
 The initial migration creates:
 
@@ -196,11 +201,13 @@ unique constraint is the final duplicate gate. Deleting a knowledge base that
 still owns a Document is restricted; its RAG query audit records continue to
 follow their independent database cascade.
 
-`RagQuery` stores the original query and retrieved-chunk JSON snapshot. It may
+`RagQuery` stores the original query, requested `top_k`, retrieval latency, and
+the ordered retrieved-chunk JSON snapshot. It may
 reference one answer Message only when a Conversation is also present, and a
 composite foreign key rejects an answer from a different Conversation.
 Deleting only the answer Message clears that optional reference and preserves
-the query record.
+the query record. Revision `20260801_0007` backfills Top-K 5 for older rows and
+enforces the persisted 1～100 range.
 
 Foreign-key columns used by conversation and message lookups are indexed.
 SQLAlchemy metadata uses a stable naming convention for primary keys, foreign
@@ -576,7 +583,7 @@ Plan 3 Embedding provider target through `P3-M3-S6`:
   when that configuration is unavailable.
 
 Plan 3 VectorStore, ingestion, retrieval, and Naive RAG target through
-`P3-M4-S6`:
+`P3-M4-S8`:
 
 - `VectorStore` defines asynchronous collection, upsert, search, ownership
   delete, and client-lifecycle operations behind validated immutable contracts.
@@ -605,14 +612,19 @@ Plan 3 VectorStore, ingestion, retrieval, and Naive RAG target through
   user/assistant history, assigns stable one-based source indices, and limits
   only the formatted source context through `RAG_MAX_CONTEXT_CHARACTERS`.
 - `RagQueryService` validates Knowledge Base existence and performs retrieval
-  without resolving a ModelRegistry/LLM Provider or writing Message, LLMCall,
-  or RagQuery rows. The thin route is `POST /api/v1/rag/query`.
+  without resolving a ModelRegistry/LLM Provider. Every successful retrieval
+  writes one RagQuery audit containing requested Top-K, ordered source snapshots,
+  and retrieval latency; it never writes Message or LLMCall. The thin route is
+  `POST /api/v1/rag/query` and returns the audit ID.
 - `RagService` extends retrieval with existing Conversation, Provider, and
   LLMCall boundaries. `POST /api/v1/rag/chat` stores the raw user query and the
   non-streaming assistant answer, returning only sources actually injected in
-  the Prompt plus retrieval/Prompt metadata. Failure rolls back the whole turn.
-- M4 S4～S6 deliberately do not write the existing `rag_queries` bridge or
-  register an Agent Tool; those remain S7～S8.
+  the Prompt plus retrieval/Prompt metadata and the linked audit ID. Failure
+  rolls back the whole turn and audit.
+- The production Simple Agent Registry adds read-only
+  `search_knowledge_base` through a lazy executor. It reuses
+  `RagQueryService`, restricts Tool Top-K to 1～20, returns bounded source
+  summaries, and initializes Embedding/Qdrant only when the Tool executes.
 
 The Provider stream contract is consumed by `ChatService.stream_complete()` and
 the protocol adapter at `POST /api/v1/chat/stream`. The service emits

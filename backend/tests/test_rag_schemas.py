@@ -26,6 +26,7 @@ CHUNK_ID = UUID("44444444-4444-4444-4444-444444444444")
 USER_MESSAGE_ID = UUID("55555555-5555-5555-5555-555555555555")
 ASSISTANT_MESSAGE_ID = UUID("66666666-6666-6666-6666-666666666666")
 LLM_CALL_ID = UUID("77777777-7777-7777-7777-777777777777")
+RAG_QUERY_ID = UUID("88888888-8888-8888-8888-888888888888")
 
 
 def make_retrieval_result() -> RetrievalResult:
@@ -146,6 +147,7 @@ def test_rag_chat_request_rejects_invalid_generation_input(
 
 def test_rag_query_response_serializes_results_and_metadata() -> None:
     response = RagQueryResponse(
+        rag_query_id=RAG_QUERY_ID,
         results=(make_retrieval_result(),),
         metadata=RagRetrievalMetadata(
             knowledge_base_id=KNOWLEDGE_BASE_ID,
@@ -156,6 +158,7 @@ def test_rag_query_response_serializes_results_and_metadata() -> None:
     )
 
     payload = response.model_dump(mode="json")
+    assert payload["rag_query_id"] == str(RAG_QUERY_ID)
     assert payload["results"][0]["chunk_id"] == str(CHUNK_ID)
     assert payload["metadata"] == {
         "strategy": "naive_vector",
@@ -172,6 +175,7 @@ def test_rag_chat_response_serializes_answer_sources_and_metadata() -> None:
         source_index=1,
     )
     response = RagChatResponse(
+        rag_query_id=RAG_QUERY_ID,
         conversation_id=CONVERSATION_ID,
         user_message=make_message(
             message_id=USER_MESSAGE_ID,
@@ -200,6 +204,7 @@ def test_rag_chat_response_serializes_answer_sources_and_metadata() -> None:
     )
 
     payload = response.model_dump(mode="json")
+    assert payload["rag_query_id"] == str(RAG_QUERY_ID)
     assert payload["answer"] == "Answer [1]"
     assert payload["sources"][0]["source_index"] == 1
     assert payload["metadata"]["used_source_count"] == 1

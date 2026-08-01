@@ -21,19 +21,24 @@ from app.providers.embedding.factory import create_embedding_provider
 from app.providers.llm.base import BaseLLMProvider
 from app.providers.llm.factory import create_openai_compatible_provider
 from app.providers.llm.registry import ModelRegistry, load_default_registry
-from app.services.agent_service import AgentService
-from app.services.chat_service import ChatService
-from app.services.conversation_service import ConversationService
-from app.services.document_service import DocumentService
-from app.services.knowledge_base_service import KnowledgeBaseService
-from app.services.rag_service import RagQueryService, RagService
-from app.tools import ToolRegistry
-from app.tools.builtin import register_builtin_tools
 from app.rag.rag_prompt import RagPromptBuilder
 from app.rag.retriever import Retriever
 from app.rag.vectorstores import (
     VectorStore,
     create_qdrant_vector_store,
+)
+from app.schemas.rag import RagRetrievalRequest
+from app.services.agent_service import AgentService
+from app.services.chat_service import ChatService
+from app.services.conversation_service import ConversationService
+from app.services.document_service import DocumentService
+from app.services.knowledge_base_service import KnowledgeBaseService
+from app.services.rag_service import RagQueryResult, RagQueryService, RagService
+from app.tools import ToolRegistry
+from app.tools.builtin import register_builtin_tools
+from app.tools.builtin.search_knowledge_base import (
+    RagQueryExecutor,
+    register_search_knowledge_base_tool,
 )
 
 
@@ -189,11 +194,44 @@ def get_tool_registry() -> ToolRegistry:
     return registry
 
 
+def get_rag_tool_query_executor(
+    session: Session = Depends(get_db_session, scope="function"),
+    settings: Settings = Depends(get_settings),
+) -> RagQueryExecutor:
+    async def execute(request: RagRetrievalRequest) -> RagQueryResult:
+        embedding_provider = create_embedding_provider(settings)
+        vector_store = create_qdrant_vector_store(settings)
+        try:
+            service = RagQueryService(
+                session,
+                retriever=Retriever(
+                    embedding_provider=embedding_provider,
+                    vector_store=vector_store,
+                ),
+            )
+            return await service.query(request)
+        finally:
+            await vector_store.close()
+
+    return execute
+
+
+def get_agent_tool_registry(
+    registry: ToolRegistry = Depends(get_tool_registry),
+    query_executor: RagQueryExecutor = Depends(get_rag_tool_query_executor),
+) -> ToolRegistry:
+    register_search_knowledge_base_tool(
+        registry,
+        query_executor=query_executor,
+    )
+    return registry
+
+
 def get_simple_agent_service(
     session: Session = Depends(get_db_session, scope="function"),
     registry: ModelRegistry = Depends(get_model_registry),
     providers: Mapping[str, BaseLLMProvider] = Depends(get_llm_providers),
-    tools: ToolRegistry = Depends(get_tool_registry),
+    tools: ToolRegistry = Depends(get_agent_tool_registry),
     settings: Settings = Depends(get_settings),
 ) -> SimpleAgentService:
     return SimpleAgentService(

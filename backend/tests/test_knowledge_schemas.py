@@ -112,6 +112,7 @@ def test_mutable_schema_defaults_are_isolated() -> None:
     first_query = RagQueryCreate(
         knowledge_base_id=UUID(int=1),
         query="First query",
+        top_k=7,
     )
     second_query = RagQueryCreate(
         knowledge_base_id=UUID(int=1),
@@ -124,6 +125,8 @@ def test_mutable_schema_defaults_are_isolated() -> None:
     assert second_document.metadata == {}
     assert first_document.metadata is not second_document.metadata
     assert second_query.retrieved_chunks_json == []
+    assert first_query.top_k == 7
+    assert second_query.top_k == 5
     assert (
         first_query.retrieved_chunks_json
         is not second_query.retrieved_chunks_json
@@ -217,6 +220,21 @@ def test_document_chunk_create_rejects_invalid_input(
             "query": "Question",
             "unexpected": "value",
         },
+        {
+            "knowledge_base_id": UUID(int=1),
+            "query": "Question",
+            "top_k": True,
+        },
+        {
+            "knowledge_base_id": UUID(int=1),
+            "query": "Question",
+            "top_k": 0,
+        },
+        {
+            "knowledge_base_id": UUID(int=1),
+            "query": "Question",
+            "top_k": 101,
+        },
     ],
 )
 def test_rag_query_create_rejects_invalid_input(
@@ -263,6 +281,7 @@ def test_read_schemas_validate_orm_instances(tmp_path: Path) -> None:
         conversation=conversation,
         answer_message=answer,
         query="What is this?",
+        top_k=7,
         retrieved_chunks_json=[{"chunk_id": "synthetic"}],
         latency_ms=12,
     )
@@ -281,6 +300,7 @@ def test_read_schemas_validate_orm_instances(tmp_path: Path) -> None:
     assert chunk_schema.document_id == document.id
     assert chunk_schema.metadata == {"section": "intro"}
     assert query_schema.answer_message_id == answer.id
+    assert query_schema.top_k == 7
     assert query_schema.retrieved_chunks_json == [{"chunk_id": "synthetic"}]
 
     session.rollback()

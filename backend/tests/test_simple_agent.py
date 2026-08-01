@@ -2,6 +2,7 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
@@ -18,7 +19,7 @@ from app.agents import (
 )
 from app.db.base import Base
 from app.db.session import create_db_engine
-from app.models import AgentRun, Message, ToolCall
+from app.models import AgentRun, Message, RagQuery, ToolCall
 from app.providers.llm.base import (
     BaseLLMProvider,
     ChatChunk,
@@ -31,8 +32,17 @@ from app.providers.llm.base import (
 from app.providers.llm.registry import ModelInfo, ModelRegistry
 from app.schemas.conversation import ConversationCreate
 from app.schemas.message import MessageCreate
+from app.schemas.rag import (
+    RagRetrievalMetadata,
+    RagRetrievalRequest,
+    RetrievalResult,
+)
 from app.services.conversation_service import ConversationService
+from app.services.rag_service import RagQueryResult
 from app.tools import Tool, ToolRegistry, ToolResult, register_builtin_tools
+from app.tools.builtin.search_knowledge_base import (
+    register_search_knowledge_base_tool,
+)
 
 
 class SequenceProvider(BaseLLMProvider):
@@ -177,6 +187,122 @@ def create_registry(*, supports_tools: bool = True) -> ModelRegistry:
             )
         ]
     )
+
+
+def test_agent_calls_search_knowledge_base_and_uses_observation(
+    tmp_path: Path,
+) -> None:
+    knowledge_base_id = UUID("11111111-1111-1111-1111-111111111111")
+    document_id = UUID("22222222-2222-2222-2222-222222222222")
+    chunk_id = UUID("33333333-3333-3333-3333-333333333333")
+    rag_query_id = UUID("44444444-4444-4444-4444-444444444444")
+    requests: list[RagRetrievalRequest] = []
+
+    async def execute_rag_query(
+        request: RagRetrievalRequest,
+    ) -> RagQueryResult:
+        requests.append(request)
+        retrieval = RetrievalResult(
+            knowledge_base_id=knowledge_base_id,
+            document_id=document_id,
+            chunk_id=chunk_id,
+            filename="guide.md",
+            chunk_index=0,
+            content="The workspace uses layered services.",
+            score=0.93,
+            heading="Architecture",
+            page_number=None,
+            metadata={"source_format": "md"},
+        )
+        return RagQueryResult(
+            rag_query=RagQuery(
+                id=rag_query_id,
+                knowledge_base_id=knowledge_base_id,
+                query=request.query,
+                top_k=request.top_k,
+                retrieved_chunks_json=[],
+                latency_ms=1,
+            ),
+            results=(retrieval,),
+            metadata=RagRetrievalMetadata(
+                knowledge_base_id=knowledge_base_id,
+                top_k=request.top_k,
+                result_count=1,
+            ),
+        )
+
+    session, engine = create_test_session(tmp_path)
+    provider = SequenceProvider(
+        [
+            LLMResponse(
+                model="tool-model",
+                content=None,
+                tool_calls=(
+                    LLMToolCall(
+                        tool_call_id="call_search_kb",
+                        tool_name="search_knowledge_base",
+                        arguments={
+                            "knowledge_base_id": str(knowledge_base_id),
+                            "query": "What is the architecture?",
+                            "top_k": 3,
+                        },
+                    ),
+                ),
+            ),
+            LLMResponse(
+                model="resolved-model",
+                content="The workspace uses layered services [1].",
+            ),
+        ]
+    )
+    tools = ToolRegistry()
+    register_builtin_tools(tools, workspace_root=tmp_path)
+    register_search_knowledge_base_tool(
+        tools,
+        query_executor=execute_rag_query,
+    )
+    service = SimpleAgentService(
+        session,
+        registry=create_registry(),
+        providers={"mock": provider},
+        tools=tools,
+    )
+
+    result = asyncio.run(
+        service.run(
+            SimpleAgentRequest(
+                provider="mock",
+                model="tool-model",
+                content="Search the project knowledge base",
+            )
+        )
+    )
+
+    assert requests == [
+        RagRetrievalRequest(
+            knowledge_base_id=knowledge_base_id,
+            query="What is the architecture?",
+            top_k=3,
+        )
+    ]
+    assert [
+        item.function.name for item in provider.requests[0].tools
+    ] == ["read_file", "list_dir", "search_knowledge_base"]
+    observation = json.loads(provider.requests[1].messages[-1].content or "")
+    assert observation["success"] is True
+    assert observation["metadata"]["rag_query_id"] == str(rag_query_id)
+    assert observation["data"]["results"][0]["chunk_id"] == str(chunk_id)
+    assert result.agent_run.status == "completed"
+    assert result.assistant_message is not None
+    assert result.assistant_message.content == (
+        "The workspace uses layered services [1]."
+    )
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].tool_name == "search_knowledge_base"
+    assert result.tool_calls[0].status == "success"
+
+    session.close()
+    engine.dispose()
 
 
 @pytest.mark.parametrize(

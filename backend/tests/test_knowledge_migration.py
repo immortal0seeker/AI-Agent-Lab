@@ -100,6 +100,7 @@ def test_upgrade_head_creates_plan3_knowledge_schema(
         "conversation_id",
         "knowledge_base_id",
         "query",
+        "top_k",
         "retrieved_chunks_json",
         "answer_message_id",
         "latency_ms",
@@ -136,6 +137,7 @@ def test_upgrade_head_creates_plan3_knowledge_schema(
     } == {
         "ck_rag_queries_answer_requires_conversation",
         "ck_rag_queries_latency_ms_non_negative",
+        "ck_rag_queries_top_k_range",
     }
 
     assert {
@@ -219,6 +221,68 @@ def test_upgrade_head_creates_plan3_knowledge_schema(
         "ondelete"
     ] == "SET NULL"
 
+    engine.dispose()
+
+
+def test_upgrade_from_0006_backfills_rag_query_top_k(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    config, database_url = migration_config(tmp_path, monkeypatch)
+    knowledge_base_id = "1" * 32
+    rag_query_id = "2" * 32
+    try:
+        command.upgrade(config, "20260801_0006")
+        engine = create_engine(database_url)
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO knowledge_bases ("
+                    "id, name, vector_store, created_at, updated_at"
+                    ") VALUES ("
+                    ":id, :name, :vector_store, :created_at, :updated_at"
+                    ")"
+                ),
+                {
+                    "id": knowledge_base_id,
+                    "name": "Existing audit knowledge",
+                    "vector_store": "qdrant",
+                    "created_at": "2026-08-01 00:00:00",
+                    "updated_at": "2026-08-01 00:00:00",
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO rag_queries ("
+                    "id, knowledge_base_id, query, retrieved_chunks_json, "
+                    "created_at"
+                    ") VALUES ("
+                    ":id, :knowledge_base_id, :query, :retrieved, :created_at"
+                    ")"
+                ),
+                {
+                    "id": rag_query_id,
+                    "knowledge_base_id": knowledge_base_id,
+                    "query": "Existing query",
+                    "retrieved": "[]",
+                    "created_at": "2026-08-01 00:00:00",
+                },
+            )
+        engine.dispose()
+
+        command.upgrade(config, "head")
+        engine = create_engine(database_url)
+        with engine.connect() as connection:
+            stored = connection.execute(
+                text(
+                    "SELECT id, top_k FROM rag_queries WHERE id = :id"
+                ),
+                {"id": rag_query_id},
+            ).one()
+    finally:
+        get_settings.cache_clear()
+
+    assert stored == (rag_query_id, 5)
     engine.dispose()
 
 

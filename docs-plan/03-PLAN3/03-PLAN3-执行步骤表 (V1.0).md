@@ -42,7 +42,7 @@ blocked
 | Phase 1 | M1 交接与知识库数据模型 | Step 1～4 | v0.2.1 补丁基线检查、Qdrant 启动、KnowledgeBase / Document / Chunk / RAG Query 模型、KB API | 15～25 h | Codex | Codex + Claude Code |
 | Phase 2 | M2 文档上传与解析 Pipeline | Step 5～8 | 文件上传、Markdown / TXT / PDF 文本解析、清洗、Chunking | 15～25 h | Codex + Cursor | Codex review |
 | Phase 3 | M3 Embedding 与 Vector Store | Step 9～12 | Embedding Provider、OpenAI-compatible Embedding、Qdrant Vector Store、文档入库 Pipeline | 20～30 h | Codex | Codex + Claude Code |
-| Phase 4 | M4 Retriever 与 Naive RAG API | Step 13～17 | Retriever、RAG Prompt、RAG Query API、RAG Chat API、search_knowledge_base 工具 | 15～25 h | Codex | Codex + Claude Code |
+| Phase 4 | M4 Retriever 与 Naive RAG API | Step 13～17 | Retriever、RAG Prompt、RAG Query API、RAG Chat API、search_knowledge_base 工具 | 15～25 h | Codex | Codex self-review |
 | Phase 5 | M5 前端知识库与 RAG Chat | Step 18～19 | 知识库页面、文档上传 UI、RAG Chat、来源展示 | 15～25 h | Cursor + Codex | Codex review |
 | Phase 6 | M6 测试、文档与封版 | Step 20～22 | RAG 测试、README、docs、截图、CHANGELOG、v0.3.0 tag | 10～20 h | Codex + Cursor | Codex + Claude Code |
 
@@ -64,7 +64,7 @@ blocked
 | Batch 10 | P3-M3-S10～S12 | 实现文档入库 Pipeline | 端到端入库测试，Codex self-review M3 | 已完成（parse/chunk/embed/upsert、vector_id/状态、回滚补偿、正式文档与全量回归通过） |
 | Batch 11 | P3-M4-S1～S3 | 实现 Retriever 和来源结构 | Retriever/schema 测试 | 已完成（query embedding、Top-K/threshold、KB 隔离、完整来源结构与真实临时 Qdrant smoke 通过） |
 | Batch 12 | P3-M4-S4～S6 | 实现 RAG Prompt、Query / Chat API | API 测试 | 已完成（有界 Prompt、纯检索 Query、会话 Chat、回滚与真实临时 Qdrant API smoke 通过） |
-| Batch 13 | P3-M4-S7～S8 | 注册 search_knowledge_base 工具 | Agent 工具调用测试，Codex + Claude review M4 | 未完成 |
+| Batch 13 | P3-M4-S7～S8 | 持久化检索审计并注册 search_knowledge_base 工具 | Agent 工具调用测试，Codex self-review M4 | 已完成（RagQuery Top-K/来源/延迟审计、Query/Chat/Tool ID、懒加载 Agent Tool、真实临时 Qdrant smoke 与全量回归通过） |
 | Batch 14 | P3-M5-S1～S3 | 实现知识库页面和上传 UI | 浏览器手测 | 未完成 |
 | Batch 15 | P3-M5-S4～S6 | 实现 RAG Chat 和来源展示 | 浏览器手测，Codex review M5 | 未完成 |
 | Batch 16 | P3-M6-S1～S6 | 测试、文档、截图、封版 | Codex + Claude final review | 未完成 |
@@ -442,7 +442,7 @@ feat(rag): add document vector ingestion pipeline
 ```text
 1. Retriever 可以按 query 检索相关 chunk
 2. RAG Prompt 独立封装，便于 PLAN4 优化
-3. RAG Query API 返回 answer、sources、retrieval metadata
+3. RAG Query API 返回 results、retrieval metadata 与审计 ID；RAG Chat API 返回 answer、sources 与审计 ID
 4. RAG Chat API 可以复用会话系统
 5. rag_queries 或等价查询记录可用
 6. search_knowledge_base 工具可以被 Plan 2 的 Agent Loop 调用
@@ -457,7 +457,7 @@ feat(rag): add document vector ingestion pipeline
 | P3-M4-S5 | 实现 RAG Query Service 和 API | Codex | `rag_service.py`、`api/v1/rag.py` | 按详细 Step 15 只返回 results、retrieval metadata，不调用 LLM | Codex |
 | P3-M4-S6 | 实现 RAG Chat API | Codex | rag chat endpoint | 能把 RAG 回答写入会话历史 | Codex |
 | P3-M4-S7 | 实现 rag_queries 记录 | Codex | 查询记录写入逻辑 | 记录 query、knowledge_base_id、top_k、source ids、latency | Codex |
-| P3-M4-S8 | 注册 search_knowledge_base 工具 | Codex | `tools/builtin/search_knowledge_base.py` | Agent 可调用 RAG Tool 返回检索结果 | Codex + Claude review |
+| P3-M4-S8 | 注册 search_knowledge_base 工具 | Codex | `tools/builtin/search_knowledge_base.py` | Agent 可调用 RAG Tool 返回检索结果 | Codex self-review |
 
 ### P3-M4-S1～S3 Naive Vector Retriever 验收记录（2026-08-01）
 
@@ -503,6 +503,29 @@ RagQuery audit、Agent Tool、前端或任何 Advanced RAG / Plan 4+ runtime。
 
 ```text
 feat(rag): add naive rag query and chat APIs
+```
+
+### P3-M4-S7～S8 RagQuery 审计与 Knowledge Search Tool 验收记录（2026-08-01）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 范围与基线 | 从 `HEAD == origin/main == 8a0bbf77f9c12cc0260df7c373c4b0d4654c1606` 的干净 `main` 开始，只实现 S7～S8；未创建/切换分支或使用 worktree，未 stage/commit/push/tag，既有 `v0.2.0` / `v0.2.1` peeled targets 未移动。 |
+| S7 RagQuery 审计 | Revision `20260801_0007` 新增非空、默认 5、数据库约束 1～100 的 `top_k`，旧 0006 行升级时回填 5。Query、Chat、Tool 成功检索各写且只写一条审计，保存原 query、KB、请求 Top-K、有序完整来源快照与 retrieval-only latency；两个 API 与 Tool metadata 返回 `rag_query_id`。Query/Tool 不关联会话；Chat 成功后把同一行关联到 Conversation/assistant Message，失败则与本轮写入一起回滚。 |
+| S8 Tool 与 Agent | 新增只读 `search_knowledge_base`，严格接收 UUID/query/可选 Top-K，Tool Top-K 为 1～20、默认 5，来源 content 摘要上限 600 字符并显式标记为不可信数据；固定安全失败不泄漏内部诊断。生产 Agent Registry 通过 request-scoped executor 注册，普通 Agent 请求不初始化 Embedding/Qdrant；真正调用时复用 `RagQueryService` 并关闭自有 client。基础 file Tool Registry 仍只含 `read_file` / `list_dir`。 |
+| TDD 与 matching | Top-K model/schema/migration RED 为 `8 failed, 59 passed`，GREEN `67 passed`；Query/Chat audit RED 为 `5 failed, 18 passed`，GREEN `23 passed, 1 warning`；Tool missing-module RED 后 Tool/Registry GREEN `35 passed`；Agent dependency RED 后目标 GREEN。最终扩展 matching 为 `283 passed, 1 warning`。 |
+| 真实 Qdrant Agent smoke | Docker Engine 29.6.2 与 Qdrant 1.15.4 可用。随机 `codex_p3_m4_s7_s8_*` collection、确定性 Mock Embedding/Tool-calling LLM、临时 SQLite 通过生产 ASGI Agent API：HTTP 201/completed、1 条成功 ToolCall、KB filter 排除更高分的外部 KB Chunk、1 条 Top-K-3 RagQuery 且 Tool 返回同一 audit ID；`finally` 删除并复核 collection 不存在。 |
+| 全量验证 | backend `1024 passed, 1 warning`，warning 仅为既知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损。系统临时 SQLite 完成 upgrade/current/check/downgrade/re-upgrade，head `20260801_0007` 且目录删除。Frontend typecheck、`18 files / 90 tests`、build `1813 modules` 通过。Compose config、Qdrant running/restart 0、`127.0.0.1:6333` 与 healthz HTTP 200 通过。未读取或修改用户数据库。 |
+| 文档、安全与 Git | README 中英文、CHANGELOG、Architecture、Knowledge Base、Naive RAG、设计/实施计划与执行表同步；`113` 个 Markdown、`94` 个本地链接/图片、0 read error/missing。25 个预期变更路径；高置信 secret、unexpected private-key header、later-Plan executable runtime、`web_fetch` runtime、tracked/untracked artifact 均为 0。`git diff --check` 与最终 refs/staged/status 在交付前复核。 |
+| Codex self-review | must fix 已解决：移除造成 Retriever/schema/Tool 循环导入的 eager package export，改为显式模块导入；补齐两个旧 response-schema 测试的必填 `rag_query_id`；同步过期的 audit/Tool/ingestion 文档状态，并补 Embedding/VectorStore 安全失败覆盖。fix later：M5 前端 Knowledge Base/upload/RAG/source UI 与 M6 封版；accepted limitation：未调用真实 LLM/Embedding Provider、RAG/Agent 仍同步非流式、无 Advanced RAG/Trace/Evaluation；not applicable：新 Agent 状态、前端 runtime/截图、外部 review、release tag。无剩余 must-fix。 |
+
+**结论：** `P3-M4-S7～S8`、Batch 13 与完整 M4 已完成，可进入
+`P3-M5-S1～S3`；本批未提前实现前端、Advanced RAG、Rerank、Evaluation、
+Trace runtime、Memory、OCR、多模态或任何 Plan 4+ runtime。
+
+本批建议 commit：
+
+```text
+feat(rag): add query audit and knowledge search tool
 ```
 
 M4 完成后建议 commit：
@@ -655,14 +678,14 @@ Claude Code 审核后，Codex 负责：
 | 可以调用 Embedding Provider | implemented | Mock Embedding 端到端入库、Provider adapter 与安全失败测试；未调用真实付费服务 |
 | 可以写入 Qdrant | implemented | mock/adapter 测试与真实临时 collection create/check/upsert/search/delete 冒烟 |
 | 可以基于 query 检索 Chunk | implemented | Mock Provider/VectorStore focused tests 与真实临时 Qdrant Top-K/threshold/KB 隔离 smoke |
-| 可以基于检索结果生成回答 | pending | RAG API 测试 |
+| 可以基于检索结果生成回答 | implemented | RAG Chat service/API、Prompt、来源与回滚测试 |
 | 前端可以上传文档 | pending | 页面截图 |
 | 前端可以查看文档状态 | pending | 页面截图 |
 | 前端可以进行 RAG Chat | pending | 页面截图 |
 | 前端可以展示来源片段 | pending | 页面截图 |
-| search_knowledge_base 工具可用 | pending | Agent Tool 测试 |
-| README 已更新 | implemented | 中英文 README 已同步至 M4 S3 Retriever、来源结构与剩余 RAG 限制 |
-| docs 已更新 | implemented | Architecture、Knowledge Base/Embedding/Ingestion 设计与 Retriever 设计/实施计划 |
+| search_knowledge_base 工具可用 | implemented | schema/安全失败/Registry/Agent ToolCall 测试与真实临时 Qdrant smoke |
+| README 已更新 | implemented | 中英文 README 已同步至 M4 S8 审计、Tool 与剩余前端/Advanced RAG 限制 |
+| docs 已更新 | implemented | Architecture、Knowledge Base、Naive RAG、CHANGELOG、设计/实施计划与执行表 |
 | 已创建 v0.3.0 tag | pending | `git tag --list` 输出 |
 
 ---
@@ -673,10 +696,10 @@ Claude Code 审核后，Codex 负责：
 
 | 桥接项 | 状态 | 说明 |
 |---|---|---|
-| `search_knowledge_base` 工具可用 | pending | 后续 Agent 和 Trace 能统一观察 RAG 调用 |
-| `rag_queries` 或等价查询记录可用 | pending | Plan 4 可以扩展为检索 Trace |
+| `search_knowledge_base` 工具可用 | implemented | Agent Registry 懒加载只读 Tool，返回结构化 sources 与 rag_query_id |
+| `rag_queries` 或等价查询记录可用 | implemented | Query/Chat/Tool 成功检索统一记录 query、KB、Top-K、来源快照与 latency |
 | `document_chunks` 至少包含 document_id、chunk_index、content、metadata、vector_id | implemented | ORM/迁移字段、入库持久化及 point ID 等于 Chunk UUID 的服务/API 测试 |
-| RAG Query API 返回 answer、sources、retrieval metadata | pending | Evaluation 和 Trace 需要统一结果结构 |
+| RAG Query/Chat API 返回 results/answer、sources、retrieval metadata 与审计 ID | implemented | Query 保持纯检索；Chat 返回 grounded answer/sources；两者返回 rag_query_id |
 | Qdrant payload 中保留 knowledge_base_id、document_id、chunk_id | implemented | payload builder、ownership 校验与搜索结果二次隔离测试 |
 
 ---

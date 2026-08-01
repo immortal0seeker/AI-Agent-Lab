@@ -42,6 +42,10 @@ class RagQuery(Base):
             "latency_ms IS NULL OR latency_ms >= 0",
             name="ck_rag_queries_latency_ms_non_negative",
         ),
+        CheckConstraint(
+            "top_k >= 1 AND top_k <= 100",
+            name="ck_rag_queries_top_k_range",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -62,6 +66,12 @@ class RagQuery(Base):
         nullable=False,
     )
     query: Mapped[str] = mapped_column(Text(), nullable=False)
+    top_k: Mapped[int] = mapped_column(
+        Integer(),
+        nullable=False,
+        default=5,
+        server_default="5",
+    )
     retrieved_chunks_json: Mapped[list[dict[str, Any]]] = mapped_column(
         JSON(),
         nullable=False,
