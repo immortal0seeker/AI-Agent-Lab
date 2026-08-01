@@ -74,6 +74,54 @@ class EmbeddingProviderError(RuntimeError):
     """Embedding Provider 边界的基础异常。"""
 
 
+class EmbeddingProviderConfigurationError(EmbeddingProviderError):
+    """Embedding Provider 配置缺失或无效。"""
+
+
+class EmbeddingProviderInputError(EmbeddingProviderError):
+    """Embedding Provider 的本地输入无效。"""
+
+
+class EmbeddingProviderRequestError(EmbeddingProviderError):
+    """Embedding Provider HTTP 请求失败。"""
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class EmbeddingProviderAuthError(EmbeddingProviderRequestError):
+    """Embedding Provider 拒绝了服务端凭据。"""
+
+
+class EmbeddingProviderRateLimitError(EmbeddingProviderRequestError):
+    """Embedding Provider 已触发限流。"""
+
+
+class EmbeddingProviderTimeoutError(EmbeddingProviderRequestError):
+    """Embedding Provider 请求超时。"""
+
+
+class EmbeddingProviderBadRequestError(EmbeddingProviderRequestError):
+    """Embedding Provider 拒绝了请求。"""
+
+
+class EmbeddingProviderServerError(EmbeddingProviderRequestError):
+    """Embedding Provider 服务端失败。"""
+
+
+class EmbeddingProviderUnknownError(EmbeddingProviderRequestError):
+    """Embedding Provider 请求出现未分类故障。"""
+
+
+class EmbeddingProviderResponseError(EmbeddingProviderError):
+    """Embedding Provider 返回了无法解析的成功响应。"""
+
+
+class EmbeddingDimensionMismatchError(EmbeddingProviderResponseError):
+    """Embedding Provider 返回的向量维度与配置不一致。"""
+
+
 class EmbeddingProvider(ABC):
     def __init__(self, *, name: str) -> None:
         if not isinstance(name, str):

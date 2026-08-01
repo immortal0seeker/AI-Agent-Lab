@@ -18,6 +18,55 @@ def test_settings_default_agent_run_timeout_is_bounded() -> None:
     assert settings.qdrant_url == "http://localhost:6333"
 
 
+def test_settings_default_embedding_provider_configuration_is_lazy() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.embedding_provider == "openai_compatible"
+    assert settings.openai_compatible_embedding_base_url == ""
+    assert settings.openai_compatible_embedding_api_key is None
+    assert settings.openai_compatible_embedding_model == ""
+    assert settings.openai_compatible_embedding_dimension is None
+    assert settings.openai_compatible_embedding_timeout_seconds == 30.0
+
+
+def test_settings_accepts_embedding_provider_overrides() -> None:
+    settings = Settings(
+        _env_file=None,
+        EMBEDDING_PROVIDER=" openai_compatible ",
+        OPENAI_COMPATIBLE_EMBEDDING_BASE_URL="https://provider.example/v1",
+        OPENAI_COMPATIBLE_EMBEDDING_API_KEY="synthetic-secret",
+        OPENAI_COMPATIBLE_EMBEDDING_MODEL="example-embedding-model",
+        OPENAI_COMPATIBLE_EMBEDDING_DIMENSION=1024,
+        OPENAI_COMPATIBLE_EMBEDDING_TIMEOUT_SECONDS=45.5,
+    )
+
+    assert settings.embedding_provider == "openai_compatible"
+    assert settings.openai_compatible_embedding_dimension == 1024
+    assert settings.openai_compatible_embedding_timeout_seconds == 45.5
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("EMBEDDING_PROVIDER", ""),
+        ("EMBEDDING_PROVIDER", "   "),
+        ("EMBEDDING_PROVIDER", "x" * 101),
+        ("OPENAI_COMPATIBLE_EMBEDDING_DIMENSION", 0),
+        ("OPENAI_COMPATIBLE_EMBEDDING_DIMENSION", 65_537),
+        ("OPENAI_COMPATIBLE_EMBEDDING_TIMEOUT_SECONDS", 0),
+        ("OPENAI_COMPATIBLE_EMBEDDING_TIMEOUT_SECONDS", 3601),
+        ("OPENAI_COMPATIBLE_EMBEDDING_TIMEOUT_SECONDS", float("nan")),
+        ("OPENAI_COMPATIBLE_EMBEDDING_TIMEOUT_SECONDS", float("inf")),
+    ],
+)
+def test_settings_rejects_invalid_embedding_provider_configuration(
+    field_name: str,
+    value: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **{field_name: value})
+
+
 def test_settings_accepts_qdrant_url_override() -> None:
     settings = Settings(
         _env_file=None,

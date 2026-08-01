@@ -6,6 +6,15 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added an OpenAI-compatible Embedding adapter with batched `/embeddings`
+  requests, query embedding, response-index ordering, actual model/token usage,
+  and strict configured-dimension validation.
+- Added independent lazy Embedding Settings and initialization with masked
+  credentials, bounded dimensions/timeouts, safe HTTP/network/response errors,
+  and mock-only Provider verification.
+- Added the formal Embedding Provider operations guide covering configuration,
+  model/dimension invariants, batching, errors, cost, privacy, and current
+  vector-ingestion limitations.
 - Added a vendor-neutral asynchronous `EmbeddingProvider` contract with
   immutable validated batch vectors, model identity, token usage, and separate
   text/query methods.

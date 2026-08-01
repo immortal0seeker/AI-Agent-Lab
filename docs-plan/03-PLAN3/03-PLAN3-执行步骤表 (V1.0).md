@@ -59,7 +59,7 @@ blocked
 | Batch 5 | P3-M2-S4～S6 | 实现 Markdown / TXT / PDF 文本解析 | Parser 测试 | 已完成（三类纯 Parser、来源 metadata、安全错误与全量回归通过） |
 | Batch 6 | P3-M2-S7～S9 | 实现文本清洗和 Chunking | Chunking 测试，Codex review M2 | 已完成（Cleaner、Chunker、同步 Pipeline、正式文档与全量回归通过） |
 | Batch 7 | P3-M3-S1～S3 | 实现 Embedding Provider 抽象 | mock embedding 测试 | 已完成（抽象、批量结果/usage、Registry、正式文档与全量回归通过） |
-| Batch 8 | P3-M3-S4～S6 | 实现 OpenAI-compatible Embedding 和配置 | provider 测试 | 未完成 |
+| Batch 8 | P3-M3-S4～S6 | 实现 OpenAI-compatible Embedding 和配置 | provider 测试 | 已完成（批量/query adapter、独立配置、安全错误、维度双检、正式文档与全量回归通过） |
 | Batch 9 | P3-M3-S7～S9 | 实现 Qdrant Vector Store | vector store 测试 | 未完成 |
 | Batch 10 | P3-M3-S10～S12 | 实现文档入库 Pipeline | 端到端入库测试，Codex + Claude review M3 | 未完成 |
 | Batch 11 | P3-M4-S1～S3 | 实现 Retriever 和 RAG Prompt | 检索 + prompt 测试 | 未完成 |
@@ -352,6 +352,31 @@ fix(rag): harden plan 3 m1 m2 boundaries
 
 ```text
 feat(embedding): add provider abstraction and registry
+```
+
+### P3-M3-S4～S6 OpenAI-compatible Embedding 验收记录（2026-08-01）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 范围与基线 | 从 `HEAD == origin/main == 873040976ea009a37185f33222a39d32342e28a9` 的干净 `main` 开始，只实现 S4～S6；未创建或切换分支，staged paths 保持 0，既有 `v0.2.0` / `v0.2.1` 标签未移动。 |
+| S4 adapter | 新增 `OpenAICompatibleEmbeddingProvider`，向 `{base_url}/embeddings` 发送包含 model、字符串数组、dimensions 和 float encoding 的一次批量请求；query 复用单元素批量路径。响应按唯一连续 index 恢复输入顺序，保留服务端实际 model、向量和 prompt/total token usage。 |
+| S5 配置与错误 | 新增独立延迟加载 `EMBEDDING_PROVIDER` / `OPENAI_COMPATIBLE_EMBEDDING_*` Settings 和 factory；key 使用 `SecretStr`，缺 key/base URL/model/dimension 返回可读配置错误。配置 dimension 同时进入请求并校验响应；HTTP、timeout、network、无效 JSON/结构和维度错误均规范化，响应校验 cause 被抑制以免 traceback 回显无效向量。 |
+| S6 文档 | 新增 `docs/21-embedding-provider.md`，说明配置、协议、模型/维度不变量、批量行为、错误、成本/隐私和限制；README 中英文、CHANGELOG、架构和知识库设计同步。 |
+| TDD | adapter RED 为具体错误/adapter 导出缺失，GREEN `48 passed`；Settings/factory RED 为 factory module 缺失，GREEN `52 passed`；Provider/LLM/config 邻接回归 `192 passed`。自审安全 RED 为 `6 failed, 21 passed`，修复响应解析 cause 后 `27 passed`。 |
+| 后端验证 | 完整 backend `811 passed, 1 warning`；warning 为既有 Starlette TestClient/httpx 弃用提示。`pip check` 为 `No broken requirements found.`。 |
+| SQLite 与前端 | 仅对新建系统临时 SQLite 完成 upgrade/current/check/downgrade/re-upgrade，head 为 `20260801_0006` 且临时目录已删除；frontend typecheck、`18 files / 90 tests`、production build `1813 modules` 通过。未读取或修改 `backend/ai_agent_lab.db`。 |
+| Docker 与文档 | Compose config 通过；`qdrant/qdrant:v1.15.4` 运行于 `127.0.0.1:6333`，`/healthz` 返回 `healthz check passed`。100 个 Markdown、75 个有效本地链接/图片、0 missing。 |
+| 安全与边界 | 高置信 token 0；17 个私钥头均为既有 denylist/合成测试/历史计划，当前 diff 新增 0、unexpected 0；`web_fetch` runtime 0；唯一 later-Plan 词命中为既有 scanned-PDF OCR 不支持错误文本，executable later-Plan runtime 0；tracked artifact 0。未读取真实 `.env`/key，未调用真实 Provider、付费 API 或网络 Tool，未创建 Qdrant collection/point。 |
+| Codex self-review | must fix：修正文档顶部陈旧的 S3 范围声明，并抑制响应解析异常 cause 防止 traceback 回显无效向量；均已用 RED/GREEN 或文档复验修复。later Step：S7～S9 VectorStore/collection/payload，S10～S12 ingestion/vector ID/status。accepted limitation：Mock HTTP 不证明真实服务连通、质量、价格或模型可用性；无 retry/fallback/cache/自动拆批/调用审计。not applicable：数据库 schema/API route/前端 runtime/截图/外部 review。无剩余 must-fix。 |
+
+**结论：** `P3-M3-S4～S6` 与 Batch 8 完成，可进入
+`P3-M3-S7～S9`；本批未提前实现 VectorStore、Qdrant collection/point/payload、
+向量入库、Retriever 或 Plan 4+ 能力。
+
+本批建议 commit：
+
+```text
+feat(embedding): add openai compatible provider
 ```
 
 M3 完成后建议 commit：

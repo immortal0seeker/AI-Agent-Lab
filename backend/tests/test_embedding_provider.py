@@ -5,8 +5,12 @@ import pytest
 from pydantic import ValidationError
 
 from app.providers.embedding import (
+    EmbeddingDimensionMismatchError,
     EmbeddingProvider,
+    EmbeddingProviderConfigurationError,
     EmbeddingProviderError,
+    EmbeddingProviderRequestError,
+    EmbeddingProviderResponseError,
     EmbeddingResult,
     EmbeddingUsage,
 )
@@ -138,3 +142,13 @@ def test_embedding_result_rejects_blank_model() -> None:
 
 def test_embedding_provider_error_stays_in_provider_boundary() -> None:
     assert issubclass(EmbeddingProviderError, RuntimeError)
+    assert issubclass(
+        EmbeddingProviderConfigurationError,
+        EmbeddingProviderError,
+    )
+    assert issubclass(EmbeddingProviderRequestError, EmbeddingProviderError)
+    assert issubclass(EmbeddingProviderResponseError, EmbeddingProviderError)
+    assert issubclass(
+        EmbeddingDimensionMismatchError,
+        EmbeddingProviderResponseError,
+    )

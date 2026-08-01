@@ -45,6 +45,35 @@ class Settings(BaseSettings):
         gt=0,
         alias="OPENAI_COMPATIBLE_TIMEOUT_SECONDS",
     )
+    embedding_provider: str = Field(
+        default="openai_compatible",
+        alias="EMBEDDING_PROVIDER",
+    )
+    openai_compatible_embedding_base_url: str = Field(
+        default="",
+        alias="OPENAI_COMPATIBLE_EMBEDDING_BASE_URL",
+    )
+    openai_compatible_embedding_api_key: SecretStr | None = Field(
+        default=None,
+        alias="OPENAI_COMPATIBLE_EMBEDDING_API_KEY",
+    )
+    openai_compatible_embedding_model: str = Field(
+        default="",
+        alias="OPENAI_COMPATIBLE_EMBEDDING_MODEL",
+    )
+    openai_compatible_embedding_dimension: int | None = Field(
+        default=None,
+        gt=0,
+        le=65_536,
+        alias="OPENAI_COMPATIBLE_EMBEDDING_DIMENSION",
+    )
+    openai_compatible_embedding_timeout_seconds: float = Field(
+        default=30.0,
+        gt=0,
+        le=3600,
+        allow_inf_nan=False,
+        alias="OPENAI_COMPATIBLE_EMBEDDING_TIMEOUT_SECONDS",
+    )
     agent_run_timeout_seconds: float = Field(
         default=120.0,
         gt=0,
@@ -115,6 +144,18 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @field_validator("embedding_provider")
+    @classmethod
+    def normalize_embedding_provider(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("embedding provider must not be blank")
+        if len(normalized) > 100:
+            raise ValueError(
+                "embedding provider must be at most 100 characters"
+            )
+        return normalized
 
     @field_validator("document_storage_root", mode="before")
     @classmethod

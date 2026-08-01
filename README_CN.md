@@ -25,7 +25,7 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M3-S3`。
+已完成范围：`P1-M1-S1` 到 `P3-M3-S6`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -38,6 +38,8 @@ OCR 限制。M2 最后一批新增确定性的文本清洗、有界重叠 Chunki
 上传到 `DocumentChunk` Pipeline，并让生命周期失败状态可见。
 M3 首批新增厂商无关的异步 Embedding Provider 契约、包含 token usage 的不可变
 有界批量向量结果，以及可按配置名称精确选择 Provider 实例的有序运行时 Registry。
+M3 第二批新增 OpenAI-compatible `/embeddings` adapter、批量与 query 请求、安全的
+HTTP/响应错误、独立延迟加载配置，以及严格的配置维度校验。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -95,9 +97,9 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 安全的 not-found 响应与请求级事务。嵌套 Document POST 已支持 `.md`、`.txt`
 和 `.pdf` 上传，并返回同步解析、清洗和基础 Chunking 的最终结果。成功上传会
 持久化有序 `DocumentChunk`，返回 `parsed` / `chunked`；预期的解析或内容失败
-仍是 HTTP 201 资源，并持久化安全、可见的失败状态。具体 OpenAI-compatible
-Embedding adapter、Embedding 配置/错误初始化、Qdrant client、检索、Document
-查询/删除 API 和前端上传/RAG runtime 仍延期到后续 Plan 3 Step。
+仍是 HTTP 201 资源，并持久化安全、可见的失败状态。Qdrant collection/向量写入、
+Embedding ingestion、检索、Document 查询/删除 API 和前端上传/RAG runtime 仍延期
+到后续 Plan 3 Step。
 补丁 revision `20260801_0006` 增加同一知识库内的 Document hash 唯一约束，禁止
 删除仍含 Document 的知识库，并在删除回答 Message 时只清空引用、保留 `RagQuery`。
 
@@ -280,6 +282,21 @@ OPENAI_COMPATIBLE_TIMEOUT_SECONDS=30
 没有 API Key 也可以启动；真正初始化 Provider 时若缺少 Key，会返回可读配置错误。
 Batch 5 使用 mock HTTP 测试，没有连接真实模型服务。
 
+OpenAI-compatible Embedding Provider 使用独立的延迟加载配置：
+
+```text
+EMBEDDING_PROVIDER=openai_compatible
+OPENAI_COMPATIBLE_EMBEDDING_BASE_URL=https://api.example.com/v1
+OPENAI_COMPATIBLE_EMBEDDING_API_KEY=
+OPENAI_COMPATIBLE_EMBEDDING_MODEL=example-embedding-model
+OPENAI_COMPATIBLE_EMBEDDING_DIMENSION=1536
+OPENAI_COMPATIBLE_EMBEDDING_TIMEOUT_SECONDS=30
+```
+
+具体 adapter 只在调用方请求时初始化；请求会携带配置维度，响应维度不一致会在任何
+Vector Store 写入前失败。测试只使用合成凭据与 mock HTTP。模型、维度、成本、隐私和
+错误处理说明见 [Embedding Provider](docs/21-embedding-provider.md)。
+
 默认 JSON Model Registry 位于 `backend/app/providers/llm/models.json`，其中的
 tracked 条目有意保持 `supports_tools=false`。如需本地 Tool-capable 模型，可把
 不含 secret 的 `models.local.example.json` 复制为已忽略的 `models.local.json`，
@@ -401,6 +418,8 @@ npm run build
 - [Simple Agent Loop](docs/11-simple-agent-loop.md)
 - [Agent API](docs/12-agent-api.md)
 - [Plan 2 基础 Agent 发布与补丁说明](docs/13-plan-2-basic-agent.md)
+- [Knowledge Base 设计](docs/20-knowledge-base-design.md)
+- [Embedding Provider](docs/21-embedding-provider.md)
 - [Plan 1 最终复审记录](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - [Plan 2 最终复审记录](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
@@ -420,6 +439,9 @@ usage/cost 记录，`web_fetch` 也继续明确延期且没有运行时表面。
 [Agent API](docs/12-agent-api.md)和
 [Plan 2 发布与补丁说明](docs/13-plan-2-basic-agent.md)和
 [Plan 2 最终复审记录](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)。
+Embedding 验证同样只使用 Mock：尚无真实服务验收、自动重试/拆批、持久化 embedding
+成本记录、Qdrant 向量写入或检索流水线；返回 usage 仅存在于内存，配置维度会在未来
+存储前完成校验。
 
 ## Roadmap
 

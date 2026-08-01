@@ -25,7 +25,7 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M3-S3`.
+Completed scope: `P1-M1-S1` through `P3-M3-S6`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -42,6 +42,9 @@ synchronous upload-to-`DocumentChunk` pipeline with visible lifecycle errors.
 The first M3 batch adds a vendor-neutral asynchronous Embedding Provider
 contract, immutable validated batch vectors with token usage, and an ordered
 runtime Registry that selects Provider instances by exact configured name.
+The second M3 batch adds an OpenAI-compatible `/embeddings` adapter with batch
+and query requests, safe HTTP/response errors, independent lazy Settings, and
+strict configured-dimension validation.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -120,9 +123,9 @@ content failures remain HTTP 201 resources with safe visible failure states.
 Patch revision `20260801_0006` makes same-Knowledge-Base document hashes unique,
 restricts deletion of a Knowledge Base that still owns Documents, and safely
 clears a deleted answer Message reference without losing its `RagQuery`.
-The concrete OpenAI-compatible Embedding adapter, Embedding settings/error
-initialization, Qdrant client, retrieval, Document query/delete APIs, and
-frontend upload/RAG runtime remain deferred to later Plan 3 steps.
+Qdrant collection/vector writes, embedding ingestion, retrieval, Document
+query/delete APIs, and frontend upload/RAG runtime remain deferred to later
+Plan 3 steps.
 
 ## v0.1.0 Demo
 
@@ -329,6 +332,23 @@ health flow; attempting to initialize the Provider without a key raises a
 readable configuration error. Batch 5 tests use mock HTTP and do not contact a
 real model service.
 
+The OpenAI-compatible Embedding Provider uses a separate lazy configuration:
+
+```text
+EMBEDDING_PROVIDER=openai_compatible
+OPENAI_COMPATIBLE_EMBEDDING_BASE_URL=https://api.example.com/v1
+OPENAI_COMPATIBLE_EMBEDDING_API_KEY=
+OPENAI_COMPATIBLE_EMBEDDING_MODEL=example-embedding-model
+OPENAI_COMPATIBLE_EMBEDDING_DIMENSION=1536
+OPENAI_COMPATIBLE_EMBEDDING_TIMEOUT_SECONDS=30
+```
+
+The concrete adapter is initialized only when requested. It sends the configured
+dimension and rejects a different response dimension before any Vector Store
+write. Tests use synthetic credentials and mock HTTP only. See
+[Embedding Provider](docs/21-embedding-provider.md) for model, dimension,
+cost, privacy, and error-handling notes.
+
 The default JSON Model Registry is stored at
 `backend/app/providers/llm/models.json`; its tracked entry intentionally keeps
 `supports_tools=false`. For a local Tool-capable model, copy the secret-free
@@ -465,6 +485,8 @@ Release documentation:
 - [Simple Agent Loop](docs/11-simple-agent-loop.md)
 - [Agent API](docs/12-agent-api.md)
 - [Plan 2 basic Agent release and patch](docs/13-plan-2-basic-agent.md)
+- [Knowledge Base design](docs/20-knowledge-base-design.md)
+- [Embedding Provider](docs/21-embedding-provider.md)
 - [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - [Plan 2 final review record](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
@@ -488,6 +510,10 @@ explicitly deferred with no runtime surface. See the
 [Plan 2 release and patch](docs/13-plan-2-basic-agent.md) and
 [Plan 2 final review](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md) for
 the complete current boundaries.
+Embedding verification is also mock-only: there is no live service acceptance,
+automatic retry/batching, persisted embedding-cost record, Qdrant vector write,
+or retrieval pipeline yet. Returned usage is available in memory, and the
+configured dimension is validated before future storage.
 
 ## Roadmap
 

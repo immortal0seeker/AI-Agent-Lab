@@ -3,21 +3,23 @@
 ## Scope
 
 Plan 3 Milestone 1 establishes the persistence and management boundary for
-Knowledge Bases. Through `P3-M3-S3`, the backend can create, list, read, update,
+Knowledge Bases. Through `P3-M3-S6`, the backend can create, list, read, update,
 and delete Knowledge Base metadata, upload one validated Document through a
 service-owned HTTP API, and synchronously parse, clean, and chunk Markdown,
 TXT, or text-layer PDF through independent processing boundaries. It also
-provides a vendor-neutral Embedding Provider/result contract and runtime
-Registry, without invoking that boundary from ingestion yet.
+provides a vendor-neutral Embedding Provider/result contract, runtime Registry,
+and OpenAI-compatible adapter, without invoking that boundary from ingestion
+yet.
 
 The first M2 batch stores `.md`, `.txt`, and `.pdf` bytes and creates the
 initial Document row. The second adds pure parsers. The final M2 batch composes
 the Parser, Cleaner, and Chunker in the upload transaction, persists
-`DocumentChunk` rows, and exposes final parse/chunk states. M3 S1～S3 add only
-the Embedding abstraction, validated batch output, and exact-name Provider
-selection. No completed scope creates embeddings, connects a Qdrant client,
-retrieves sources, generates RAG answers, or exposes a frontend Knowledge Base
-workspace. Those capabilities remain assigned to later Plan 3 steps.
+`DocumentChunk` rows, and exposes final parse/chunk states. M3 S1～S6 add the
+Embedding abstraction, validated batch output, exact-name Provider selection,
+concrete protocol adapter, and lazy initialization. No completed ingestion
+scope creates or persists embeddings, connects a Qdrant client, retrieves
+sources, generates RAG answers, or exposes a frontend Knowledge Base workspace.
+Those capabilities remain assigned to later Plan 3 steps.
 
 ## Storage Responsibilities
 
@@ -29,7 +31,7 @@ SQLite remains the default and long-term supported primary database. It owns:
 - RAG query audit metadata and retrieved-chunk snapshots.
 
 Qdrant is configured as Plan 3's vector-storage service, but the scope through
-M3 S3 contains no Qdrant client or Vector Store runtime. The `vector_store`,
+M3 S6 contains no Qdrant client or Vector Store runtime. The `vector_store`,
 `vector_collection_name`, and `vector_id` fields are persistence bridges, not
 evidence that a collection or vector has been created.
 
@@ -103,7 +105,7 @@ ownership check for chunks.
 ## Embedding Provider Boundary
 
 `app.providers.embedding` owns the vendor-neutral runtime boundary introduced
-by M3 S1～S3. `EmbeddingProvider` exposes asynchronous `embed_texts()` and
+by M3 S1～S6. `EmbeddingProvider` exposes asynchronous `embed_texts()` and
 `embed_query()` methods and a normalized Provider name. `EmbeddingResult`
 returns ordered same-dimension finite vectors, the actual model identity, and
 immutable batch-level `EmbeddingUsage`; malformed empty, mixed-dimension, or
@@ -111,9 +113,17 @@ non-finite output is rejected before any future Vector Store call.
 
 `EmbeddingProviderRegistry` stores Provider instances in registration order and
 selects one by the exact caller-owned configuration name. Duplicate and missing
-names fail explicitly. It does not read Settings, initialize API credentials,
-call a vendor endpoint, update Document states, or contact Qdrant. Those
-responsibilities remain in S4+.
+names fail explicitly. It still does not read Settings or initialize API
+credentials.
+
+`OpenAICompatibleEmbeddingProvider` is the first concrete adapter. It sends a
+single float-encoded batch/query request to `/embeddings`, orders the response
+by explicit indexes, preserves returned model/usage, and rejects malformed or
+wrong-dimension vectors. The factory reads independent lazy Embedding Settings
+and unwraps the masked key only during initialization. Safe exceptions do not
+copy remote bodies, source text, vector values, or credentials. Document state
+updates, Qdrant calls, persisted vector IDs, and ingestion orchestration remain
+outside this Provider boundary and are deferred to S7～S12.
 
 ## Controlled Document Storage
 
@@ -457,17 +467,36 @@ The M3 S1～S3 Embedding Provider verification reached:
   `healthz check passed`;
 - `97` Markdown files, `69` local links/images, and zero missing targets.
 
+The M3 S4～S6 OpenAI-compatible Embedding verification reached:
+
+- adapter/base RED at missing concrete exports; GREEN: `48 passed`;
+- Settings/factory RED at missing factory module; GREEN: `52 passed`;
+- Provider/LLM/config adjacent regression: `192 passed`;
+- response-error safety review RED: `6 failed, 21 passed`; final adapter GREEN:
+  `27 passed`;
+- complete backend: `811 passed, 1 warning`; dependency integrity:
+  `No broken requirements found`;
+- temporary-SQLite upgrade/current/check/downgrade/re-upgrade at head
+  `20260801_0006`, followed by verified temporary-directory cleanup;
+- frontend: `18` files / `90` tests, typecheck, and production build with
+  `1813` transformed modules;
+- live local `qdrant/qdrant:v1.15.4` on `127.0.0.1:6333` with
+  `healthz check passed`;
+- `100` Markdown files, `75` valid local links/images, and zero missing
+  targets; zero high-confidence secrets, executable later-Plan runtime, or
+  tracked artifacts.
+
 The active Plan 3 execution table contains the security, scope, artifact, and
 Git gates. No verification command read or modified `backend/ai_agent_lab.db`.
 
 ## Deferred Capabilities
 
-The following remain outside completed Plan 3 through M3 S3:
+The following remain outside completed Plan 3 through M3 S6:
 
 - Document list, detail, chunk-query, delete, local-file deletion, and orphan
   recovery workflows;
-- concrete Embedding Provider adapters, Settings initialization, and embedding
-  execution;
+- live Embedding service acceptance, automatic retry/splitting, persisted call
+  audit/cost, and document embedding execution;
 - Qdrant client, collection lifecycle, vector upsert, and vector deletion;
 - Retriever, RAG Prompt, RAG query/chat runtime, and Agent Tool integration;
 - frontend Knowledge Base, upload, RAG Chat, and source display;
