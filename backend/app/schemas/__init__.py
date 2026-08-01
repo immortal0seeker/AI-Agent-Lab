@@ -30,7 +30,18 @@ from app.schemas.knowledge_base import (
 from app.schemas.llm_call import LLMCallCreate, LLMCallRead
 from app.schemas.message import MessageCreate, MessageRead
 from app.schemas.model import ModelRead
-from app.schemas.rag import RagQueryCreate, RagQueryRead, RetrievalResult
+from app.schemas.rag import (
+    RagAnswerMetadata,
+    RagChatRequest,
+    RagChatResponse,
+    RagQueryCreate,
+    RagQueryRead,
+    RagQueryResponse,
+    RagRetrievalMetadata,
+    RagRetrievalRequest,
+    RagSource,
+    RetrievalResult,
+)
 from app.schemas.tool import ToolCallRequest, ToolCallResponse, ToolCallStatus
 
 __all__ = [
@@ -61,8 +72,15 @@ __all__ = [
     "MessageCreate",
     "MessageRead",
     "ModelRead",
+    "RagAnswerMetadata",
+    "RagChatRequest",
+    "RagChatResponse",
     "RagQueryCreate",
     "RagQueryRead",
+    "RagQueryResponse",
+    "RagRetrievalMetadata",
+    "RagRetrievalRequest",
+    "RagSource",
     "RetrievalResult",
     "ToolCallRequest",
     "ToolCallRead",

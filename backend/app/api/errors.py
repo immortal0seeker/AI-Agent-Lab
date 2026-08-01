@@ -36,6 +36,11 @@ from app.providers.llm.base import (
     ProviderTimeoutError,
 )
 from app.providers.embedding import EmbeddingProviderError
+from app.rag.retriever import (
+    RetrieverError,
+    RetrieverInputError,
+    RetrieverResponseError,
+)
 from app.rag.vectorstores import VectorStoreError
 from app.schemas.error import ErrorDetail, ErrorResponse
 from app.services.errors import (
@@ -142,6 +147,18 @@ def error_spec_for_exception(exc: Exception) -> ErrorSpec:
             503,
             "vector_store_unavailable",
             "The vector store is unavailable",
+        )
+    if isinstance(exc, RetrieverInputError):
+        return ErrorSpec(
+            400,
+            "rag_retrieval_input_invalid",
+            "The retrieval request is invalid",
+        )
+    if isinstance(exc, RetrieverResponseError):
+        return ErrorSpec(
+            502,
+            "rag_retrieval_response_invalid",
+            "The retrieval backend returned an invalid response",
         )
     if isinstance(exc, ChatModelNotFoundError):
         return ErrorSpec(
@@ -273,6 +290,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(DocumentError, unified_error_handler)
     app.add_exception_handler(EmbeddingProviderError, unified_error_handler)
     app.add_exception_handler(VectorStoreError, unified_error_handler)
+    app.add_exception_handler(RetrieverError, unified_error_handler)
     app.add_exception_handler(LLMProviderError, unified_error_handler)
     app.add_exception_handler(SQLAlchemyError, unified_error_handler)
     app.add_exception_handler(Exception, unified_error_handler)

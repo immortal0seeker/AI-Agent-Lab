@@ -25,7 +25,7 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M4-S3`。
+已完成范围：`P1-M1-S1` 到 `P3-M4-S6`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -49,6 +49,10 @@ Chunk UUID 持久化为 point ID，把 Document 标为 `ready` 或安全 `failed
 M4 首批新增独立 Naive Vector Retriever：在外部调用前严格校验 query、知识库 UUID、
 Top-K 与可选 score threshold，只生成一个 query embedding，执行按知识库隔离的
 VectorStore search，并把有序命中映射为不可变、来源字段完整的 `RetrievalResult`。
+M4 第二批新增有界、独立的 RAG Prompt Builder；`/api/v1/rag/query` 只检索且
+不会解析 LLM 配置；非流式 `/api/v1/rag/chat` 复用既有 Conversation，持久化原始
+用户问题、assistant 回答和 `LLMCall`，并返回 answer、带编号 sources 与检索/Prompt
+metadata。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -110,8 +114,10 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 检查 collection，并写入、按知识库过滤检索和按 Document 删除经过校验的 Chunk point。
 上传 Pipeline 现已调用配置的 Embedding Provider 与 VectorStore，持久化
 `DocumentChunk.vector_id`，并在等待 Qdrant 写入完成后返回 `embedding_status=ready`；
-独立 Retriever 现可返回一个知识库内有序、来源完整的 Top-K Chunks。RAG Prompt/回答
-API、Document 查询/删除 API 和前端上传/RAG runtime 仍延期。
+独立 Retriever 现可返回一个知识库内有序、来源完整的 Top-K Chunks。RAG Query API
+可在不调用 LLM 的前提下调试检索结果；RAG Chat API 可生成一次非流式知识库回答并写入
+既有会话。RagQuery 审计写入、Agent Tool、Document 查询/删除 API 和前端上传/RAG
+runtime 仍延期。
 补丁 revision `20260801_0006` 增加同一知识库内的 Document hash 唯一约束，禁止
 删除仍含 Document 的知识库，并在删除回答 Message 时只清空引用、保留 `RagQuery`。
 
@@ -242,6 +248,7 @@ DOCUMENT_MAX_MARKDOWN_STRUCTURES=20000
 DOCUMENT_MAX_CHUNKS=10000
 RAG_CHUNK_SIZE=1000
 RAG_CHUNK_OVERLAP=150
+RAG_MAX_CONTEXT_CHARACTERS=12000
 ```
 
 上传必须非空，默认上限 20 MiB，每个知识库默认最多 50 个 Document；同一
@@ -253,6 +260,14 @@ RAG_CHUNK_OVERLAP=150
 安全错误响应，并回滚 Document、chunk 和已提升文件。删除仍包含任意 Document
 的知识库会返回 HTTP 409，并保留知识库、文档和受控文件。当前不实现 Document
 删除、文件生命周期清理与孤儿扫描。runtime 上传目录已忽略，不能提交。
+
+### Naive RAG API
+
+`POST /api/v1/rag/query` 接受知识库 UUID、query、Top-K 和可选 score threshold，
+返回有序检索结果与 metadata，且不会解析或调用 LLM Provider。
+`POST /api/v1/rag/chat` 还接受已有 Conversation UUID 与 Provider/model，执行一次
+非流式知识库回答，并返回 answer、带编号 sources、usage 与检索/Prompt metadata。
+完整契约与安全错误见 [Naive RAG Query 与 Chat](docs/23-naive-rag.md)。
 
 ### Document 处理
 
@@ -453,6 +468,7 @@ npm run build
 - [Knowledge Base 设计](docs/20-knowledge-base-design.md)
 - [Embedding Provider](docs/21-embedding-provider.md)
 - [Document Ingestion Pipeline](docs/22-document-ingestion-pipeline.md)
+- [Naive RAG Query 与 Chat](docs/23-naive-rag.md)
 - [Plan 1 最终复审记录](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - [Plan 2 最终复审记录](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
@@ -474,8 +490,10 @@ usage/cost 记录，`web_fetch` 也继续明确延期且没有运行时表面。
 [Plan 2 最终复审记录](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)。
 Embedding Provider 验证仍只使用 Mock：尚无真实模型服务验收、自动重试/拆批或持久化
 embedding 成本记录。上传到 Embedding 再到 Qdrant 的 ingestion 已有 Mock API 覆盖和
-本地临时 collection smoke。独立 Retriever 已有 Mock 边界覆盖和真实临时 Qdrant
-smoke，但 RAG Prompt/回答/API runtime 尚未实现；Provider usage 仍只存在于内存。
+本地临时 collection smoke。独立 Retriever 与 Naive RAG Query/Chat API 已有 Mock
+边界覆盖，以及完成清理的临时 Qdrant、临时 SQLite、Mock LLM API smoke。RAG Chat
+目前非流式、要求已有 Conversation，尚不创建 RagQuery 审计记录，也未暴露 Agent Tool/
+前端；Embedding Provider usage 仍只存在于内存。
 正常请求回滚会补偿 vectors，但 Qdrant 写入后进程硬崩溃仍可能留下需要后续
 reconciliation 的 orphan points。
 

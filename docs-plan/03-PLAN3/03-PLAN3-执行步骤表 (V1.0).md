@@ -63,7 +63,7 @@ blocked
 | Batch 9 | P3-M3-S7～S9 | 实现 Qdrant Vector Store | vector store 测试 | 已完成（抽象、payload、collection/upsert/search/delete、真实临时 collection 与全量回归通过） |
 | Batch 10 | P3-M3-S10～S12 | 实现文档入库 Pipeline | 端到端入库测试，Codex self-review M3 | 已完成（parse/chunk/embed/upsert、vector_id/状态、回滚补偿、正式文档与全量回归通过） |
 | Batch 11 | P3-M4-S1～S3 | 实现 Retriever 和来源结构 | Retriever/schema 测试 | 已完成（query embedding、Top-K/threshold、KB 隔离、完整来源结构与真实临时 Qdrant smoke 通过） |
-| Batch 12 | P3-M4-S4～S6 | 实现 RAG Query / Chat API | API 测试 | 未完成 |
+| Batch 12 | P3-M4-S4～S6 | 实现 RAG Prompt、Query / Chat API | API 测试 | 已完成（有界 Prompt、纯检索 Query、会话 Chat、回滚与真实临时 Qdrant API smoke 通过） |
 | Batch 13 | P3-M4-S7～S8 | 注册 search_knowledge_base 工具 | Agent 工具调用测试，Codex + Claude review M4 | 未完成 |
 | Batch 14 | P3-M5-S1～S3 | 实现知识库页面和上传 UI | 浏览器手测 | 未完成 |
 | Batch 15 | P3-M5-S4～S6 | 实现 RAG Chat 和来源展示 | 浏览器手测，Codex review M5 | 未完成 |
@@ -453,8 +453,8 @@ feat(rag): add document vector ingestion pipeline
 | P3-M4-S1 | 实现 Retriever | Codex | `retriever.py` | 给定 query 返回 Top-K RetrievalResult | Codex self-review |
 | P3-M4-S2 | 实现检索 metadata 和来源结构 | Codex | `RetrievalResult` schema | 返回 chunk_id、document_id、score、content、metadata | Codex |
 | P3-M4-S3 | 补 Retriever 测试 | Codex | retriever tests | mock vector store 检索测试通过 | Codex |
-| P3-M4-S4 | 实现 RAG Prompt 模板 | Codex | `prompts/rag_prompt.md` 或 prompt builder | Prompt 包含问题、上下文、来源约束 | Codex |
-| P3-M4-S5 | 实现 RAG Query Service 和 API | Codex | `rag_service.py`、`api/v1/rag.py` | API 返回 answer、sources、metadata | Codex |
+| P3-M4-S4 | 实现 RAG Prompt 模板 | Codex | `prompts/rag_prompt.md` 或 prompt builder | Prompt 包含问题、上下文、来源约束 | Codex self-review |
+| P3-M4-S5 | 实现 RAG Query Service 和 API | Codex | `rag_service.py`、`api/v1/rag.py` | 按详细 Step 15 只返回 results、retrieval metadata，不调用 LLM | Codex |
 | P3-M4-S6 | 实现 RAG Chat API | Codex | rag chat endpoint | 能把 RAG 回答写入会话历史 | Codex |
 | P3-M4-S7 | 实现 rag_queries 记录 | Codex | 查询记录写入逻辑 | 记录 query、knowledge_base_id、top_k、source ids、latency | Codex |
 | P3-M4-S8 | 注册 search_knowledge_base 工具 | Codex | `tools/builtin/search_knowledge_base.py` | Agent 可调用 RAG Tool 返回检索结果 | Codex + Claude review |
@@ -480,6 +480,29 @@ Plan 4+ runtime。
 
 ```text
 feat(rag): add naive vector retriever
+```
+
+### P3-M4-S4～S6 Naive RAG Query / Chat 验收记录（2026-08-01）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 范围与基线 | 从 `HEAD == origin/main == e237cf8bb4e1bc71cb965c709e431a1459dfd14e` 的干净 `main` 开始，只实现 S4～S6；未创建/切换分支或使用 worktree，staged paths 保持 0，既有 `v0.2.0` / `v0.2.1` peeled targets 未移动。 |
+| S4 Prompt | 新增独立 `RagPromptBuilder`：固定 grounded assistant 角色，明确资料不足时回答“资料中没有找到相关信息”，要求 `[n]` 引用且禁止编造来源；按检索顺序保留来源索引，以精确字符预算裁剪最后一个来源，并保证响应 sources 与实际注入内容一致。历史消息位于固定 system 指令与当前 grounded user message 之间。 |
+| S5 Query | 新增 `POST /api/v1/rag/query` 与轻量 `RagQueryService`，严格校验 KB/query/Top-K/threshold，只返回 ordered retrieval results 与 `naive_vector` metadata。该依赖链不解析 Model Registry、LLM Provider 或 Prompt，不生成回答、不写 Message/LLMCall/RagQuery。 |
+| S6 Chat | 新增 `POST /api/v1/rag/chat`：复用既有 Conversation，按“保存 user → 检索 → 构造 Prompt → 单次非流式 Mockable LLM → 保存 assistant/LLMCall”执行，返回 answer、实际注入 sources、retrieval metadata、usage 与可追踪 ID。检索或 Provider 失败时回滚本轮全部 SQLite 写入，既有历史保持不变。 |
+| TDD 与 matching | Prompt missing-module RED、budget/error RED 与 exact-budget RED；schema/service/chat/API 404/error mapping/Query LLM-dependency RED 均先复现再最小修复。最终 RAG focused `99 passed`，扩展 matching `428 passed, 1 warning`。 |
+| 真实 Qdrant API smoke | Qdrant 1.15.4、确定性 Mock Embedding、Mock LLM、临时 SQLite 和随机 `codex_p3_m4_s4_s6_*` collection 通过 ASGI API 验证：Query/Chat 均 200、Top-K 与 KB 隔离成立、source 匹配、2 条消息、1 条 LLMCall、0 条 RagQuery；collection 删除后同前缀余量为 0。 |
+| 全量验证 | backend `1002 passed, 1 warning`，warning 仅为既知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损。系统临时 SQLite Alembic upgrade/current/check/downgrade/re-upgrade 通过，head `20260801_0006` 且临时目录已删除。Frontend typecheck、`18 files / 90 tests`、build `1813 modules` 通过。Docker Compose config、Qdrant health/restart/loopback 暴露均通过；未读取或修改用户数据库。 |
+| 文档、安全与 Git | README 中英文、CHANGELOG、Architecture、Knowledge Base/Embedding/Ingestion、Naive RAG 正式文档及执行表同步；111 个 Markdown、94 个本地链接/图片、0 missing。高置信 secret/private-key header/later-Step runtime/network-Tool runtime/tracked artifact 均为 0。`git diff --check` 通过；26 个预期路径（16 modified、10 untracked），staged 0。 |
+| Codex self-review | must fix 已解决：Prompt separator 预算重复计算、RetrieverResponseError 未安全映射、Query route 错误解析 LLM 配置；另修复了真实 smoke 临时目录清理顺序（仅测试工具）。fix later：S7 RagQuery audit、S8 Agent Tool。accepted limitation：未调用真实 LLM/Embedding Provider、Chat 仅非流式且要求既有 Conversation、无前端、无 Advanced RAG。not applicable：ORM/migration、RagQuery runtime 写入、Agent Tool、前端 runtime/截图、外部 review/tag。无剩余 must-fix。 |
+
+**结论：** `P3-M4-S4～S6` 完成，可进入 `P3-M4-S7～S8`；本批未提前实现
+RagQuery audit、Agent Tool、前端或任何 Advanced RAG / Plan 4+ runtime。
+
+本批建议 commit：
+
+```text
+feat(rag): add naive rag query and chat APIs
 ```
 
 M4 完成后建议 commit：

@@ -28,7 +28,7 @@ sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
 the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
   audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
-  `P3-M4-S3` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
+  `P3-M4-S6` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
 ownership boundaries, four knowledge persistence models, a service-owned
 Knowledge Base CRUD API, controlled validated Document upload, and independent
 Markdown/TXT/text-layer-PDF parsers composed with pure cleaning, naive
@@ -42,8 +42,9 @@ vendor-neutral asynchronous VectorStore contract, a Qdrant 1.15.x adapter, and
 the stable Chunk payload bridge required by M4. M3 S10～S12 add an independently
   tested upload-to-vector pipeline, persisted Chunk point IDs and Document
   embedding states, plus request-transaction vector compensation. M4 S1～S3 add
-  an independent Top-K Retriever and immutable source result contract. RAG
-  Prompt and answer runtime do not exist yet.
+  an independent Top-K Retriever and immutable source result contract. M4
+  S4～S6 add a bounded Prompt Builder, a retrieval-only Query service/route, and
+  a non-streaming RAG Chat service/route that persists Message and LLMCall rows.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -102,11 +103,11 @@ Current backend layers:
 |---|---|
 | `api/` | HTTP routes and response shaping |
 | `schemas/` | Pydantic request and response contracts |
-| `services/` | Chat, conversation, Agent query, Knowledge Base CRUD, Document upload/ingestion, and application logic |
+| `services/` | Chat, conversation, Agent query, Knowledge Base CRUD, Document upload/ingestion, Naive RAG query/chat, and application logic |
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM abstractions/adapters plus the M3 Embedding abstraction, validated batch result, runtime Registry, and OpenAI-compatible adapter/factory |
 | `knowledge/` | Plan 3 structured knowledge metadata plus controlled Document storage; models live in `models/` and service policy lives in `services/` |
-| `rag/` | Plan 3 document-processing and Naive RAG boundary; parsers, Cleaner, naive Chunker, ingestion pipeline, VectorStore/Qdrant, source payload, and the independent Top-K Retriever exist through M4 S3 |
+| `rag/` | Plan 3 document-processing and Naive RAG boundary; parsers, Cleaner, naive Chunker, ingestion pipeline, VectorStore/Qdrant, source payload, Top-K Retriever, and bounded Prompt Builder exist through M4 S6 |
 | `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
 | `db/` | SQLAlchemy session/database setup plus request-scoped async rollback callbacks and resource finalizers |
 | `models/` | ORM models |
@@ -574,7 +575,8 @@ Plan 3 Embedding provider target through `P3-M3-S6`:
   at upload dependency resolution and returns a safe 503 before file creation
   when that configuration is unavailable.
 
-Plan 3 VectorStore, ingestion, and retrieval target through `P3-M4-S3`:
+Plan 3 VectorStore, ingestion, retrieval, and Naive RAG target through
+`P3-M4-S6`:
 
 - `VectorStore` defines asynchronous collection, upsert, search, ownership
   delete, and client-lifecycle operations behind validated immutable contracts.
@@ -599,6 +601,18 @@ Plan 3 VectorStore, ingestion, and retrieval target through `P3-M4-S3`:
   vector with the VectorStore dimension, performs one Knowledge-Base-filtered
   search, and fails closed on invalid result type, ownership, count, or
   threshold. It preserves VectorStore order and does not rerank.
+- `RagPromptBuilder` creates one fixed grounded system message, preserves
+  user/assistant history, assigns stable one-based source indices, and limits
+  only the formatted source context through `RAG_MAX_CONTEXT_CHARACTERS`.
+- `RagQueryService` validates Knowledge Base existence and performs retrieval
+  without resolving a ModelRegistry/LLM Provider or writing Message, LLMCall,
+  or RagQuery rows. The thin route is `POST /api/v1/rag/query`.
+- `RagService` extends retrieval with existing Conversation, Provider, and
+  LLMCall boundaries. `POST /api/v1/rag/chat` stores the raw user query and the
+  non-streaming assistant answer, returning only sources actually injected in
+  the Prompt plus retrieval/Prompt metadata. Failure rolls back the whole turn.
+- M4 S4～S6 deliberately do not write the existing `rag_queries` bridge or
+  register an Agent Tool; those remain S7～S8.
 
 The Provider stream contract is consumed by `ChatService.stream_complete()` and
 the protocol adapter at `POST /api/v1/chat/stream`. The service emits
@@ -653,7 +667,7 @@ Simple Agent loop. The following remain outside the current architecture:
 - `web_fetch` or another network Tool
 - streaming Tool Calling
 - Agent Runtime v2, Planner, Human Approval, cancel/resume/retry, and replay
-- RAG Prompt and RAG-answer/API pipelines
+- RagQuery audit persistence, RAG Agent Tool integration, and RAG frontend
 - Persisted embedding-call usage/cost audit
 - Memory systems
 - MCP integrations

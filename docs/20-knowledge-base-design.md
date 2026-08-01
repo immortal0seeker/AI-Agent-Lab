@@ -3,13 +3,14 @@
 ## Scope
 
 Plan 3 Milestone 1 establishes the persistence and management boundary for
-Knowledge Bases. Through `P3-M4-S3`, the backend can create, list, read, update,
+Knowledge Bases. Through `P3-M4-S6`, the backend can create, list, read, update,
 and delete Knowledge Base metadata, upload one validated Document through a
 service-owned HTTP API, and synchronously parse, clean, and chunk Markdown,
 TXT, or text-layer PDF through independent processing boundaries. It also
 provides a vendor-neutral Embedding Provider/result contract, runtime Registry,
 OpenAI-compatible adapter, Qdrant VectorStore, stable Chunk payload, the
-document vector-ingestion pipeline, and an independent Top-K Retriever.
+document vector-ingestion pipeline, an independent Top-K Retriever, a bounded
+RAG Prompt Builder, and retrieval-only plus persisted non-streaming RAG APIs.
 
 The first M2 batch stores `.md`, `.txt`, and `.pdf` bytes and creates the
 initial Document row. The second adds pure parsers. The final M2 batch composes
@@ -21,8 +22,10 @@ VectorStore abstraction, Qdrant adapter, and stable Chunk payload. M3 S10～S12
 complete the upload-to-parse-to-clean-to-chunk-to-embed-to-upsert flow, persist
 each Qdrant point ID on its owning Chunk, and transition the Document embedding
 state. M4 S1～S3 add query embedding, Knowledge-Base-filtered Top-K search, and a
-stable source result. RAG answers and the frontend Knowledge Base workspace
-remain assigned to later Plan 3 steps.
+stable source result. M4 S4～S6 add independent Prompt construction, a query-
+only API, and one grounded answer turn written into an existing Conversation.
+RagQuery audit, Agent Tool integration, and the frontend workspace remain
+assigned to later Plan 3 steps.
 
 ## Storage Responsibilities
 
@@ -208,6 +211,34 @@ Knowledge-Base payload, more results than Top-K, or a result below the requested
 threshold as one fixed safe response error; it never returns partial output.
 Provider and VectorStore errors keep their existing boundary categories.
 
+## Naive RAG Prompt And API Boundary
+
+`app.rag.rag_prompt.RagPromptBuilder` is a pure module. It receives a nonblank
+question, the ordered `RetrievalResult` tuple, and optional user/assistant
+history. It returns system/history/current-user `ChatMessage` values, one-based
+`RagSource` values, and the formatted context character count. The fixed system
+instruction requires grounded answers, `[n]` citations, an explicit no-source
+answer, and refusal to treat source text as higher-priority instructions.
+
+`RAG_MAX_CONTEXT_CHARACTERS` defaults to 12,000 and is bounded from 128 through
+1,000,000. Sources are admitted in Retriever order. A final partial source may
+be truncated with an ellipsis; later sources are omitted. Response sources
+contain only the text actually injected, so source indices and displayed
+content match the Provider request.
+
+`RagQueryService` owns the retrieval-only flow. It validates the Knowledge Base
+and calls Retriever without resolving ModelRegistry/LLM Provider dependencies.
+`POST /api/v1/rag/query` returns ordered `results` and `naive_vector` metadata;
+it creates no Message, LLMCall, or RagQuery record.
+
+`RagService` adds the non-streaming answer flow. It validates model, Provider,
+Knowledge Base, and existing Conversation; stores the raw user query; retrieves
+sources; constructs the Prompt with prior history; calls the LLM once; stores
+the assistant Message and completed LLMCall; and returns answer, indexed sources,
+usage, and retrieval/Prompt metadata through `POST /api/v1/rag/chat`. Any
+failure rolls back the new turn. See [Naive RAG Query And Chat](23-naive-rag.md)
+for the HTTP contracts.
+
 ## Controlled Document Storage
 
 `DocumentStorage` owns local file I/O behind a framework-neutral async stream
@@ -361,8 +392,9 @@ Conversation. Deleting an answer Message clears the optional reference and
 preserves the query; deleting its Conversation or Knowledge Base cascades to the
 query.
 
-The standalone Retriever does not write audit rows. Retrieval/answer HTTP
-workflows and `rag_queries` persistence remain assigned to M4 S4+.
+The query and chat workflows delivered in M4 S4～S6 deliberately do not write
+audit rows. `rag_queries` persistence remains assigned to M4 S7, so successful
+Chat currently creates Message/LLMCall rows but no RagQuery row.
 
 ## Knowledge Base Service
 
@@ -653,18 +685,42 @@ The M4 S1～S3 Naive Vector Retriever verification reached:
   zero high-confidence secrets, private-key headers, executable later-Step or
   network-Tool runtime, and tracked artifacts.
 
+The M4 S4～S6 Naive RAG Query / Chat verification reached:
+
+- Prompt missing-module RED, formatting GREEN, budget/error RED, and exact-
+  budget regression GREEN; final Prompt/schema checks reached `26 passed`;
+- query service missing-module RED, chat method RED, endpoint `404` RED,
+  unsafe Retriever error RED, and an LLM-dependency resolution RED were each
+  reproduced before their minimal fixes;
+- final RAG-focused checks reached `99 passed`; the expanded matching suite
+  reached `428 passed, 1 warning`; complete backend reached
+  `1002 passed, 1 warning`, with only the known Starlette TestClient/httpx
+  deprecation warning; dependency integrity remained
+  `No broken requirements found`;
+- live local Qdrant API smoke used deterministic Mock Embedding/LLM providers,
+  temporary SQLite, and a random collection: query/chat both returned `200`,
+  Top-K and Knowledge Base isolation held, source/message persistence matched,
+  exactly one LLM call and zero RagQuery rows were written, and collection
+  cleanup left zero matching-prefix collections;
+- temporary-SQLite migration round trip remained at head `20260801_0006` and
+  its directory was removed; frontend typecheck, `18` files / `90` tests, and
+  production build with `1813` transformed modules passed;
+- Docker Compose configuration, Qdrant 1.15.4 health, restart count zero, and
+  loopback-only `127.0.0.1:6333` exposure passed; `111` Markdown files and `94`
+  local links/images had zero missing targets.
+
 The active Plan 3 execution table contains the security, scope, artifact, and
 Git gates. No verification command read or modified `backend/ai_agent_lab.db`.
 
 ## Deferred Capabilities
 
-The following remain outside completed Plan 3 through M4 S3:
+The following remain outside completed Plan 3 through M4 S6:
 
 - Document list, detail, chunk-query, delete, local-file deletion, and orphan
   recovery workflows;
 - live Embedding service acceptance, automatic retry/splitting, persisted call
   audit/cost, and hard-crash orphan reconciliation;
-- RAG Prompt, RAG query/chat runtime, audit writes, and Agent Tool integration;
+- RagQuery audit writes, Agent Tool integration, and RAG streaming;
 - frontend Knowledge Base, upload, RAG Chat, and source display;
 - Advanced RAG, Hybrid Search, Rerank, Evaluation, Memory, OCR, and multimodal
   capabilities.

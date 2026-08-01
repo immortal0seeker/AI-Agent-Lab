@@ -122,6 +122,13 @@ def test_settings_default_rag_chunk_bounds() -> None:
 
     assert settings.rag_chunk_size == 1000
     assert settings.rag_chunk_overlap == 150
+    assert settings.rag_max_context_characters == 12_000
+
+
+@pytest.mark.parametrize("value", [True, 127, 1_000_001])
+def test_settings_rejects_invalid_rag_context_limit(value: object) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, RAG_MAX_CONTEXT_CHARACTERS=value)
 
 
 def test_settings_default_document_processing_limits() -> None:

@@ -6,6 +6,18 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added a bounded independent RAG Prompt Builder with stable one-based source
+  indices, no-source instructions, conversation-history placement, prompt-
+  injection constraints, and exact context truncation.
+- Added retrieval-only `POST /api/v1/rag/query` without LLM dependency
+  resolution, returning ordered `results` and `naive_vector` metadata.
+- Added non-streaming `POST /api/v1/rag/chat` that reuses existing
+  Conversations, stores the raw user question, assistant answer, and completed
+  `LLMCall`, and returns answer, actually injected sources, usage, and bounded
+  retrieval/Prompt metadata.
+- Added Mock service/API/error/rollback coverage plus a cleaned local Qdrant,
+  temporary SQLite, and Mock LLM query/chat API smoke; `rag_queries` writes and
+  Agent Tool integration remain deferred to M4 S7～S8.
 - Added an independent Naive Vector Retriever that validates query/Knowledge
   Base/Top-K/threshold inputs, creates one query embedding, performs an isolated
   VectorStore search, and preserves result order without reranking.

@@ -8,9 +8,11 @@ request stores the validated file, parses and cleans its text, creates ordered
 Chunks, embeds all Chunk content, upserts the vectors into Qdrant, persists each
 point identifier, and commits the Document as ready.
 
-This document owns ingestion only. M4 S1～S3 now provide a separate Retriever;
-RAG prompt/answer generation, Agent Tool integration, Advanced RAG, Rerank,
-Evaluation, Memory, OCR, and multimodal work remain outside this boundary.
+This document owns ingestion only. M4 S1～S6 now provide a separate Retriever,
+bounded Prompt Builder, and query/chat services; none of those answer-time
+components are owned by ingestion. Agent Tool integration, Advanced RAG,
+Rerank, Evaluation, Memory, OCR, and multimodal work remain outside this
+boundary.
 
 ## Runtime Flow
 
@@ -140,9 +142,11 @@ The S10～S12 verification covers:
 
 Current intentional limits are one Provider batch per bounded Document, no
 automatic retry/fallback/caching, no persisted embedding usage/cost, and no
-hard-crash orphan reconciler. A standalone Retriever exists through M4 S3, but
-answer generation must not be inferred from successful ingestion or retrieval.
+hard-crash orphan reconciler. A standalone Retriever and non-streaming RAG
+Query/Chat runtime exist through M4 S6, but answer success must not be inferred
+from successful ingestion or retrieval alone.
 
 See [Knowledge Base Design](20-knowledge-base-design.md),
-[Embedding Provider](21-embedding-provider.md), and
+[Embedding Provider](21-embedding-provider.md),
+[Naive RAG Query And Chat](23-naive-rag.md), and
 [Architecture](01-architecture.md) for the surrounding boundaries.

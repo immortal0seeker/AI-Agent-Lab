@@ -25,7 +25,7 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M4-S3`.
+Completed scope: `P1-M1-S1` through `P3-M4-S6`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -58,6 +58,11 @@ query, Knowledge Base UUID, Top-K and optional score threshold before external
 calls, generates exactly one query embedding, performs a Knowledge-Base-filtered
 VectorStore search, and maps ordered hits into immutable source-rich
 `RetrievalResult` values.
+The second M4 batch adds a bounded independent RAG Prompt Builder, a
+retrieval-only `/api/v1/rag/query` endpoint that does not resolve an LLM, and a
+non-streaming `/api/v1/rag/chat` endpoint that reuses existing Conversations,
+persists the raw user question, assistant answer, and `LLMCall`, and returns
+answer, indexed sources, and retrieval/Prompt metadata.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -139,8 +144,11 @@ clears a deleted answer Message reference without losing its `RagQuery`.
 The upload pipeline now calls the configured Embedding Provider and VectorStore,
 persists `DocumentChunk.vector_id`, and returns `embedding_status=ready` after a
 successful waited Qdrant write. The standalone Retriever now returns ordered,
-source-rich Top-K Chunks for one Knowledge Base. RAG Prompt/answer APIs,
-Document query/delete APIs, and frontend upload/RAG runtime remain deferred.
+source-rich Top-K Chunks for one Knowledge Base. The RAG query endpoint exposes
+retrieval results without an LLM call, while the RAG chat endpoint produces one
+grounded non-streaming answer and writes it to existing conversation history.
+RagQuery audit writes, Agent Tool integration, Document query/delete APIs, and
+frontend upload/RAG runtime remain deferred.
 
 ## v0.1.0 Demo
 
@@ -282,6 +290,7 @@ DOCUMENT_MAX_MARKDOWN_STRUCTURES=20000
 DOCUMENT_MAX_CHUNKS=10000
 RAG_CHUNK_SIZE=1000
 RAG_CHUNK_OVERLAP=150
+RAG_MAX_CONTEXT_CHARACTERS=12000
 ```
 
 Uploads are non-empty, limited to 20 MiB, and deduplicated by SHA-256 within
@@ -298,6 +307,17 @@ any Document returns HTTP 409 and preserves its rows and controlled files.
 Document deletion, file lifecycle cleanup, and orphan scanning are not
 implemented. The runtime upload directory is ignored and must never be
 committed.
+
+### Naive RAG APIs
+
+`POST /api/v1/rag/query` accepts a Knowledge Base UUID, query, Top-K, and
+optional score threshold. It returns ordered retrieval results and metadata
+without resolving or calling an LLM Provider. `POST /api/v1/rag/chat` also
+accepts an existing Conversation UUID plus Provider/model selection, performs
+one non-streaming grounded answer turn, and returns answer, indexed sources,
+usage, and retrieval/Prompt metadata. See
+[Naive RAG Query and Chat](docs/23-naive-rag.md) for complete contracts and
+safe error behavior.
 
 ### Document Processing
 
@@ -527,6 +547,7 @@ Release documentation:
 - [Knowledge Base design](docs/20-knowledge-base-design.md)
 - [Embedding Provider](docs/21-embedding-provider.md)
 - [Document Ingestion Pipeline](docs/22-document-ingestion-pipeline.md)
+- [Naive RAG Query and Chat](docs/23-naive-rag.md)
 - [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - [Plan 2 final review record](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
@@ -553,9 +574,11 @@ the complete current boundaries.
 Embedding Provider verification is still mock-only: there is no live model
 service acceptance, automatic retry/batching, or persisted embedding-cost
 record. Upload-to-Embedding-to-Qdrant ingestion has Mock API coverage and a
-local temporary-collection smoke. The standalone Retriever has Mock boundary
-coverage and a real temporary-Qdrant smoke, but RAG Prompt/answer/API runtime is
-not yet implemented. Returned Provider usage remains in memory. Normal request
+local temporary-collection smoke. The standalone Retriever and Naive RAG
+Query/Chat APIs have Mock boundary coverage plus a cleaned temporary-Qdrant,
+temporary-SQLite, Mock-LLM API smoke. RAG Chat is non-streaming, requires an
+existing Conversation, and does not yet create RagQuery audit rows or expose an
+Agent Tool/frontend. Returned Embedding Provider usage remains in memory. Normal request
 rollback compensates vectors, while a hard process crash after Qdrant write can
 still leave orphan points for later reconciliation.
 

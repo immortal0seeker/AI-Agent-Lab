@@ -149,6 +149,12 @@ class Settings(BaseSettings):
         le=2_000,
         alias="RAG_CHUNK_OVERLAP",
     )
+    rag_max_context_characters: int = Field(
+        default=12_000,
+        ge=128,
+        le=1_000_000,
+        alias="RAG_MAX_CONTEXT_CHARACTERS",
+    )
 
     @field_validator("model_registry_path", mode="before")
     @classmethod
@@ -210,6 +216,13 @@ class Settings(BaseSettings):
     def reject_boolean_qdrant_timeout(cls, value: object) -> object:
         if isinstance(value, bool):
             raise ValueError("Qdrant timeout must be an integer")
+        return value
+
+    @field_validator("rag_max_context_characters", mode="before")
+    @classmethod
+    def reject_boolean_rag_context_limit(cls, value: object) -> object:
+        if isinstance(value, bool):
+            raise ValueError("RAG context limit must be an integer")
         return value
 
     @field_validator("document_storage_root", mode="before")

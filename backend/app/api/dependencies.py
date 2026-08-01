@@ -26,8 +26,11 @@ from app.services.chat_service import ChatService
 from app.services.conversation_service import ConversationService
 from app.services.document_service import DocumentService
 from app.services.knowledge_base_service import KnowledgeBaseService
+from app.services.rag_service import RagQueryService, RagService
 from app.tools import ToolRegistry
 from app.tools.builtin import register_builtin_tools
+from app.rag.rag_prompt import RagPromptBuilder
+from app.rag.retriever import Retriever
 from app.rag.vectorstores import (
     VectorStore,
     create_qdrant_vector_store,
@@ -105,6 +108,47 @@ def get_vector_store(
     store = create_qdrant_vector_store(settings)
     register_async_session_finalizer(session, store.close)
     return store
+
+
+def get_retriever(
+    embedding_provider: EmbeddingProvider = Depends(get_embedding_provider),
+    vector_store: VectorStore = Depends(get_vector_store),
+) -> Retriever:
+    return Retriever(
+        embedding_provider=embedding_provider,
+        vector_store=vector_store,
+    )
+
+
+def get_rag_prompt_builder(
+    settings: Settings = Depends(get_settings),
+) -> RagPromptBuilder:
+    return RagPromptBuilder(
+        max_context_characters=settings.rag_max_context_characters
+    )
+
+
+def get_rag_query_service(
+    session: Session = Depends(get_db_session, scope="function"),
+    retriever: Retriever = Depends(get_retriever),
+) -> RagQueryService:
+    return RagQueryService(session, retriever=retriever)
+
+
+def get_rag_service(
+    session: Session = Depends(get_db_session, scope="function"),
+    retriever: Retriever = Depends(get_retriever),
+    prompt_builder: RagPromptBuilder = Depends(get_rag_prompt_builder),
+    registry: ModelRegistry = Depends(get_model_registry),
+    providers: Mapping[str, BaseLLMProvider] = Depends(get_llm_providers),
+) -> RagService:
+    return RagService(
+        session,
+        retriever=retriever,
+        prompt_builder=prompt_builder,
+        registry=registry,
+        providers=providers,
+    )
 
 
 def get_document_service(
