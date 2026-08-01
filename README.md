@@ -25,7 +25,7 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M3-S12`.
+Completed scope: `P1-M1-S1` through `P3-M4-S3`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -53,6 +53,11 @@ The final M3 batch connects the synchronous upload transaction to deterministic
 batch Embedding and Qdrant upsert, persists every Chunk UUID as its point ID,
 marks the Document `ready` or a safe `failed` state, and compensates vectors on
 normal request-transaction rollback.
+The first M4 batch adds an independent Naive Vector Retriever. It validates a
+query, Knowledge Base UUID, Top-K and optional score threshold before external
+calls, generates exactly one query embedding, performs a Knowledge-Base-filtered
+VectorStore search, and maps ordered hits into immutable source-rich
+`RetrievalResult` values.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -133,8 +138,9 @@ restricts deletion of a Knowledge Base that still owns Documents, and safely
 clears a deleted answer Message reference without losing its `RagQuery`.
 The upload pipeline now calls the configured Embedding Provider and VectorStore,
 persists `DocumentChunk.vector_id`, and returns `embedding_status=ready` after a
-successful waited Qdrant write. Retriever orchestration, Document query/delete
-APIs, and frontend upload/RAG runtime remain deferred to later Plan 3 steps.
+successful waited Qdrant write. The standalone Retriever now returns ordered,
+source-rich Top-K Chunks for one Knowledge Base. RAG Prompt/answer APIs,
+Document query/delete APIs, and frontend upload/RAG runtime remain deferred.
 
 ## v0.1.0 Demo
 
@@ -547,10 +553,11 @@ the complete current boundaries.
 Embedding Provider verification is still mock-only: there is no live model
 service acceptance, automatic retry/batching, or persisted embedding-cost
 record. Upload-to-Embedding-to-Qdrant ingestion has Mock API coverage and a
-local temporary-collection smoke, but Retriever/RAG-answer runtime is not yet
-implemented. Returned Provider usage remains in memory. Normal request rollback
-compensates vectors, while a hard process crash after Qdrant write can still
-leave orphan points for later reconciliation.
+local temporary-collection smoke. The standalone Retriever has Mock boundary
+coverage and a real temporary-Qdrant smoke, but RAG Prompt/answer/API runtime is
+not yet implemented. Returned Provider usage remains in memory. Normal request
+rollback compensates vectors, while a hard process crash after Qdrant write can
+still leave orphan points for later reconciliation.
 
 ## Roadmap
 

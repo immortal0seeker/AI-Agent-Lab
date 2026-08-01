@@ -6,6 +6,15 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added an independent Naive Vector Retriever that validates query/Knowledge
+  Base/Top-K/threshold inputs, creates one query embedding, performs an isolated
+  VectorStore search, and preserves result order without reranking.
+- Added an immutable `RetrievalResult` source contract with canonical Knowledge
+  Base, Document and Chunk IDs, filename/index/content/score, heading/page and
+  nested JSON metadata; untrusted count, dimension, ownership, Top-K and
+  threshold responses fail closed.
+- Added Mock Provider/VectorStore retrieval coverage and a cleaned real local
+  Qdrant Top-1/threshold/Knowledge-Base-isolation smoke.
 - Added synchronous upload-to-vector ingestion that composes parsing, cleaning,
   Chunking, configured batch Embedding, Qdrant collection validation, and
   waited point upsert behind an independently tested pipeline boundary.

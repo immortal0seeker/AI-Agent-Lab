@@ -1,14 +1,54 @@
 from datetime import datetime
-from typing import Any, Self
+from typing import Annotated, Any, Self
 from uuid import UUID
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    FiniteFloat,
+    JsonValue,
+    StrictInt,
+    StringConstraints,
     field_validator,
     model_validator,
 )
+
+
+RetrievalFilename = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+]
+RetrievalHeading = Annotated[str, StringConstraints(max_length=512)]
+
+
+class RetrievalResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    knowledge_base_id: UUID
+    document_id: UUID
+    chunk_id: UUID
+    filename: RetrievalFilename
+    chunk_index: StrictInt = Field(ge=0)
+    content: str
+    score: FiniteFloat
+    heading: RetrievalHeading | None = None
+    page_number: StrictInt | None = Field(default=None, gt=0)
+    metadata: dict[str, JsonValue]
+
+    @field_validator("content")
+    @classmethod
+    def reject_blank_content(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("content must not be blank")
+        return value
+
+    @field_validator("score", mode="before")
+    @classmethod
+    def reject_coerced_score(cls, value: object) -> object:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("score must be a number")
+        return value
 
 
 class RagQueryCreate(BaseModel):

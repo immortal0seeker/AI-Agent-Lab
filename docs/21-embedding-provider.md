@@ -150,5 +150,6 @@ code. Remote response bodies are not copied into exceptions.
   composes it with the separate Qdrant VectorStore.
 - M3 does not persist embedding-call usage/cost or provide automatic retry and
   orphan reconciliation workflows.
-- No Retriever, RAG answer generation, Advanced RAG, Rerank, Evaluation,
-  Memory, OCR, or multimodal behavior is included here.
+- The M4 Retriever remains a separate caller of this Provider boundary. RAG
+  answer generation, Advanced RAG, Rerank, Evaluation, Memory, OCR, and
+  multimodal behavior are not included here.

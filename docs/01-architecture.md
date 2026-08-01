@@ -27,8 +27,8 @@ bounded ToolCall audit details. M5 adds safety regression coverage plus
 sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
 the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
-audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
-`P3-M3-S12` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
+  audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
+  `P3-M4-S3` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
 ownership boundaries, four knowledge persistence models, a service-owned
 Knowledge Base CRUD API, controlled validated Document upload, and independent
 Markdown/TXT/text-layer-PDF parsers composed with pure cleaning, naive
@@ -40,9 +40,10 @@ and a concrete OpenAI-compatible adapter with independent lazy configuration,
 safe HTTP/response errors, and strict dimension checks. M3 S7～S9 add a
 vendor-neutral asynchronous VectorStore contract, a Qdrant 1.15.x adapter, and
 the stable Chunk payload bridge required by M4. M3 S10～S12 add an independently
-tested upload-to-vector pipeline, persisted Chunk point IDs and Document
-embedding states, plus request-transaction vector compensation. Retriever and
-RAG-answer runtime do not exist yet.
+  tested upload-to-vector pipeline, persisted Chunk point IDs and Document
+  embedding states, plus request-transaction vector compensation. M4 S1～S3 add
+  an independent Top-K Retriever and immutable source result contract. RAG
+  Prompt and answer runtime do not exist yet.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -105,7 +106,7 @@ Current backend layers:
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM abstractions/adapters plus the M3 Embedding abstraction, validated batch result, runtime Registry, and OpenAI-compatible adapter/factory |
 | `knowledge/` | Plan 3 structured knowledge metadata plus controlled Document storage; models live in `models/` and service policy lives in `services/` |
-| `rag/` | Plan 3 document-processing and Naive RAG boundary; parsers, Cleaner, naive Chunker, ingestion pipeline, VectorStore contracts, payload builder, and Qdrant adapter exist through M3 S12, while Retriever runtime remains deferred |
+| `rag/` | Plan 3 document-processing and Naive RAG boundary; parsers, Cleaner, naive Chunker, ingestion pipeline, VectorStore/Qdrant, source payload, and the independent Top-K Retriever exist through M4 S3 |
 | `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
 | `db/` | SQLAlchemy session/database setup plus request-scoped async rollback callbacks and resource finalizers |
 | `models/` | ORM models |
@@ -250,8 +251,9 @@ limit.
 After a successful Qdrant upsert, the service registers an asynchronous Session
 rollback callback. A later request commit failure rolls back SQLite and the
 controlled file, deletes vectors under both Knowledge Base and Document
-ownership, and only then closes the request-owned Qdrant client. Hard-crash
-reconciliation, Document query/delete, and retrieval remain deferred. The
+  ownership, and only then closes the request-owned Qdrant client. Hard-crash
+  reconciliation, Document query/delete, and RAG answer generation remain
+  deferred. The
 complete contract is documented in [Knowledge Base Design](20-knowledge-base-design.md)
 and [Document Ingestion Pipeline](22-document-ingestion-pipeline.md).
 
@@ -572,7 +574,7 @@ Plan 3 Embedding provider target through `P3-M3-S6`:
   at upload dependency resolution and returns a safe 503 before file creation
   when that configuration is unavailable.
 
-Plan 3 VectorStore and ingestion target through `P3-M3-S12`:
+Plan 3 VectorStore, ingestion, and retrieval target through `P3-M4-S3`:
 
 - `VectorStore` defines asynchronous collection, upsert, search, ownership
   delete, and client-lifecycle operations behind validated immutable contracts.
@@ -589,6 +591,14 @@ Plan 3 VectorStore and ingestion target through `P3-M3-S12`:
   results.
 - SQLite persists every successful Chunk point ID and final Document embedding
   state; request rollback performs best-effort ownership-scoped vector cleanup.
+- `RetrievalResult` is an immutable source value containing canonical Knowledge
+  Base/Document/Chunk IDs, filename/index/content/score, optional heading/page,
+  and copied JSON metadata.
+- `Retriever` validates query, Knowledge Base UUID, Top-K (1～100), and optional
+  finite score threshold before external calls. It requires exactly one query
+  vector with the VectorStore dimension, performs one Knowledge-Base-filtered
+  search, and fails closed on invalid result type, ownership, count, or
+  threshold. It preserves VectorStore order and does not rerank.
 
 The Provider stream contract is consumed by `ChatService.stream_complete()` and
 the protocol adapter at `POST /api/v1/chat/stream`. The service emits
@@ -643,7 +653,7 @@ Simple Agent loop. The following remain outside the current architecture:
 - `web_fetch` or another network Tool
 - streaming Tool Calling
 - Agent Runtime v2, Planner, Human Approval, cancel/resume/retry, and replay
-- Retrieval and RAG-answer pipelines
+- RAG Prompt and RAG-answer/API pipelines
 - Persisted embedding-call usage/cost audit
 - Memory systems
 - MCP integrations

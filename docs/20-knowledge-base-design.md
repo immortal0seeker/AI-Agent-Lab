@@ -3,13 +3,13 @@
 ## Scope
 
 Plan 3 Milestone 1 establishes the persistence and management boundary for
-Knowledge Bases. Through `P3-M3-S12`, the backend can create, list, read, update,
+Knowledge Bases. Through `P3-M4-S3`, the backend can create, list, read, update,
 and delete Knowledge Base metadata, upload one validated Document through a
 service-owned HTTP API, and synchronously parse, clean, and chunk Markdown,
 TXT, or text-layer PDF through independent processing boundaries. It also
 provides a vendor-neutral Embedding Provider/result contract, runtime Registry,
-OpenAI-compatible adapter, Qdrant VectorStore, stable Chunk payload, and the
-document vector-ingestion pipeline that connects those boundaries.
+OpenAI-compatible adapter, Qdrant VectorStore, stable Chunk payload, the
+document vector-ingestion pipeline, and an independent Top-K Retriever.
 
 The first M2 batch stores `.md`, `.txt`, and `.pdf` bytes and creates the
 initial Document row. The second adds pure parsers. The final M2 batch composes
@@ -20,8 +20,9 @@ concrete protocol adapter, and lazy initialization. M3 S7～S9 add the
 VectorStore abstraction, Qdrant adapter, and stable Chunk payload. M3 S10～S12
 complete the upload-to-parse-to-clean-to-chunk-to-embed-to-upsert flow, persist
 each Qdrant point ID on its owning Chunk, and transition the Document embedding
-state. Retrieval, RAG answers, and the frontend Knowledge Base workspace remain
-assigned to later Plan 3 steps.
+state. M4 S1～S3 add query embedding, Knowledge-Base-filtered Top-K search, and a
+stable source result. RAG answers and the frontend Knowledge Base workspace
+remain assigned to later Plan 3 steps.
 
 ## Storage Responsibilities
 
@@ -167,8 +168,8 @@ content, heading, page_number, metadata
 UUIDs serialize as canonical lowercase strings. `metadata` stays nested and
 must be a JSON-safe object with string keys and finite numbers. The builder
 checks that the Document and Chunk share both Document and Knowledge Base
-ownership, copies mutable metadata, and preserves Chunk content for M4's
-`RetrievalResult` without implementing the Retriever in this batch.
+ownership, copies mutable metadata, and preserves the fields consumed by M4's
+`RetrievalResult`.
 
 Qdrant search always applies an exact `knowledge_base_id` filter and returns
 payload without vectors. Document deletion applies both `knowledge_base_id` and
@@ -177,6 +178,35 @@ Base's points. SDK and network failures become fixed safe operation errors;
 malformed collection/search responses become safe response errors. Neither
 path copies endpoint diagnostics, payload content, vectors, or exception causes
 into application errors.
+
+## Naive Retriever Boundary
+
+`app.rag.retriever.Retriever` is the independent orchestration boundary added
+by M4 S1～S3. It receives an `EmbeddingProvider` and `VectorStore` at
+construction; it does not read Settings, use a database Session, choose a
+Provider/collection, or own client lifecycle. Its asynchronous `retrieve()`
+accepts a query, Knowledge Base UUID, `top_k` defaulting to 5, and an optional
+finite score threshold.
+
+All input is checked before a potential Provider call. Top-K is a strict
+non-boolean integer from 1 through 100. A valid query is sent unchanged to
+`embed_query()`. The result must contain exactly one vector whose dimension
+matches the VectorStore. The Retriever then creates one `VectorSearchQuery`
+and preserves the returned similarity order without filtering metadata,
+deduplicating, merging, or reranking.
+
+`RetrievalResult` is an immutable Pydantic source value containing:
+
+```text
+knowledge_base_id, document_id, chunk_id, filename, chunk_index,
+content, score, heading, page_number, metadata
+```
+
+UUIDs stay strongly typed and serialize canonically. Nested metadata is copied
+before exposure. The Retriever rejects an invalid result type, a cross-
+Knowledge-Base payload, more results than Top-K, or a result below the requested
+threshold as one fixed safe response error; it never returns partial output.
+Provider and VectorStore errors keep their existing boundary categories.
 
 ## Controlled Document Storage
 
@@ -331,8 +361,8 @@ Conversation. Deleting an answer Message clears the optional reference and
 preserves the query; deleting its Conversation or Knowledge Base cascades to the
 query.
 
-M1 creates no retrieval or answer-generation runtime, so these rows are not yet
-written by an HTTP workflow.
+The standalone Retriever does not write audit rows. Retrieval/answer HTTP
+workflows and `rag_queries` persistence remain assigned to M4 S4+.
 
 ## Knowledge Base Service
 
@@ -378,7 +408,7 @@ deleting the knowledge base`.
 
 The Document upload request is `multipart/form-data` with one required `file`
 field. Upload now runs the complete vector-ingestion pipeline. There are still
-no Document list, detail, chunk-query, retry, or delete routes through M3 S12.
+no Document list, detail, chunk-query, retry, or delete routes through M4 S3.
 
 ## Error And Transaction Behavior
 
@@ -599,18 +629,42 @@ The M3 S10～S12 document vector-ingestion verification reached:
   zero high-confidence secrets, private-key headers, executable later-Plan or
   network-Tool runtime, and tracked artifacts.
 
+The M4 S1～S3 Naive Vector Retriever verification reached:
+
+- `RetrievalResult` import RED, then schema/knowledge adjacent GREEN
+  `46 passed`;
+- Retriever module RED, then happy-path/contract GREEN `57 passed`;
+- strict input error export RED, then Retriever GREEN `18 passed`;
+- response error export RED, then Retriever GREEN `24 passed`;
+- Codex self-review reproduced Top-K/threshold contract escape as
+  `2 failed, 24 deselected`; an oversized integer threshold then reproduced an
+  uncaught overflow as `1 failed, 5 passed, 21 deselected`. Both fixes are in
+  final Retriever GREEN `27 passed`;
+- Embedding/VectorStore/ingestion adjacent focused `169 passed`; complete
+  backend `938 passed, 1 warning`; dependency integrity
+  `No broken requirements found`;
+- live local Qdrant with a deterministic Mock query embedding returned one
+  correct Top-1 Chunk above threshold, preserved Knowledge Base isolation, and
+  removed the random temporary collection; matching-prefix remainder was zero;
+- temporary-SQLite migration round trip remained at head `20260801_0006` and
+  its directory was removed; frontend typecheck, `18` files / `90` tests, and
+  production build with `1813` transformed modules passed;
+- `108` Markdown files, `84` valid local links/images, and zero missing targets;
+  zero high-confidence secrets, private-key headers, executable later-Step or
+  network-Tool runtime, and tracked artifacts.
+
 The active Plan 3 execution table contains the security, scope, artifact, and
 Git gates. No verification command read or modified `backend/ai_agent_lab.db`.
 
 ## Deferred Capabilities
 
-The following remain outside completed Plan 3 through M3 S12:
+The following remain outside completed Plan 3 through M4 S3:
 
 - Document list, detail, chunk-query, delete, local-file deletion, and orphan
   recovery workflows;
 - live Embedding service acceptance, automatic retry/splitting, persisted call
   audit/cost, and hard-crash orphan reconciliation;
-- Retriever, RAG Prompt, RAG query/chat runtime, and Agent Tool integration;
+- RAG Prompt, RAG query/chat runtime, audit writes, and Agent Tool integration;
 - frontend Knowledge Base, upload, RAG Chat, and source display;
 - Advanced RAG, Hybrid Search, Rerank, Evaluation, Memory, OCR, and multimodal
   capabilities.

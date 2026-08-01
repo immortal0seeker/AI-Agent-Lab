@@ -25,7 +25,7 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M3-S12`。
+已完成范围：`P1-M1-S1` 到 `P3-M4-S3`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -46,6 +46,9 @@ delete，以及为 M4 保留 content 与来源 metadata 的严格 Chunk payload 
 M3 最后一批把同步上传事务继续串联到确定性批量 Embedding 与 Qdrant upsert，将每个
 Chunk UUID 持久化为 point ID，把 Document 标为 `ready` 或安全 `failed`，并在正常的
 请求事务回滚时补偿删除本次 vectors。
+M4 首批新增独立 Naive Vector Retriever：在外部调用前严格校验 query、知识库 UUID、
+Top-K 与可选 score threshold，只生成一个 query embedding，执行按知识库隔离的
+VectorStore search，并把有序命中映射为不可变、来源字段完整的 `RetrievalResult`。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -107,7 +110,8 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 检查 collection，并写入、按知识库过滤检索和按 Document 删除经过校验的 Chunk point。
 上传 Pipeline 现已调用配置的 Embedding Provider 与 VectorStore，持久化
 `DocumentChunk.vector_id`，并在等待 Qdrant 写入完成后返回 `embedding_status=ready`；
-Retriever 编排、Document 查询/删除 API 和前端上传/RAG runtime 仍延期。
+独立 Retriever 现可返回一个知识库内有序、来源完整的 Top-K Chunks。RAG Prompt/回答
+API、Document 查询/删除 API 和前端上传/RAG runtime 仍延期。
 补丁 revision `20260801_0006` 增加同一知识库内的 Document hash 唯一约束，禁止
 删除仍含 Document 的知识库，并在删除回答 Message 时只清空引用、保留 `RagQuery`。
 
@@ -470,9 +474,10 @@ usage/cost 记录，`web_fetch` 也继续明确延期且没有运行时表面。
 [Plan 2 最终复审记录](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)。
 Embedding Provider 验证仍只使用 Mock：尚无真实模型服务验收、自动重试/拆批或持久化
 embedding 成本记录。上传到 Embedding 再到 Qdrant 的 ingestion 已有 Mock API 覆盖和
-本地临时 collection smoke，但 Retriever/RAG 回答 runtime 尚未实现；Provider usage
-仍只存在于内存。正常请求回滚会补偿 vectors，但 Qdrant 写入后进程硬崩溃仍可能留下
-需要后续 reconciliation 的 orphan points。
+本地临时 collection smoke。独立 Retriever 已有 Mock 边界覆盖和真实临时 Qdrant
+smoke，但 RAG Prompt/回答/API runtime 尚未实现；Provider usage 仍只存在于内存。
+正常请求回滚会补偿 vectors，但 Qdrant 写入后进程硬崩溃仍可能留下需要后续
+reconciliation 的 orphan points。
 
 ## Roadmap
 

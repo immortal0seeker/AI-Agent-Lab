@@ -62,7 +62,7 @@ blocked
 | Batch 8 | P3-M3-S4～S6 | 实现 OpenAI-compatible Embedding 和配置 | provider 测试 | 已完成（批量/query adapter、独立配置、安全错误、维度双检、正式文档与全量回归通过） |
 | Batch 9 | P3-M3-S7～S9 | 实现 Qdrant Vector Store | vector store 测试 | 已完成（抽象、payload、collection/upsert/search/delete、真实临时 collection 与全量回归通过） |
 | Batch 10 | P3-M3-S10～S12 | 实现文档入库 Pipeline | 端到端入库测试，Codex self-review M3 | 已完成（parse/chunk/embed/upsert、vector_id/状态、回滚补偿、正式文档与全量回归通过） |
-| Batch 11 | P3-M4-S1～S3 | 实现 Retriever 和 RAG Prompt | 检索 + prompt 测试 | 未完成 |
+| Batch 11 | P3-M4-S1～S3 | 实现 Retriever 和来源结构 | Retriever/schema 测试 | 已完成（query embedding、Top-K/threshold、KB 隔离、完整来源结构与真实临时 Qdrant smoke 通过） |
 | Batch 12 | P3-M4-S4～S6 | 实现 RAG Query / Chat API | API 测试 | 未完成 |
 | Batch 13 | P3-M4-S7～S8 | 注册 search_knowledge_base 工具 | Agent 工具调用测试，Codex + Claude review M4 | 未完成 |
 | Batch 14 | P3-M5-S1～S3 | 实现知识库页面和上传 UI | 浏览器手测 | 未完成 |
@@ -450,7 +450,7 @@ feat(rag): add document vector ingestion pipeline
 
 | Step ID | 任务 | 建议工具 | 交付物 | 验证方式 | Review |
 |---|---|---|---|---|---|
-| P3-M4-S1 | 实现 Retriever | Codex | `retriever.py` | 给定 query 返回 Top-K RetrievalResult | Claude Code 可审 |
+| P3-M4-S1 | 实现 Retriever | Codex | `retriever.py` | 给定 query 返回 Top-K RetrievalResult | Codex self-review |
 | P3-M4-S2 | 实现检索 metadata 和来源结构 | Codex | `RetrievalResult` schema | 返回 chunk_id、document_id、score、content、metadata | Codex |
 | P3-M4-S3 | 补 Retriever 测试 | Codex | retriever tests | mock vector store 检索测试通过 | Codex |
 | P3-M4-S4 | 实现 RAG Prompt 模板 | Codex | `prompts/rag_prompt.md` 或 prompt builder | Prompt 包含问题、上下文、来源约束 | Codex |
@@ -458,6 +458,29 @@ feat(rag): add document vector ingestion pipeline
 | P3-M4-S6 | 实现 RAG Chat API | Codex | rag chat endpoint | 能把 RAG 回答写入会话历史 | Codex |
 | P3-M4-S7 | 实现 rag_queries 记录 | Codex | 查询记录写入逻辑 | 记录 query、knowledge_base_id、top_k、source ids、latency | Codex |
 | P3-M4-S8 | 注册 search_knowledge_base 工具 | Codex | `tools/builtin/search_knowledge_base.py` | Agent 可调用 RAG Tool 返回检索结果 | Codex + Claude review |
+
+### P3-M4-S1～S3 Naive Vector Retriever 验收记录（2026-08-01）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 范围与基线 | 从 `HEAD == origin/main == 5b72d10874134a6804652aba7502d5607fe628ce` 的干净 `main` 开始，只实现 S1～S3；未创建/切换分支或使用 worktree，staged paths 保持 0，既有 `v0.2.0` / `v0.2.1` peeled targets 未移动。 |
+| S1 Retriever | 新增独立异步 `Retriever`，在外部调用前严格校验 query、Knowledge Base UUID、1～100 Top-K 与可选有限 threshold；只调用一次 `embed_query()`，要求恰好一个与 VectorStore 同维度的向量，再执行 KB-filtered search 并保持相似度顺序，不重排或 rerank。 |
+| S2 来源结构 | 新增不可变 `RetrievalResult`：强类型 KB/Document/Chunk UUID、filename、chunk index、content、finite score、heading/page 与 JSON metadata；UUID 可规范序列化，nested metadata 防御性复制。结果类型、KB ownership、Top-K 数量或 threshold 不可信时整体 fail closed。 |
+| S3 TDD | schema import RED 后 `46 passed`；Retriever module RED 后 happy-path/contract `57 passed`；输入错误导出 RED 后 `18 passed`；响应错误导出 RED 后 `24 passed`。Codex 自审新增 Top-K/threshold RED `2 failed, 24 deselected`，再以 `1 failed, 5 passed, 21 deselected` 复现极大整数 threshold overflow；修复后 Retriever `27 passed`，最终邻接 focused `169 passed`。 |
+| 真实 Qdrant | Qdrant 1.15.4 running、restart 0、仅 `127.0.0.1:6333`、healthz 200。随机 `codex_p3_m4_s1_s3_*` collection 配合确定性 Mock query embedding 返回 1 个正确 Top-1 Chunk，满足 threshold、KB 隔离和 Chunk ID；`finally` 删除后同前缀 collection 数为 0。 |
+| 全量验证 | backend `938 passed, 1 warning`，warning 为既知 Starlette TestClient/httpx 弃用提示；`pip check` 无破损。系统临时 SQLite Alembic upgrade/current/check/downgrade/re-upgrade 通过，head `20260801_0006` 且临时目录已删除。Frontend typecheck、`18 files / 90 tests`、build `1813 modules` 通过。未读取或修改用户数据库。 |
+| 文档、安全与 Git | README 中英文、CHANGELOG、Architecture、Knowledge Base/Embedding/Ingestion 文档及执行表同步；108 个 Markdown、84 个本地链接/图片、0 missing。高置信 secret/private-key header/later-Step runtime/network-Tool runtime/tracked artifact 均为 0。`git diff --check` 通过；15 个预期路径（10 modified、5 untracked），staged 0。 |
+| Codex self-review | must fix：Retriever 原实现信任可替换 VectorStore 的 Top-K/threshold 执行，且极大整数 threshold 会从 `math.isfinite()` 泄漏 `OverflowError`；均已用行为 RED 复现，增加组合边界 fail-closed 与安全有限数 helper。fix later：S4～S6 RAG Prompt/Query/Chat API，S7～S8 audit/Tool。accepted limitation：无真实 Embedding 服务验收、无 RAG answer、无 metadata filter/rerank；Retriever 不选择每 KB Provider/collection。not applicable：ORM/migration、API route、前端 runtime/截图、外部 review/tag。无剩余 must-fix。 |
+
+**结论：** `P3-M4-S1～S3` 与 Batch 11 完成，可进入 `P3-M4-S4～S6`；
+本批未提前实现 RAG Prompt/API、`rag_queries` 写入、Agent Tool、前端或任何 Advanced RAG /
+Plan 4+ runtime。
+
+本批建议 commit：
+
+```text
+feat(rag): add naive vector retriever
+```
 
 M4 完成后建议 commit：
 
@@ -608,15 +631,15 @@ Claude Code 审核后，Codex 负责：
 | 可以切分 Chunk | implemented | chunker、放大上限、heading 边界与 ingestion 测试 |
 | 可以调用 Embedding Provider | implemented | Mock Embedding 端到端入库、Provider adapter 与安全失败测试；未调用真实付费服务 |
 | 可以写入 Qdrant | implemented | mock/adapter 测试与真实临时 collection create/check/upsert/search/delete 冒烟 |
-| 可以基于 query 检索 Chunk | pending | retriever 测试 |
+| 可以基于 query 检索 Chunk | implemented | Mock Provider/VectorStore focused tests 与真实临时 Qdrant Top-K/threshold/KB 隔离 smoke |
 | 可以基于检索结果生成回答 | pending | RAG API 测试 |
 | 前端可以上传文档 | pending | 页面截图 |
 | 前端可以查看文档状态 | pending | 页面截图 |
 | 前端可以进行 RAG Chat | pending | 页面截图 |
 | 前端可以展示来源片段 | pending | 页面截图 |
 | search_knowledge_base 工具可用 | pending | Agent Tool 测试 |
-| README 已更新 | implemented | 中英文 README 已同步至 M3 S12 入库状态、配置、补偿与限制 |
-| docs 已更新 | implemented | Architecture、Knowledge Base/Embedding/Document Ingestion 设计及 M3 正式 review |
+| README 已更新 | implemented | 中英文 README 已同步至 M4 S3 Retriever、来源结构与剩余 RAG 限制 |
+| docs 已更新 | implemented | Architecture、Knowledge Base/Embedding/Ingestion 设计与 Retriever 设计/实施计划 |
 | 已创建 v0.3.0 tag | pending | `git tag --list` 输出 |
 
 ---

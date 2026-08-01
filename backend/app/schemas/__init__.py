@@ -30,7 +30,7 @@ from app.schemas.knowledge_base import (
 from app.schemas.llm_call import LLMCallCreate, LLMCallRead
 from app.schemas.message import MessageCreate, MessageRead
 from app.schemas.model import ModelRead
-from app.schemas.rag import RagQueryCreate, RagQueryRead
+from app.schemas.rag import RagQueryCreate, RagQueryRead, RetrievalResult
 from app.schemas.tool import ToolCallRequest, ToolCallResponse, ToolCallStatus
 
 __all__ = [
@@ -63,6 +63,7 @@ __all__ = [
     "ModelRead",
     "RagQueryCreate",
     "RagQueryRead",
+    "RetrievalResult",
     "ToolCallRequest",
     "ToolCallRead",
     "ToolCallResponse",
