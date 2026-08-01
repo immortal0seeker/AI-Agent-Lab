@@ -39,7 +39,6 @@ def test_cleaner_preserves_markdown_and_updates_heading_lines() -> None:
             "code_blocks": [
                 {
                     "language": "py",
-                    "content": "  value = 1",
                     "start_line": 6,
                     "end_line": 8,
                 }
@@ -56,9 +55,59 @@ def test_cleaner_preserves_markdown_and_updates_heading_lines() -> None:
         {"level": 1, "text": "Title", "line_number": 1},
         {"level": 2, "text": "Next", "line_number": 7},
     ]
-    assert cleaned.metadata["code_blocks"] == original.metadata["code_blocks"]
+    assert cleaned.metadata["code_blocks"] == [
+        {"language": "py", "start_line": 3, "end_line": 5}
+    ]
     assert cleaned.metadata["code_blocks"] is not original.metadata["code_blocks"]
     assert original.metadata["headings"][0]["line_number"] == 3
+
+
+def test_cleaner_preserves_fenced_blank_lines_and_remaps_structure() -> None:
+    original = ParsedDocument(
+        document_id=DOCUMENT_ID,
+        text="Intro\n\n```py\na = 1\n\n\nb = 2\n```\n\n# Next",
+        metadata={
+            "format": "markdown",
+            "headings": [
+                {"level": 1, "text": "Next", "line_number": 10}
+            ],
+            "code_blocks": [
+                {"language": "py", "start_line": 3, "end_line": 8}
+            ],
+        },
+    )
+
+    cleaned = clean_parsed_document(original)
+
+    assert "a = 1\n\n\nb = 2" in cleaned.text
+    assert cleaned.metadata["code_blocks"] == [
+        {"language": "py", "start_line": 3, "end_line": 8}
+    ]
+    assert cleaned.metadata["headings"] == [
+        {"level": 1, "text": "Next", "line_number": 10}
+    ]
+
+
+def test_cleaner_ignores_malformed_markdown_line_metadata() -> None:
+    original = ParsedDocument(
+        document_id=DOCUMENT_ID,
+        text="# Title",
+        metadata={
+            "format": "markdown",
+            "headings": [
+                {"level": 1, "text": "Title", "line_number": True}
+            ],
+            "code_blocks": [
+                {"language": "py", "start_line": True, "end_line": 1}
+            ],
+        },
+    )
+
+    cleaned = clean_parsed_document(original)
+
+    assert cleaned.metadata == original.metadata
+    assert cleaned.metadata["headings"][0]["line_number"] is True
+    assert cleaned.metadata["code_blocks"][0]["start_line"] is True
 
 
 def test_cleaner_cleans_pdf_pages_independently() -> None:

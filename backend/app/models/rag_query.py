@@ -32,7 +32,7 @@ class RagQuery(Base):
             ["answer_message_id", "conversation_id"],
             ["messages.id", "messages.conversation_id"],
             name="fk_rag_queries_answer_message_conversation_messages",
-            ondelete="RESTRICT",
+            ondelete="NO ACTION",
         ),
         CheckConstraint(
             "answer_message_id IS NULL OR conversation_id IS NOT NULL",
@@ -69,6 +69,11 @@ class RagQuery(Base):
     )
     answer_message_id: Mapped[UUID | None] = mapped_column(
         Uuid(as_uuid=True),
+        ForeignKey(
+            "messages.id",
+            name="fk_rag_queries_answer_message_id_messages",
+            ondelete="SET NULL",
+        ),
         index=True,
         nullable=True,
     )

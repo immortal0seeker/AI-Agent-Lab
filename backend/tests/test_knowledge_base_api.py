@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator, Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,8 +15,8 @@ from app.api.errors import error_spec_for_exception
 from app.db.base import Base
 from app.db.session import create_db_engine
 from app.main import app
-from app.models import KnowledgeBase
-from app.services import KnowledgeBaseNotFoundError
+from app.models import Document, KnowledgeBase
+from app.services import KnowledgeBaseNotEmptyError, KnowledgeBaseNotFoundError
 
 
 @pytest.fixture
@@ -153,6 +153,55 @@ def test_knowledge_base_api_lists_deterministically(
     assert [item["id"] for item in response.json()] == expected_ids
 
 
+def test_knowledge_base_api_rejects_deleting_nonempty_base(
+    api_context: Any,
+    tmp_path: Path,
+) -> None:
+    client, factory = api_context
+    created = client.post(
+        "/api/v1/knowledge-bases",
+        json={"name": "Keep API documents"},
+    )
+    knowledge_base_id = UUID(created.json()["id"])
+    document_id = uuid4()
+    controlled_file = (
+        tmp_path
+        / "uploads"
+        / str(knowledge_base_id)
+        / f"{document_id}.txt"
+    )
+    controlled_file.parent.mkdir(parents=True)
+    controlled_file.write_text("synthetic", encoding="utf-8")
+    with factory() as session:
+        session.add(
+            Document(
+                id=document_id,
+                knowledge_base_id=knowledge_base_id,
+                filename=f"{document_id}.txt",
+                original_filename="synthetic.txt",
+                file_type="txt",
+                file_path=f"{knowledge_base_id}/{document_id}.txt",
+                file_size=9,
+                file_hash="a" * 64,
+            )
+        )
+        session.commit()
+
+    response = client.delete(
+        f"/api/v1/knowledge-bases/{knowledge_base_id}"
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "knowledge_base_not_empty"
+    assert response.json()["error"]["message"] == (
+        "Delete documents before deleting the knowledge base"
+    )
+    with factory() as session:
+        assert session.get(KnowledgeBase, knowledge_base_id) is not None
+        assert session.get(Document, document_id) is not None
+    assert controlled_file.read_text(encoding="utf-8") == "synthetic"
+
+
 @pytest.mark.parametrize(
     ("method", "suffix", "payload"),
     [
@@ -220,6 +269,19 @@ def test_knowledge_base_error_mapping_is_stable_and_safe() -> None:
     assert spec.code == "knowledge_base_not_found"
     assert spec.message == "Knowledge base not found"
     assert str(missing_id) not in spec.message
+
+
+def test_knowledge_base_not_empty_mapping_is_stable_and_safe() -> None:
+    knowledge_base_id = uuid4()
+
+    spec = error_spec_for_exception(
+        KnowledgeBaseNotEmptyError(knowledge_base_id)
+    )
+
+    assert spec.status_code == 409
+    assert spec.code == "knowledge_base_not_empty"
+    assert spec.message == "Delete documents before deleting the knowledge base"
+    assert str(knowledge_base_id) not in spec.message
 
 
 def test_knowledge_base_api_commit_failure_rolls_back(

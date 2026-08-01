@@ -43,6 +43,23 @@ All notable changes to AI Agent Lab are documented in this file.
   commit/rollback, focused temporary-SQLite coverage, and the formal M1 data
   model/API reference.
 
+### Security And Reliability
+
+- Bound the local Qdrant port to `127.0.0.1` and added configurable limits for
+  PDF pages, extracted characters, Markdown structures, and per-Document chunks.
+- Enforced exact canonical stored paths, retained storage-root symlink/reparse
+  evidence until validation, bounded persisted headings, and preserved fenced
+  Markdown blank lines while remapping structure line metadata.
+- Removed duplicated code content from Markdown metadata and converted
+  processing-limit failures into fixed safe Document lifecycle errors without
+  partial chunk persistence.
+- Added Alembic revision `20260801_0006` with fail-closed historical duplicate
+  detection, same-Knowledge-Base hash uniqueness, Knowledge Base Document
+  deletion restriction, and safe answer-Message `SET NULL` behavior.
+- Made non-empty Knowledge Base deletion a stable HTTP 409 that preserves
+  metadata and controlled files, and normalized only the Document hash unique
+  race to the existing safe duplicate response.
+
 ## [0.2.1] - 2026-07-20
 
 ### Security And Reliability

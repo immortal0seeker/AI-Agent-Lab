@@ -4,10 +4,17 @@ from uuid import UUID
 
 import pytest
 
+from app.rag import DocumentProcessingLimitError, DocumentProcessingLimits
 from app.rag.parsers import DocumentParseError, parse_markdown
 
 
 DOCUMENT_ID = UUID("11111111-1111-4111-8111-111111111111")
+LIMITS = DocumentProcessingLimits(
+    max_pdf_pages=1,
+    max_extracted_characters=20,
+    max_markdown_structures=1,
+    max_chunks=10,
+)
 
 
 def test_markdown_parser_preserves_text_and_extracts_structure(
@@ -45,13 +52,11 @@ def test_markdown_parser_preserves_text_and_extracts_structure(
         "code_blocks": [
             {
                 "language": "python",
-                "content": '# not a heading\nprint("hello")',
                 "start_line": 5,
                 "end_line": 8,
             },
             {
                 "language": "text",
-                "content": "sample",
                 "start_line": 10,
                 "end_line": 12,
             },
@@ -91,11 +96,28 @@ def test_markdown_parser_keeps_unclosed_fence_to_end_of_file(
     assert parsed.metadata["code_blocks"] == [
         {
             "language": "py",
-            "content": "# code heading\nvalue = 1",
             "start_line": 2,
             "end_line": 4,
         }
     ]
+
+
+def test_markdown_parser_rejects_structure_limit(tmp_path: Path) -> None:
+    path = tmp_path / "many.md"
+    path.write_text("# One\n# Two", encoding="utf-8")
+
+    with pytest.raises(DocumentProcessingLimitError):
+        parse_markdown(path, document_id=DOCUMENT_ID, limits=LIMITS)
+
+
+def test_markdown_parser_rejects_extracted_character_limit(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "large.md"
+    path.write_text("x" * 21, encoding="utf-8")
+
+    with pytest.raises(DocumentProcessingLimitError):
+        parse_markdown(path, document_id=DOCUMENT_ID, limits=LIMITS)
 
 
 def test_markdown_parser_wraps_invalid_utf8_safely(

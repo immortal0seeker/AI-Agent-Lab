@@ -40,6 +40,7 @@ from app.services.errors import (
     ChatModelNotFoundError,
     ChatProviderUnavailableError,
     ConversationNotFoundError,
+    KnowledgeBaseNotEmptyError,
     KnowledgeBaseNotFoundError,
     ServiceError,
 )
@@ -85,6 +86,12 @@ def error_spec_for_exception(exc: Exception) -> ErrorSpec:
             404,
             "knowledge_base_not_found",
             "Knowledge base not found",
+        )
+    if isinstance(exc, KnowledgeBaseNotEmptyError):
+        return ErrorSpec(
+            409,
+            "knowledge_base_not_empty",
+            "Delete documents before deleting the knowledge base",
         )
     if isinstance(exc, DocumentFileInvalidError):
         return ErrorSpec(

@@ -3,7 +3,7 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -139,7 +139,7 @@ def test_json_defaults_are_isolated(db: tuple[Session, Engine]) -> None:
     )
 
 
-def test_deleting_knowledge_base_cascades_owned_rows(
+def test_deleting_knowledge_base_with_document_is_restricted(
     db: tuple[Session, Engine],
 ) -> None:
     session, _ = db
@@ -148,15 +148,52 @@ def test_deleting_knowledge_base_cascades_owned_rows(
     session.add(knowledge_base)
     session.flush()
     document.chunks.append(create_chunk(document, knowledge_base.id))
-    knowledge_base.rag_queries.append(RagQuery(query="Synthetic query"))
     session.commit()
 
-    session.delete(knowledge_base)
+    with pytest.raises(IntegrityError):
+        session.execute(
+            delete(KnowledgeBase).where(KnowledgeBase.id == knowledge_base.id)
+        )
+        session.commit()
+    session.rollback()
+
+    assert session.get(KnowledgeBase, knowledge_base.id) is not None
+    assert session.get(Document, document.id) is not None
+    assert session.scalars(select(DocumentChunk)).all() != []
+
+
+def test_document_hash_is_unique_within_knowledge_base(
+    db: tuple[Session, Engine],
+) -> None:
+    session, _ = db
+    knowledge_base = KnowledgeBase(name="Duplicate documents")
+    session.add_all(
+        [
+            create_document(knowledge_base, suffix="a"),
+            create_document(knowledge_base, suffix="a"),
+        ]
+    )
+
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+def test_document_hash_may_repeat_across_knowledge_bases(
+    db: tuple[Session, Engine],
+) -> None:
+    session, _ = db
+    first = KnowledgeBase(name="First documents")
+    second = KnowledgeBase(name="Second documents")
+    session.add_all(
+        [
+            create_document(first, suffix="a"),
+            create_document(second, suffix="a"),
+        ]
+    )
+
     session.commit()
 
-    assert session.scalars(select(Document)).all() == []
-    assert session.scalars(select(DocumentChunk)).all() == []
-    assert session.scalars(select(RagQuery)).all() == []
+    assert len(session.scalars(select(Document)).all()) == 2
 
 
 def test_knowledge_base_rejects_blank_name(
@@ -343,6 +380,40 @@ def test_deleting_answer_message_preserves_rag_query(
 
     preserved = session.get(RagQuery, query_id)
     assert preserved is not None
+    assert preserved.answer_message_id is None
+
+
+def test_raw_deleting_answer_message_preserves_rag_query(
+    db: tuple[Session, Engine],
+) -> None:
+    session, _ = db
+    conversation = Conversation()
+    answer = Message(
+        conversation=conversation,
+        role="assistant",
+        content="Synthetic answer",
+    )
+    knowledge_base = KnowledgeBase(name="Raw delete queries")
+    query = RagQuery(
+        knowledge_base=knowledge_base,
+        conversation=conversation,
+        answer_message=answer,
+        query="Preserve raw query",
+    )
+    session.add_all([conversation, knowledge_base])
+    session.commit()
+    conversation_id = conversation.id
+    answer_id = answer.id
+    query_id = query.id
+    session.expunge_all()
+
+    session.execute(delete(Message).where(Message.id == answer_id))
+    session.commit()
+    session.expire_all()
+
+    preserved = session.get(RagQuery, query_id)
+    assert preserved is not None
+    assert preserved.conversation_id == conversation_id
     assert preserved.answer_message_id is None
 
 

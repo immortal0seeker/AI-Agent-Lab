@@ -13,7 +13,8 @@ def test_qdrant_compose_contract() -> None:
     )
 
     assert "qdrant/qdrant:v1.15.4" in compose
-    assert '"6333:6333"' in compose
+    assert '"127.0.0.1:6333:6333"' in compose
+    assert '"6333:6333"' not in compose
     assert "qdrant_data:/qdrant/storage" in compose
     assert "\n  qdrant_data:\n" in compose
     assert 'QDRANT__TELEMETRY_DISABLED: "true"' in compose

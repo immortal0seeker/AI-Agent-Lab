@@ -1,6 +1,12 @@
 from pathlib import Path
 from uuid import UUID
 
+from app.rag.processing_limits import (
+    DEFAULT_DOCUMENT_PROCESSING_LIMITS,
+    DocumentProcessingLimitError,
+    DocumentProcessingLimits,
+)
+
 from .base import DocumentParseError, ParsedDocument
 
 _UTF8_BOM = b"\xef\xbb\xbf"
@@ -9,7 +15,12 @@ _UTF16_BE_BOM = b"\xfe\xff"
 _UTF32_BOMS = (b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff")
 
 
-def parse_txt(path: Path, *, document_id: UUID) -> ParsedDocument:
+def parse_txt(
+    path: Path,
+    *,
+    document_id: UUID,
+    limits: DocumentProcessingLimits = DEFAULT_DOCUMENT_PROCESSING_LIMITS,
+) -> ParsedDocument:
     try:
         content = Path(path).read_bytes()
         if content.startswith(_UTF32_BOMS):
@@ -35,6 +46,8 @@ def parse_txt(path: Path, *, document_id: UUID) -> ParsedDocument:
     except (OSError, UnicodeError) as exc:
         raise DocumentParseError() from exc
 
+    if len(text) > limits.max_extracted_characters:
+        raise DocumentProcessingLimitError()
     return ParsedDocument(
         document_id=document_id,
         text=text,

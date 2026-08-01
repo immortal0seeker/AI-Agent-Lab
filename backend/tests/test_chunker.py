@@ -4,6 +4,8 @@ import pytest
 
 from app.rag import (
     DocumentContentEmptyError,
+    DocumentProcessingLimitError,
+    DocumentProcessingLimits,
     chunk_document,
 )
 from app.rag.parsers import ParsedDocument, ParsedPage
@@ -76,6 +78,46 @@ def test_chunker_supports_zero_overlap() -> None:
     )
 
     assert [chunk.metadata["start_char"] for chunk in chunks] == [0, 100, 200]
+
+
+def test_chunker_rejects_chunk_amplification_before_returning_partial_data(
+) -> None:
+    limits = DocumentProcessingLimits(
+        max_pdf_pages=500,
+        max_extracted_characters=10_000,
+        max_markdown_structures=100,
+        max_chunks=2,
+    )
+
+    with pytest.raises(
+        DocumentProcessingLimitError,
+        match="Document exceeds the processing limit",
+    ):
+        chunk_document(
+            parsed_txt("x" * 250),
+            chunk_size=100,
+            chunk_overlap=0,
+            limits=limits,
+        )
+
+
+def test_chunker_bounds_persisted_heading_length() -> None:
+    heading = "H" * 600
+    document = ParsedDocument(
+        document_id=DOCUMENT_ID,
+        text=f"# {heading}\nBody",
+        metadata={
+            "format": "markdown",
+            "headings": [
+                {"level": 1, "text": heading, "line_number": 1}
+            ],
+        },
+    )
+
+    chunks = chunk_document(document, chunk_size=1000, chunk_overlap=0)
+
+    assert chunks[0].heading == heading[:512]
+    assert len(chunks[0].heading or "") == 512
 
 
 def test_chunker_preserves_markdown_heading() -> None:

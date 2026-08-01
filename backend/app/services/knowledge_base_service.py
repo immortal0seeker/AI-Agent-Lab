@@ -2,12 +2,16 @@ from datetime import timedelta
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import KnowledgeBase
+from app.models import Document, KnowledgeBase
 from app.models.common import utc_now
 from app.schemas import KnowledgeBaseCreate, KnowledgeBaseUpdate
-from app.services.errors import KnowledgeBaseNotFoundError
+from app.services.errors import (
+    KnowledgeBaseNotEmptyError,
+    KnowledgeBaseNotFoundError,
+)
 
 
 class KnowledgeBaseService:
@@ -67,5 +71,15 @@ class KnowledgeBaseService:
         knowledge_base_id: UUID,
     ) -> None:
         knowledge_base = self.get_knowledge_base(knowledge_base_id)
-        self._session.delete(knowledge_base)
-        self._session.flush()
+        document_id = self._session.scalar(
+            select(Document.id)
+            .where(Document.knowledge_base_id == knowledge_base_id)
+            .limit(1)
+        )
+        if document_id is not None:
+            raise KnowledgeBaseNotEmptyError(knowledge_base_id)
+        try:
+            self._session.delete(knowledge_base)
+            self._session.flush()
+        except IntegrityError as exc:
+            raise KnowledgeBaseNotEmptyError(knowledge_base_id) from exc

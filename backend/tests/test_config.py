@@ -2,8 +2,9 @@ from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_simple_agent_service
+from app.api.dependencies import get_document_service, get_simple_agent_service
 from app.core.config import Settings
 from app.providers.llm.registry import ModelRegistry
 from app.tools import ToolRegistry
@@ -42,6 +43,16 @@ def test_settings_default_rag_chunk_bounds() -> None:
     assert settings.rag_chunk_overlap == 150
 
 
+def test_settings_default_document_processing_limits() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.document_max_pdf_pages == 500
+    assert settings.document_max_extracted_characters == 10_000_000
+    assert settings.document_max_markdown_structures == 20_000
+    assert settings.document_max_chunks == 10_000
+    assert settings.document_processing_limits.max_pdf_pages == 500
+
+
 def test_settings_resolves_relative_document_storage_from_backend() -> None:
     settings = Settings(
         _env_file=None,
@@ -51,6 +62,26 @@ def test_settings_resolves_relative_document_storage_from_backend() -> None:
     assert settings.document_storage_root.is_absolute()
     assert settings.document_storage_root.name == "runtime_uploads"
     assert settings.document_storage_root.parent.name == "backend"
+
+
+def test_settings_preserves_document_storage_root_symlink(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "outside"
+    target.mkdir()
+    link = tmp_path / "uploads-link"
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlink unavailable: {exc}")
+
+    settings = Settings(
+        _env_file=None,
+        DOCUMENT_STORAGE_ROOT=str(link),
+    )
+
+    assert settings.document_storage_root == link.absolute()
+    assert settings.document_storage_root.is_symlink()
 
 
 @pytest.mark.parametrize(
@@ -68,6 +99,46 @@ def test_settings_rejects_invalid_document_upload_limits(
 ) -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, **{field_name: value})
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("DOCUMENT_MAX_PDF_PAGES", 0),
+        ("DOCUMENT_MAX_PDF_PAGES", 10_001),
+        ("DOCUMENT_MAX_EXTRACTED_CHARACTERS", 0),
+        ("DOCUMENT_MAX_EXTRACTED_CHARACTERS", 100_000_001),
+        ("DOCUMENT_MAX_MARKDOWN_STRUCTURES", 0),
+        ("DOCUMENT_MAX_MARKDOWN_STRUCTURES", 100_001),
+        ("DOCUMENT_MAX_CHUNKS", 0),
+        ("DOCUMENT_MAX_CHUNKS", 100_001),
+    ],
+)
+def test_settings_rejects_invalid_document_processing_limits(
+    field_name: str,
+    value: int,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **{field_name: value})
+
+
+def test_document_dependency_passes_configured_processing_limits() -> None:
+    settings = Settings(
+        _env_file=None,
+        DOCUMENT_MAX_PDF_PAGES=7,
+        DOCUMENT_MAX_EXTRACTED_CHARACTERS=700,
+        DOCUMENT_MAX_MARKDOWN_STRUCTURES=70,
+        DOCUMENT_MAX_CHUNKS=17,
+    )
+    session = Session()
+    try:
+        service = get_document_service(session=session, settings=settings)
+
+        assert service._ingestion._processing_limits == (
+            settings.document_processing_limits
+        )
+    finally:
+        session.close()
 
 
 @pytest.mark.parametrize(

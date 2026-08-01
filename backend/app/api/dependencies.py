@@ -93,6 +93,7 @@ def get_document_service(
         ),
         chunk_size=settings.rag_chunk_size,
         chunk_overlap=settings.rag_chunk_overlap,
+        processing_limits=settings.document_processing_limits,
     )
 
 

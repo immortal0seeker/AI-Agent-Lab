@@ -57,7 +57,7 @@ blocked
 | Batch 3 | P3-M1-S7～S9 | 实现 Knowledge Base API | API 测试与 Codex self-review M1 | 已完成（service、API、正式文档与全量回归均通过） |
 | Batch 4 | P3-M2-S1～S3 | 实现文件上传和存储 | 上传 API 测试 | 已完成（受控存储、上传 API、校验、事务清理与全量回归通过） |
 | Batch 5 | P3-M2-S4～S6 | 实现 Markdown / TXT / PDF 文本解析 | Parser 测试 | 已完成（三类纯 Parser、来源 metadata、安全错误与全量回归通过） |
-| Batch 6 | P3-M2-S7～S9 | 实现文本清洗和 Chunking | Chunking 测试，Codex review M2 | 未完成 |
+| Batch 6 | P3-M2-S7～S9 | 实现文本清洗和 Chunking | Chunking 测试，Codex review M2 | 已完成（Cleaner、Chunker、同步 Pipeline、正式文档与全量回归通过） |
 | Batch 7 | P3-M3-S1～S3 | 实现 Embedding Provider 抽象 | mock embedding 测试 | 未完成 |
 | Batch 8 | P3-M3-S4～S6 | 实现 OpenAI-compatible Embedding 和配置 | provider 测试 | 未完成 |
 | Batch 9 | P3-M3-S7～S9 | 实现 Qdrant Vector Store | vector store 测试 | 未完成 |
@@ -108,7 +108,7 @@ blocked
 | S1 Git 与发布基线 | 执行前 `main` 工作区和暂存区为空；`HEAD == origin/main == v0.2.1^{}` 为 `872310b4dc1b78e2a2487303699d68ec8b22f88b`；`v0.2.0^{}` 仍为 `0e3f3a66e1322c565f2056696f7e482cedbb5f6c`，未移动或改写既有历史。 |
 | S1 Plan 2 桥接 | Tool Registry、`read_file`、`list_dir`、Simple Agent、Agent API、release version 和 `web_fetch` 延期聚焦回归为 `322 passed, 1 warning`；warning 是既知 Starlette TestClient/httpx 弃用提示。 |
 | S2 RED / GREEN | 首轮配置/目录测试为 `5 failed, 8 passed`，失败原因正是缺少 `qdrant_url`、Compose 与两个包；最小实现后为 `13 passed`。 |
-| S2 配置 | 根 `docker-compose.yml` 固定 `qdrant/qdrant:v1.15.4`、映射 `6333:6333`、使用 `qdrant_data` 命名卷，并通过 `QDRANT__TELEMETRY_DISABLED=true` 禁用遥测；后端 Settings 与 `.env.example` 提供 `QDRANT_URL=http://localhost:6333`。SQLite 仍是业务与审计主数据库。 |
+| S2 配置 | 根 `docker-compose.yml` 固定 `qdrant/qdrant:v1.15.4`、使用 `qdrant_data` 命名卷，并通过 `QDRANT__TELEMETRY_DISABLED=true` 禁用遥测；M1/M2 审计后将 6333 严格绑定为 `127.0.0.1:6333:6333`。后端 Settings 与 `.env.example` 提供 `QDRANT_URL=http://localhost:6333`。SQLite 仍是业务与审计主数据库。 |
 | S2 runtime 复验 | 安装并启动 Docker Desktop 后，Docker Desktop `4.83.0`、Engine `29.6.2`、Compose `5.3.1` 成功启动固定版本容器；容器运行、重启次数为 0，日志报告 `Telemetry reporting disabled`，`/healthz` 返回 HTTP 200 和 `healthz check passed`。 |
 | S3 目录边界 | 只新增 `backend/app/knowledge/__init__.py` 与 `backend/app/rag/__init__.py`，分别声明结构化知识编排和 Naive RAG 流水线 ownership；未创建 ORM、schema、migration、service、API、parser、Embedding、Vector Store 或前端 RAG 文件。 |
 | 完整回归 | Backend `507 passed, 1 warning`，`pip check` 无破损依赖；Frontend `18 files / 90 tests`、typecheck、production build（1813 modules）通过。 |
@@ -268,6 +268,29 @@ M2 完成后建议 commit：
 
 ```text
 feat(rag): add document processing pipeline
+```
+
+### Plan 3 M1/M2 整体审核修复记录（2026-08-01）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 范围与基线 | 只审核并修复已完成 M1/M2；开始时 `HEAD == origin/main == c9cefc498a746ad39ee47f5726afc959e8db4f9c`，staged 0，既有 tags 未移动。未开始 M3 或 Plan 4+。 |
+| 配置与路径 | Qdrant 6333 只绑定 `127.0.0.1`；Settings 保留 storage-root symlink/reparse 证据；stored path 只接受小写 canonical UUID/suffix 和 POSIX 分隔符。 |
+| 资源与 metadata | 默认上限为 PDF 500 页、10,000,000 字符、20,000 Markdown 结构、10,000 chunks；Markdown code-block metadata 不重复正文，Cleaner 保留 fence 内空行并重映射行号，heading 限 512。 |
+| 数据完整性 | 新 head `20260801_0006` 增加同 KB hash 唯一、KB→Document RESTRICT、RagQuery answer 单列 SET NULL 与复合 NO ACTION；重复历史组 fail-closed。非空 KB 删除为安全 409，唯一竞争规范化为既有 duplicate 409。 |
+| TDD 与聚焦回归 | Task GREEN 依次为 `34`、`68`、`27`、`91`、`33`、`58` 项；最终聚焦集合 `208 passed, 1 warning`。 |
+| 全量与依赖 | Backend `735 passed, 1 warning`；`pip check` 为 `No broken requirements found.`；Frontend typecheck、`18 files / 90 tests`、production build `1813 modules` 通过。 |
+| SQLite 与文档 | 只对新建系统临时 SQLite 完成 upgrade/current/check/downgrade/re-upgrade，head `20260801_0006`，临时目录已验证删除。95 个 Markdown、69 个本地链接/图片、0 missing。未读取或修改 `backend/ai_agent_lab.db`。 |
+| Compose 与边界 | `docker compose config --quiet` 通过；本机 daemon pipe 不可用，当前 health 明确为未复核。高置信 token、unexpected private-key marker、`web_fetch` runtime、later-Plan runtime、tracked artifact 均为 0；staged 0。 |
+| Codex self-review | must fix：增强原本会伪通过的路径测试、修复布尔行号重映射、同步陈旧文档，均已复验。later Step：M3 Embedding/Vector Store、Document 删除/文件生命周期、Retriever/RAG/UI。accepted limitation：同步处理、特权 TOCTOU、hard-crash orphan、无新 Docker health、扫描 PDF 无 OCR、既知 warning。not applicable：PostgreSQL 迁移、前端截图、真实 Provider/网络、外部 review。无剩余 must-fix。 |
+
+**结论：** M1/M2 已重新封板。用户手动提交本批后，可以进入
+`P3-M3-S1～S3`；本批未提前实现 M3。
+
+建议 commit：
+
+```text
+fix(rag): harden plan 3 m1 m2 boundaries
 ```
 
 ---
@@ -481,16 +504,16 @@ Claude Code 审核后，Codex 负责：
 | 验收项 | 状态 | 证据 |
 |---|---|---|
 | Qdrant 可启动 | implemented | Qdrant 1.15.4 容器运行、重启次数为 0；`/healthz` 返回 HTTP 200 |
-| Knowledge Base 数据模型完成 | implemented | `KnowledgeBase` ORM/schema、revision `20260726_0005`、模型/迁移测试 |
-| Document 数据模型完成 | implemented | `Document` ORM/schema、状态/hash/metadata 约束、模型/迁移测试 |
+| Knowledge Base 数据模型完成 | implemented | `KnowledgeBase` ORM/schema、revision `20260726_0005` 与补丁 `20260801_0006`、模型/迁移测试 |
+| Document 数据模型完成 | implemented | `Document` ORM/schema、状态/hash/metadata 与同 KB hash 唯一约束、模型/迁移测试 |
 | DocumentChunk 数据模型完成 | implemented | `DocumentChunk` ORM/schema、复合 ownership 外键、模型/迁移测试 |
 | 可以创建知识库 | implemented | Knowledge Base service/API CRUD、OpenAPI 与临时 SQLite API 测试 |
-| 可以上传 Markdown | pending | 上传验证记录 |
-| 可以上传 TXT | pending | 上传验证记录 |
-| 可以上传文本型 PDF | pending | 上传验证记录 |
-| 可以解析文档 | pending | parser 测试 |
-| 可以清洗文本 | pending | cleaner 测试 |
-| 可以切分 Chunk | pending | chunker 测试 |
+| 可以上传 Markdown | implemented | M2 上传 API 与同步 Pipeline 验收记录 |
+| 可以上传 TXT | implemented | M2 上传 API 与同步 Pipeline 验收记录 |
+| 可以上传文本型 PDF | implemented | M2 上传 API 与文本层 PDF Parser 验收记录 |
+| 可以解析文档 | implemented | Markdown/TXT/PDF parser 测试与资源上限回归 |
+| 可以清洗文本 | implemented | fence-aware cleaner 与结构行号重映射测试 |
+| 可以切分 Chunk | implemented | chunker、放大上限、heading 边界与 ingestion 测试 |
 | 可以调用 Embedding Provider | pending | provider 测试 |
 | 可以写入 Qdrant | pending | vector store 测试 |
 | 可以基于 query 检索 Chunk | pending | retriever 测试 |
@@ -500,8 +523,8 @@ Claude Code 审核后，Codex 负责：
 | 前端可以进行 RAG Chat | pending | 页面截图 |
 | 前端可以展示来源片段 | pending | 页面截图 |
 | search_knowledge_base 工具可用 | pending | Agent Tool 测试 |
-| README 已更新 | pending | README 链接 |
-| docs 已更新 | pending | docs 链接 |
+| README 已更新 | implemented | 中英文 README 的 M1/M2 当前契约与限制 |
+| docs 已更新 | implemented | Architecture、Knowledge Base 设计和 M1/M2 审计记录 |
 | 已创建 v0.3.0 tag | pending | `git tag --list` 输出 |
 
 ---

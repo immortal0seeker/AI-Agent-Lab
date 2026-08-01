@@ -1,9 +1,12 @@
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Self
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.rag.processing_limits import DocumentProcessingLimits
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -69,6 +72,30 @@ class Settings(BaseSettings):
         le=10_000,
         alias="DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE",
     )
+    document_max_pdf_pages: int = Field(
+        default=500,
+        gt=0,
+        le=10_000,
+        alias="DOCUMENT_MAX_PDF_PAGES",
+    )
+    document_max_extracted_characters: int = Field(
+        default=10_000_000,
+        gt=0,
+        le=100_000_000,
+        alias="DOCUMENT_MAX_EXTRACTED_CHARACTERS",
+    )
+    document_max_markdown_structures: int = Field(
+        default=20_000,
+        gt=0,
+        le=100_000,
+        alias="DOCUMENT_MAX_MARKDOWN_STRUCTURES",
+    )
+    document_max_chunks: int = Field(
+        default=10_000,
+        gt=0,
+        le=100_000,
+        alias="DOCUMENT_MAX_CHUNKS",
+    )
     rag_chunk_size: int = Field(
         default=1000,
         ge=100,
@@ -100,7 +127,7 @@ class Settings(BaseSettings):
             raise ValueError("document storage root must be a path") from exc
         if not path.is_absolute():
             path = BACKEND_ROOT / path
-        return path.resolve()
+        return Path(os.path.abspath(path))
 
     @model_validator(mode="after")
     def validate_rag_chunk_window(self) -> Self:
@@ -123,6 +150,15 @@ class Settings(BaseSettings):
             for origin in self.backend_cors_origins.split(",")
             if origin.strip()
         ]
+
+    @property
+    def document_processing_limits(self) -> DocumentProcessingLimits:
+        return DocumentProcessingLimits(
+            max_pdf_pages=self.document_max_pdf_pages,
+            max_extracted_characters=self.document_max_extracted_characters,
+            max_markdown_structures=self.document_max_markdown_structures,
+            max_chunks=self.document_max_chunks,
+        )
 
 
 @lru_cache

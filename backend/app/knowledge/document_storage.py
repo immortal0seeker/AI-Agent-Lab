@@ -239,17 +239,26 @@ class DocumentStorage:
         UUID,
         Literal["md", "txt", "pdf"],
     ]:
+        if not isinstance(relative_path, str) or "\\" in relative_path:
+            raise ValueError("invalid stored document path")
         normalized = PurePosixPath(relative_path)
         if normalized.is_absolute() or len(normalized.parts) != 2:
             raise ValueError("invalid stored document path")
         raw_knowledge_base_id, filename = normalized.parts
         knowledge_base_id = UUID(raw_knowledge_base_id)
-        file_path = Path(filename)
+        file_path = PurePosixPath(filename)
+        if len(file_path.parts) != 1:
+            raise ValueError("invalid stored document path")
         document_id = UUID(file_path.stem)
-        file_type = _SUPPORTED_SUFFIXES.get(file_path.suffix.lower())
+        file_type = _SUPPORTED_SUFFIXES.get(file_path.suffix)
         if file_type is None:
             raise ValueError("invalid stored document suffix")
-        path = self._contained_path(self._root.joinpath(*normalized.parts))
+        canonical = f"{knowledge_base_id}/{document_id}.{file_type}"
+        if relative_path != canonical:
+            raise ValueError("non-canonical stored document path")
+        path = self._contained_path(
+            self._root / raw_knowledge_base_id / filename
+        )
         return path, knowledge_base_id, document_id, file_type
 
     def _contained_path(self, path: Path) -> Path:

@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.db.session import create_db_engine
+from app.models import Document, KnowledgeBase
 from app.schemas import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.services import (
+    KnowledgeBaseNotEmptyError,
     KnowledgeBaseNotFoundError,
     KnowledgeBaseService,
 )
@@ -104,6 +106,33 @@ def test_service_deletes_knowledge_base(
 
     with pytest.raises(KnowledgeBaseNotFoundError):
         service.get_knowledge_base(knowledge_base_id)
+
+
+def test_service_rejects_deleting_nonempty_knowledge_base(
+    db: tuple[Session, Engine],
+) -> None:
+    session, _ = db
+    service = KnowledgeBaseService(session)
+    knowledge_base = service.create_knowledge_base(
+        KnowledgeBaseCreate(name="Keep documents")
+    )
+    document = Document(
+        knowledge_base_id=knowledge_base.id,
+        filename="synthetic.txt",
+        original_filename="synthetic.txt",
+        file_type="txt",
+        file_path=f"{knowledge_base.id}/{uuid4()}.txt",
+        file_size=9,
+        file_hash="a" * 64,
+    )
+    session.add(document)
+    session.flush()
+
+    with pytest.raises(KnowledgeBaseNotEmptyError):
+        service.delete_knowledge_base(knowledge_base.id)
+
+    assert session.get(KnowledgeBase, knowledge_base.id) is not None
+    assert session.get(Document, document.id) is not None
 
 
 @pytest.mark.parametrize("operation", ["get", "update", "delete"])

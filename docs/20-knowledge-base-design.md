@@ -30,10 +30,12 @@ M2 S9 contains no Qdrant client or Vector Store runtime. The `vector_store`,
 `vector_collection_name`, and `vector_id` fields are persistence bridges, not
 evidence that a collection or vector has been created.
 
-Deleting a Knowledge Base deletes its SQLite-owned metadata through database
-cascades. Through M2 S9 it does not delete locally uploaded bytes, contact
-Qdrant, or delete a Qdrant collection; local-file deletion coordination is a
-documented later-step limitation.
+Deleting a Knowledge Base that still owns any Document returns HTTP 409. The
+database RESTRICT constraint is the final concurrency gate, and the service
+preserves the Knowledge Base, Documents, chunks, and locally uploaded bytes.
+Deleting an empty Knowledge Base may still cascade its independent RagQuery
+audit rows. M2 does not contact Qdrant or delete a Qdrant collection; Document
+deletion and local-file lifecycle coordination remain later-step limitations.
 
 ## Ownership Graph
 
@@ -89,8 +91,11 @@ synchronously processes it before commit. Success returns `parsed` / `chunked`
 text that is empty after cleaning returns `parsed` / `failed` / `pending`.
 Embedding transitions remain deferred to M3.
 
-Deleting a Knowledge Base cascades to its Documents. The unique
-`(id, knowledge_base_id)` pair supports a composite ownership check for chunks.
+The unique `(knowledge_base_id, file_hash)` pair is the final same-Knowledge-
+Base duplicate gate. Different Knowledge Bases may own the same hash. The
+Document foreign key uses RESTRICT so a non-empty Knowledge Base cannot be
+deleted. The unique `(id, knowledge_base_id)` pair supports a composite
+ownership check for chunks.
 
 ## Controlled Document Storage
 
@@ -102,6 +107,10 @@ boundary. Its defaults are:
 | `DOCUMENT_STORAGE_ROOT` | `./uploads` | Relative values resolve below the backend root |
 | `DOCUMENT_MAX_UPLOAD_BYTES` | `20_971_520` | 20 MiB per non-empty file |
 | `DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE` | `50` | Checked before the upload stream is read |
+| `DOCUMENT_MAX_PDF_PAGES` | `500` | Configurable up to 10,000 pages |
+| `DOCUMENT_MAX_EXTRACTED_CHARACTERS` | `10_000_000` | Configurable up to 100,000,000 characters |
+| `DOCUMENT_MAX_MARKDOWN_STRUCTURES` | `20_000` | Combined heading/code-block metadata cap; configurable up to 100,000 |
+| `DOCUMENT_MAX_CHUNKS` | `10_000` | Per-Document draft cap; configurable up to 100,000 |
 | `RAG_CHUNK_SIZE` | `1_000` | 100 through 10,000 characters |
 | `RAG_CHUNK_OVERLAP` | `150` | 0 through 2,000 and smaller than chunk size |
 
@@ -119,13 +128,18 @@ Client filenames are display metadata only. Path prefixes are removed, control
 characters and invalid names are rejected, and only `.md`, `.txt`, and `.pdf`
 suffixes are accepted case-insensitively. The final name and path use generated
 UUIDs, so client input cannot overwrite an existing upload. SQLite stores only
-the relative POSIX path.
+the relative POSIX path. Reads and cleanup require its exact lowercase
+canonical form; absolute paths, backslashes or mixed separators, dot segments,
+UUID case variants, suffix case variants, and ownership/type mismatches fail
+before file access. The configured root remains lexical until storage validates
+symlink/reparse evidence.
 
 Staging reads at most 64 KiB per request, enforces the configured byte limit
 before writing an overflowing chunk, and calculates a lowercase SHA-256 while
 streaming. The same hash is rejected within one Knowledge Base and allowed in a
-different Knowledge Base. The service-level query matches the local-first
-single-writer model; concurrent same-hash uploads remain an accepted limitation.
+different Knowledge Base. The service precheck gives a readable early failure;
+the database unique constraint closes concurrent same-hash races, which the
+service normalizes to the same safe duplicate response.
 
 The request database dependency remains the commit/rollback owner. A promoted
 file is registered on the Session before the Document flush. Successful commit
@@ -145,7 +159,8 @@ file path and Document UUID. Every parser returns an immutable
 Markdown is decoded as strict UTF-8 with optional BOM removal. Its original
 markup is preserved while a fence-aware state machine reports ATX/Setext
 headings and backtick/tilde code blocks. Heading-like content inside a code
-fence is not misclassified.
+fence is not misclassified. Code-block metadata stores only language and
+one-based start/end lines, not a second copy of the full code content.
 
 TXT decoding is deterministic: UTF-8 BOM, UTF-16 LE/BE BOM, or strict UTF-8.
 There is no locale-dependent or probabilistic encoding fallback, and invalid
@@ -157,7 +172,8 @@ A PDF with at least one text-bearing page succeeds even when another page is
 blank. A document with no extracted text returns a readable limitation stating
 that scanned/image-only PDF requires OCR, which Plan 3 does not implement.
 Malformed or unreadable files return a generic safe parse error without paths
-or third-party diagnostics.
+or third-party diagnostics. Parser work is bounded by the shared page,
+extracted-character, and Markdown-structure limits.
 
 ## Cleaner, Chunker, And Ingestion
 
@@ -165,7 +181,9 @@ or third-party diagnostics.
 The Cleaner returns a new immutable parser result. It normalizes CRLF/CR to LF,
 removes C0/C1 controls except tab plus a small denylist of layout-unsafe format
 characters, collapses whitespace-only blank-line runs, trims outer blank lines,
-updates Markdown heading line numbers, and cleans PDF pages independently.
+updates Markdown heading and code-block line numbers, and cleans PDF pages
+independently. Blank-line runs inside a validated fenced-code range are
+preserved exactly; only ordinary Markdown blank runs are collapsed.
 
 The Chunker uses the configured character window and overlap. When a hard
 window boundary is not the end of content, it prefers the last paragraph
@@ -175,6 +193,8 @@ visible at their start; PDF chunks never cross pages. Each draft records
 zero-based `chunk_index`, exact character count, source format and offsets, plus
 optional heading/page provenance. `token_count` is the deterministic estimate
 `max(1, ceil(UTF-8 bytes / 4))`, not a model tokenizer result.
+The generator stops before appending chunk `max_chunks + 1`, and persisted
+headings are capped at the `DocumentChunk.heading` length of 512 characters.
 
 `DocumentIngestionService` owns the composition. It resolves the stored path
 against the expected Knowledge Base UUID, Document UUID, and suffix while
@@ -234,7 +254,7 @@ written by an HTTP workflow.
 | `list_knowledge_bases` | Orders by `created_at` descending, then `id` ascending |
 | `get_knowledge_base` | Returns one row or raises `KnowledgeBaseNotFoundError` |
 | `update_knowledge_base` | Changes only supplied fields and advances `updated_at` |
-| `delete_knowledge_base` | Deletes and flushes one row |
+| `delete_knowledge_base` | Deletes and flushes only an empty row; non-empty returns `KnowledgeBaseNotEmptyError` |
 
 The service flushes but does not commit. The request-scoped database dependency
 owns commit, rollback, and session close, keeping transaction behavior uniform
@@ -261,6 +281,10 @@ bounded names fail schema validation.
 
 The route layer validates input, calls the service, and shapes the response. It
 does not own persistence logic.
+
+Deleting a Knowledge Base that still owns a Document returns HTTP `409` with
+`knowledge_base_not_empty` and the safe message `Delete documents before
+deleting the knowledge base`.
 
 The Document upload request is `multipart/form-data` with one required `file`
 field. There are no Document list, detail, chunk-query, or delete routes through
@@ -295,6 +319,10 @@ hashes, absolute paths, or internal diagnostics:
 | `409` | `document_duplicate` | Same hash exists in this Knowledge Base |
 | `409` | `knowledge_base_document_limit_reached` | Knowledge Base reached its configured count |
 | `503` | `document_storage_error` | Controlled staging/promotion/cleanup failed |
+
+Processing-limit failures remain successful HTTP 201 Document resources. They
+use the fixed message `Document exceeds the processing limit.`, set parse/chunk
+failure states according to the phase, and persist no partial chunk rows.
 
 Expected parse/content failures are successful HTTP 201 resource creation, not
 transport failures. Invalid encoded or unreadable content persists
@@ -380,6 +408,19 @@ Fresh completion verification reached:
   new upgrade operations and verified temporary-directory cleanup;
 - `92` Markdown files and `69` local links/images with zero read errors or
   missing targets.
+
+The 2026-08-01 M1/M2 audit-remediation verification reached:
+
+- focused backend: `208 passed, 1 warning`;
+- complete backend: `735 passed, 1 warning`;
+- dependency integrity: `No broken requirements found`;
+- fresh temporary-SQLite Alembic head `20260801_0006`, including check-heads,
+  autogenerate check, downgrade to `20260726_0005`, and re-upgrade;
+- frontend: `18` files / `90` tests, typecheck, and production build with
+  `1813` transformed modules;
+- `95` Markdown files, `69` local links/images, and zero missing targets;
+- Compose syntax passed; current Docker runtime health was not checked because
+  the local daemon was unavailable.
 
 The active Plan 3 execution table contains the security, scope, artifact, and
 Git gates. No verification command read or modified `backend/ai_agent_lab.db`.

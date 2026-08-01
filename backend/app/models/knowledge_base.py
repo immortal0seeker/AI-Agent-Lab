@@ -62,8 +62,7 @@ class KnowledgeBase(Base):
 
     documents: Mapped[list[Document]] = relationship(
         back_populates="knowledge_base",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
+        passive_deletes="all",
     )
     rag_queries: Mapped[list[RagQuery]] = relationship(
         back_populates="knowledge_base",

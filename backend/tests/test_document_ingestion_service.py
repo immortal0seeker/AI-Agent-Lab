@@ -12,6 +12,7 @@ from app.db.base import Base
 from app.db.session import create_db_engine
 from app.knowledge import DocumentStorage, DocumentStorageError
 from app.models import Document, DocumentChunk, KnowledgeBase
+from app.rag import DocumentProcessingLimits
 from app.services import DocumentIngestionService
 from tests.pdf_factory import build_pdf
 
@@ -209,6 +210,76 @@ def test_ingestion_persists_safe_parser_failure(
     assert stored_chunks(session, document) == []
     assert str(storage.root) not in processed.error_message
     assert content.decode("utf-8", errors="ignore") not in processed.error_message
+
+
+def test_ingestion_persists_safe_processing_limit_failure(
+    db: tuple[Session, Engine],
+    tmp_path: Path,
+) -> None:
+    session, _ = db
+    storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=4096)
+    document = create_stored_document(
+        session,
+        storage,
+        filename="private.txt",
+        content=b"private content",
+    )
+    limits = DocumentProcessingLimits(
+        max_pdf_pages=10,
+        max_extracted_characters=5,
+        max_markdown_structures=10,
+        max_chunks=10,
+    )
+    service = DocumentIngestionService(
+        session,
+        storage=storage,
+        chunk_size=100,
+        chunk_overlap=10,
+        processing_limits=limits,
+    )
+
+    processed = service.process_document(document)
+
+    assert processed.parse_status == "failed"
+    assert processed.chunk_status == "failed"
+    assert processed.error_message == "Document exceeds the processing limit."
+    assert stored_chunks(session, document) == []
+    assert str(storage.root) not in processed.error_message
+    assert "private" not in processed.error_message
+
+
+def test_ingestion_persists_chunk_limit_without_partial_rows(
+    db: tuple[Session, Engine],
+    tmp_path: Path,
+) -> None:
+    session, _ = db
+    storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=4096)
+    document = create_stored_document(
+        session,
+        storage,
+        filename="large.txt",
+        content=b"x" * 150,
+    )
+    limits = DocumentProcessingLimits(
+        max_pdf_pages=10,
+        max_extracted_characters=10_000,
+        max_markdown_structures=10,
+        max_chunks=1,
+    )
+    service = DocumentIngestionService(
+        session,
+        storage=storage,
+        chunk_size=100,
+        chunk_overlap=0,
+        processing_limits=limits,
+    )
+
+    processed = service.process_document(document)
+
+    assert processed.parse_status == "parsed"
+    assert processed.chunk_status == "failed"
+    assert processed.error_message == "Document exceeds the processing limit."
+    assert stored_chunks(session, document) == []
 
 
 def test_ingestion_persists_scanned_pdf_limitation(

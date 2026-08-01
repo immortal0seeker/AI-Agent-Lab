@@ -5,7 +5,10 @@ from sqlalchemy.orm import Session
 from app.knowledge import DocumentStorage
 from app.models import Document, DocumentChunk
 from app.rag import (
+    DEFAULT_DOCUMENT_PROCESSING_LIMITS,
     DocumentContentEmptyError,
+    DocumentProcessingLimitError,
+    DocumentProcessingLimits,
     clean_parsed_document,
     chunk_document,
 )
@@ -34,11 +37,15 @@ class DocumentIngestionService:
         storage: DocumentStorage,
         chunk_size: int,
         chunk_overlap: int,
+        processing_limits: DocumentProcessingLimits = (
+            DEFAULT_DOCUMENT_PROCESSING_LIMITS
+        ),
     ) -> None:
         self._session = session
         self._storage = storage
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
+        self._processing_limits = processing_limits
 
     def process_document(self, document: Document) -> Document:
         document.parse_status = "parsing"
@@ -54,8 +61,9 @@ class DocumentIngestionService:
             parsed = _PARSERS[document.file_type](
                 path,
                 document_id=document.id,
+                limits=self._processing_limits,
             )
-        except DocumentParseError as error:
+        except (DocumentParseError, DocumentProcessingLimitError) as error:
             return self._mark_parse_failed(document, error)
         document.parse_status = "parsed"
         cleaned = clean_parsed_document(parsed)
@@ -66,8 +74,12 @@ class DocumentIngestionService:
                 cleaned,
                 chunk_size=self._chunk_size,
                 chunk_overlap=self._chunk_overlap,
+                limits=self._processing_limits,
             )
-        except DocumentContentEmptyError as error:
+        except (
+            DocumentContentEmptyError,
+            DocumentProcessingLimitError,
+        ) as error:
             return self._mark_chunk_failed(document, error)
         for draft in drafts:
             self._session.add(
@@ -90,7 +102,7 @@ class DocumentIngestionService:
     def _mark_parse_failed(
         self,
         document: Document,
-        error: DocumentParseError,
+        error: DocumentParseError | DocumentProcessingLimitError,
     ) -> Document:
         document.parse_status = "failed"
         document.chunk_status = "failed"
@@ -101,7 +113,7 @@ class DocumentIngestionService:
     def _mark_chunk_failed(
         self,
         document: Document,
-        error: DocumentContentEmptyError,
+        error: DocumentContentEmptyError | DocumentProcessingLimitError,
     ) -> Document:
         document.parse_status = "parsed"
         document.chunk_status = "failed"

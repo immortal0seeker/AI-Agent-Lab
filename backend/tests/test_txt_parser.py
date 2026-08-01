@@ -3,10 +3,17 @@ from uuid import UUID
 
 import pytest
 
+from app.rag import DocumentProcessingLimitError, DocumentProcessingLimits
 from app.rag.parsers import DocumentParseError, parse_txt
 
 
 DOCUMENT_ID = UUID("22222222-2222-4222-8222-222222222222")
+LIMITS = DocumentProcessingLimits(
+    max_pdf_pages=1,
+    max_extracted_characters=20,
+    max_markdown_structures=1,
+    max_chunks=10,
+)
 
 
 @pytest.mark.parametrize(
@@ -53,6 +60,16 @@ def test_txt_parser_preserves_whitespace_only_text(tmp_path: Path) -> None:
     parsed = parse_txt(path, document_id=DOCUMENT_ID)
 
     assert parsed.text == " \r\n\t"
+
+
+def test_txt_parser_rejects_extracted_character_limit(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "large.txt"
+    path.write_text("x" * 21, encoding="utf-8")
+
+    with pytest.raises(DocumentProcessingLimitError):
+        parse_txt(path, document_id=DOCUMENT_ID, limits=LIMITS)
 
 
 def test_txt_parser_wraps_invalid_encoding_safely(

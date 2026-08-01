@@ -4,6 +4,12 @@ import re
 from pathlib import Path
 from uuid import UUID
 
+from app.rag.processing_limits import (
+    DEFAULT_DOCUMENT_PROCESSING_LIMITS,
+    DocumentProcessingLimitError,
+    DocumentProcessingLimits,
+)
+
 from .base import DocumentParseError, ParsedDocument
 
 _UTF8_BOM = b"\xef\xbb\xbf"
@@ -14,7 +20,12 @@ _ATX_HEADING = re.compile(
 _SETEXT_HEADING = re.compile(r"^[ \t]{0,3}(=+|-+)[ \t]*$")
 
 
-def parse_markdown(path: Path, *, document_id: UUID) -> ParsedDocument:
+def parse_markdown(
+    path: Path,
+    *,
+    document_id: UUID,
+    limits: DocumentProcessingLimits = DEFAULT_DOCUMENT_PROCESSING_LIMITS,
+) -> ParsedDocument:
     try:
         content = Path(path).read_bytes()
         encoding = "utf-8-sig" if content.startswith(_UTF8_BOM) else "utf-8"
@@ -22,7 +33,12 @@ def parse_markdown(path: Path, *, document_id: UUID) -> ParsedDocument:
     except (OSError, UnicodeError) as exc:
         raise DocumentParseError() from exc
 
-    headings, code_blocks = _extract_structure(text)
+    if len(text) > limits.max_extracted_characters:
+        raise DocumentProcessingLimitError()
+    headings, code_blocks = _extract_structure(
+        text,
+        max_structures=limits.max_markdown_structures,
+    )
     return ParsedDocument(
         document_id=document_id,
         text=text,
@@ -37,6 +53,8 @@ def parse_markdown(path: Path, *, document_id: UUID) -> ParsedDocument:
 
 def _extract_structure(
     text: str,
+    *,
+    max_structures: int,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     lines = text.splitlines()
     headings: list[dict[str, object]] = []
@@ -55,13 +73,11 @@ def _extract_structure(
                 rf"{{{len(fence)},}}[ \t]*$"
             )
             start_line = line_index + 1
-            content_lines: list[str] = []
             line_index += 1
             while line_index < len(lines):
                 if closing_pattern.match(lines[line_index]):
                     end_line = line_index + 1
                     break
-                content_lines.append(lines[line_index])
                 line_index += 1
             else:
                 end_line = len(lines)
@@ -69,11 +85,12 @@ def _extract_structure(
             code_blocks.append(
                 {
                     "language": language,
-                    "content": "\n".join(content_lines),
                     "start_line": start_line,
                     "end_line": end_line,
                 }
             )
+            if len(headings) + len(code_blocks) > max_structures:
+                raise DocumentProcessingLimitError()
             line_index += 1
             continue
 
@@ -91,6 +108,8 @@ def _extract_structure(
                     "line_number": line_index + 1,
                 }
             )
+            if len(headings) + len(code_blocks) > max_structures:
+                raise DocumentProcessingLimitError()
             line_index += 1
             continue
 
@@ -106,6 +125,8 @@ def _extract_structure(
                         "line_number": line_index + 1,
                     }
                 )
+                if len(headings) + len(code_blocks) > max_structures:
+                    raise DocumentProcessingLimitError()
                 line_index += 2
                 continue
 

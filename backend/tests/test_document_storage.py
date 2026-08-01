@@ -272,6 +272,10 @@ def test_storage_resolves_existing_uuid_owned_file(
             "not-a-uuid.txt"
         ),
         f"{KNOWLEDGE_BASE_ID}/{DOCUMENT_ID}.exe",
+        f"{KNOWLEDGE_BASE_ID}/nested\\{DOCUMENT_ID}.txt",
+        f"{KNOWLEDGE_BASE_ID}\\{DOCUMENT_ID}.txt",
+        f"{KNOWLEDGE_BASE_ID}/{DOCUMENT_ID}.TXT",
+        f"{KNOWLEDGE_BASE_ID}/./{DOCUMENT_ID}.txt",
     ],
 )
 def test_storage_rejects_invalid_stored_path(
@@ -279,12 +283,55 @@ def test_storage_rejects_invalid_stored_path(
     relative_path: str,
 ) -> None:
     storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=1024)
+    promote_synthetic_document(storage)
+    nested = storage.root / str(KNOWLEDGE_BASE_ID) / "nested"
+    nested.mkdir()
+    (nested / f"{DOCUMENT_ID}.txt").write_text(
+        "synthetic nested text",
+        encoding="utf-8",
+    )
 
     with pytest.raises(DocumentStorageError):
         storage.resolve_stored(
             relative_path,
             knowledge_base_id=KNOWLEDGE_BASE_ID,
             document_id=DOCUMENT_ID,
+            file_type="txt",
+        )
+
+
+@pytest.mark.parametrize("uppercase_part", ["knowledge_base", "document"])
+def test_storage_rejects_noncanonical_uuid_case(
+    tmp_path: Path,
+    uppercase_part: str,
+) -> None:
+    knowledge_base_id = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+    document_id = UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+    storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=1024)
+    staged = asyncio.run(
+        storage.stage(
+            ChunkedStream(b"synthetic text"),
+            original_filename="notes.txt",
+        )
+    )
+    stored = storage.promote(
+        staged,
+        knowledge_base_id=knowledge_base_id,
+        document_id=document_id,
+    )
+    raw_knowledge_base_id, filename = stored.relative_path.split("/", 1)
+    raw_document_id, suffix = filename.rsplit(".", 1)
+    if uppercase_part == "knowledge_base":
+        raw_knowledge_base_id = raw_knowledge_base_id.upper()
+    else:
+        raw_document_id = raw_document_id.upper()
+    relative_path = f"{raw_knowledge_base_id}/{raw_document_id}.{suffix}"
+
+    with pytest.raises(DocumentStorageError):
+        storage.resolve_stored(
+            relative_path,
+            knowledge_base_id=knowledge_base_id,
+            document_id=document_id,
             file_type="txt",
         )
 

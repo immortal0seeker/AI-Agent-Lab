@@ -70,4 +70,5 @@ class Message(Base):
             "Message.conversation_id == RagQuery.conversation_id)"
         ),
         foreign_keys="RagQuery.answer_message_id",
+        passive_deletes=True,
     )

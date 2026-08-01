@@ -57,6 +57,11 @@ class Document(Base):
             "knowledge_base_id",
             name="uq_documents_id_knowledge_base_id",
         ),
+        UniqueConstraint(
+            "knowledge_base_id",
+            "file_hash",
+            name="uq_documents_knowledge_base_id_file_hash",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -66,7 +71,11 @@ class Document(Base):
     )
     knowledge_base_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True),
-        ForeignKey("knowledge_bases.id", ondelete="CASCADE"),
+        ForeignKey(
+            "knowledge_bases.id",
+            name="fk_documents_knowledge_base_id_knowledge_bases",
+            ondelete="RESTRICT",
+        ),
         index=True,
         nullable=False,
     )

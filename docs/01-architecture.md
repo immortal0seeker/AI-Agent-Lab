@@ -32,7 +32,9 @@ audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
 ownership boundaries, four knowledge persistence models, a service-owned
 Knowledge Base CRUD API, controlled validated Document upload, and independent
 Markdown/TXT/text-layer-PDF parsers composed with pure cleaning, naive
-Chunking, and synchronous `DocumentChunk` persistence.
+Chunking, and synchronous `DocumentChunk` persistence. The subsequent M1/M2
+audit patch binds Qdrant to loopback, enforces canonical stored paths and
+processing ceilings, and adds final database constraints without starting M3.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -175,8 +177,10 @@ persistence integrity without introducing an Agent runtime state machine.
 knowledge-base identity beside its document identity, and a composite foreign
 key rejects cross-knowledge-base chunks. Lifecycle checks bound parse, chunk,
 and embedding states, while SHA-256 length, file type, numeric, metadata, and
-vector fields form the later ingestion bridge. Deleting a knowledge base
-cascades through its documents, chunks, and RAG query audit records.
+vector fields form the later ingestion bridge. A same-Knowledge-Base hash
+unique constraint is the final duplicate gate. Deleting a knowledge base that
+still owns a Document is restricted; its RAG query audit records continue to
+follow their independent database cascade.
 
 `RagQuery` stores the original query and retrieved-chunk JSON snapshot. It may
 reference one answer Message only when a Conversation is also present, and a
@@ -194,9 +198,10 @@ plural `/api/v1/knowledge-bases` routes. `KnowledgeBaseService` owns create,
 deterministically ordered list, detail, supplied-field update, and delete
 behavior. It flushes changes while the request-scoped database dependency owns
 commit, rollback, and session close. Unknown detail/update/delete IDs receive a
-safe `knowledge_base_not_found` response. Deletion affects SQLite metadata and
-its database cascades only; no Qdrant client or collection deletion exists in
-M1.
+safe `knowledge_base_not_found` response. Deleting a non-empty Knowledge Base
+returns safe HTTP 409 and preserves the Knowledge Base, Documents, chunks, and
+controlled files. Empty deletion affects SQLite metadata only; no Qdrant client
+or collection deletion exists in M1/M2.
 
 `DocumentService` now validates the Knowledge Base and its 50-document default
 limit before reading an upload, then delegates bounded staging, suffix checks,
@@ -208,7 +213,8 @@ remove newly promoted files on request rollback. One thin multipart route,
 final synchronous processing state in `DocumentRead`.
 
 `app.rag.parsers` is a database- and API-independent extraction boundary.
-Markdown preserves source markup and reports headings and fenced code blocks;
+Markdown preserves source markup and reports headings and fenced code blocks
+without duplicating code content in metadata;
 TXT uses deterministic strict UTF-8/BOM decoding; text-layer PDF extraction
 uses `pypdf` and preserves one-based pages. Text-empty PDFs return the explicit
 Plan 3 OCR limitation. `app.rag.text_cleaner` normalizes extracted text without
@@ -218,6 +224,12 @@ UUID-owned stored path, dispatches the parser, cleans and chunks, applies
 Document lifecycle states, and flushes `DocumentChunk` rows. Expected
 parser/content failures remain committable Document resources; storage,
 database, and unexpected failures propagate to request rollback.
+
+One immutable processing-limit contract bounds PDF pages, extracted
+characters, Markdown structures, and generated chunks. The Cleaner preserves
+blank-line multiplicity inside fenced code and remaps heading/code-block line
+metadata; the Chunker bounds persisted headings to the schema's 512-character
+limit.
 
 Document query/delete, Embedding, retrieval, and Qdrant client behavior remain
 deferred. The complete contract is documented in

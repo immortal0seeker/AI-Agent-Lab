@@ -1,8 +1,14 @@
 from bisect import bisect_right
+from collections.abc import Iterator
 from dataclasses import dataclass
 from math import ceil
 
 from app.rag.parsers import ParsedDocument
+from app.rag.processing_limits import (
+    DEFAULT_DOCUMENT_PROCESSING_LIMITS,
+    DocumentProcessingLimitError,
+    DocumentProcessingLimits,
+)
 
 
 class DocumentContentEmptyError(RuntimeError):
@@ -33,6 +39,7 @@ def chunk_document(
     *,
     chunk_size: int,
     chunk_overlap: int,
+    limits: DocumentProcessingLimits = DEFAULT_DOCUMENT_PROCESSING_LIMITS,
 ) -> tuple[DocumentChunkDraft, ...]:
     _validate_window(chunk_size, chunk_overlap)
     source_format = document.metadata.get("format")
@@ -50,6 +57,8 @@ def chunk_document(
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
             ):
+                if len(drafts) >= limits.max_chunks:
+                    raise DocumentProcessingLimitError()
                 drafts.append(
                     _build_draft(
                         chunk_index=len(drafts),
@@ -77,6 +86,8 @@ def chunk_document(
             heading_offsets=heading_offsets,
             start=start,
         )
+        if len(drafts) >= limits.max_chunks:
+            raise DocumentProcessingLimitError()
         drafts.append(
             _build_draft(
                 chunk_index=len(drafts),
@@ -105,8 +116,7 @@ def _chunk_ranges(
     *,
     chunk_size: int,
     chunk_overlap: int,
-) -> tuple[tuple[int, int], ...]:
-    ranges: list[tuple[int, int]] = []
+) -> Iterator[tuple[int, int]]:
     start = 0
     while start < len(text):
         hard_end = min(start + chunk_size, len(text))
@@ -122,12 +132,11 @@ def _chunk_ranges(
                     end = newline + 1
         if end <= start:
             end = hard_end
-        ranges.append((start, end))
+        yield start, end
         if end >= len(text):
             break
         next_start = end - chunk_overlap
         start = max(start + 1, next_start)
-    return tuple(ranges)
 
 
 def _heading_markers(document: ParsedDocument) -> tuple[_HeadingMarker, ...]:
@@ -199,7 +208,7 @@ def _build_draft(
         content=content,
         token_count=max(1, ceil(len(content.encode("utf-8")) / 4)),
         char_count=len(content),
-        heading=None if heading is None else heading.text,
+        heading=None if heading is None else heading.text[:512],
         page_number=page_number,
         metadata=metadata,
     )

@@ -114,6 +114,9 @@ Pure parsers extract Markdown structure, deterministically decoded TXT, and
 page-aware text-layer PDF content. Successful uploads persist ordered
 `DocumentChunk` rows and return `parsed` / `chunked`; expected parser or
 content failures remain HTTP 201 resources with safe visible failure states.
+Patch revision `20260801_0006` makes same-Knowledge-Base document hashes unique,
+restricts deletion of a Knowledge Base that still owns Documents, and safely
+clears a deleted answer Message reference without losing its `RagQuery`.
 Embedding, Qdrant client, retrieval, Document query/delete APIs, and frontend
 upload/RAG runtime remain deferred to later Plan 3 steps.
 
@@ -218,8 +221,8 @@ in an untracked `backend/.env` or process environment. The tracked Compose
 configuration disables Qdrant telemetry. On 2026-07-26, the pinned
 `qdrant/qdrant:v1.15.4` container was verified running with zero restarts and
 `/healthz` returned HTTP 200 with `healthz check passed`. This no-key Compose
-service is for local development only; do not expose port 6333 to an untrusted
-network.
+service is for local development only; Compose binds port 6333 only to
+`127.0.0.1`, and it must not be exposed to an untrusted network.
 
 ### Document Upload Storage
 
@@ -234,37 +237,52 @@ relative POSIX path. Configure the non-secret limits in an untracked
 DOCUMENT_STORAGE_ROOT=./uploads
 DOCUMENT_MAX_UPLOAD_BYTES=20971520
 DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE=50
+DOCUMENT_MAX_PDF_PAGES=500
+DOCUMENT_MAX_EXTRACTED_CHARACTERS=10000000
+DOCUMENT_MAX_MARKDOWN_STRUCTURES=20000
+DOCUMENT_MAX_CHUNKS=10000
 RAG_CHUNK_SIZE=1000
 RAG_CHUNK_OVERLAP=150
 ```
 
 Uploads are non-empty, limited to 20 MiB, and deduplicated by SHA-256 within
 one Knowledge Base. Identical content is allowed in a different Knowledge Base.
+Stored paths must exactly match the lowercase canonical form
+`<knowledge_base_uuid>/<document_uuid>.<md|txt|pdf>`; absolute paths, mixed
+separators, dot segments, and UUID/suffix case variants are rejected.
 Request rollback removes a newly promoted file, but process termination can
 leave an orphan. Each accepted upload synchronously runs the parser, Cleaner,
 and Chunker before the request commits. Storage, database, and unexpected
 processing errors use the existing safe error responses and roll back the
-Document, chunks, and promoted file. Document/Knowledge Base file deletion and
-orphan scanning are not implemented. The runtime upload directory is ignored
-and must never be committed.
+Document, chunks, and promoted file. Deleting a Knowledge Base that still owns
+any Document returns HTTP 409 and preserves its rows and controlled files.
+Document deletion, file lifecycle cleanup, and orphan scanning are not
+implemented. The runtime upload directory is ignored and must never be
+committed.
 
 ### Document Processing
 
 `app.rag.parsers` exposes one immutable `ParsedDocument` result contract and
 independent parsers for stored Markdown, TXT, and text-layer PDF files.
 Markdown keeps its original markup while reporting headings and fenced code
-blocks. TXT supports strict UTF-8, UTF-8 BOM, and BOM-marked UTF-16. PDF parsing
+blocks. Code-block metadata stores only `language`, `start_line`, and
+`end_line`, not a second copy of the code content. TXT supports strict UTF-8,
+UTF-8 BOM, and BOM-marked UTF-16. PDF parsing
 uses `pypdf`, preserves one-based page metadata, and returns a readable
 limitation for scanned or image-only PDFs because Plan 3 does not include OCR.
 
 The Cleaner normalizes line endings, removes bounded control/format characters,
-collapses whitespace-only blank-line runs, preserves Markdown syntax and
-per-page PDF boundaries, and updates Markdown heading line metadata. The
+collapses whitespace-only blank-line runs outside fenced code, preserves every
+blank line inside a fence and per-page PDF boundaries, and updates Markdown
+heading/code-block line metadata. The
 Chunker defaults to 1,000 characters with 150-character overlap, prefers
 paragraph then line boundaries in the latter half of a window, never crosses
 PDF pages, and preserves heading/page provenance. Its `token_count` is a
 deterministic UTF-8 byte estimate (`ceil(bytes / 4)`), not tokenizer billing
-data.
+data. Processing also rejects PDFs over 500 pages, extracted text over
+10,000,000 characters, Markdown metadata over 20,000 structures, or a document
+that would produce more than 10,000 chunks. Chunk headings are bounded to 512
+characters.
 
 Successful uploads return HTTP 201 with `parse_status=parsed`,
 `chunk_status=chunked`, and `embedding_status=pending`. Invalid encoded text or

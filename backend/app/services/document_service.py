@@ -2,6 +2,7 @@ import logging
 from uuid import UUID, uuid4
 
 from sqlalchemy import event, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.logging import safe_stack_locations
@@ -13,6 +14,10 @@ from app.knowledge import (
     StagedDocument,
 )
 from app.models import Document
+from app.rag import (
+    DEFAULT_DOCUMENT_PROCESSING_LIMITS,
+    DocumentProcessingLimits,
+)
 from app.services.document_ingestion_service import DocumentIngestionService
 from app.services.knowledge_base_service import KnowledgeBaseService
 
@@ -20,6 +25,18 @@ logger = logging.getLogger(__name__)
 
 _PENDING_DOCUMENT_FILES = "pending_document_files"
 _DOCUMENT_FILE_LISTENERS = "document_file_listeners_registered"
+
+
+def _is_document_hash_duplicate(exc: IntegrityError) -> bool:
+    message = str(exc.orig).lower()
+    return (
+        "uq_documents_knowledge_base_id_file_hash" in message
+        or (
+            "unique constraint failed" in message
+            and "documents.knowledge_base_id" in message
+            and "documents.file_hash" in message
+        )
+    )
 
 
 def _register_file_transaction_listeners(session: Session) -> None:
@@ -59,6 +76,9 @@ class DocumentService:
         max_files_per_knowledge_base: int,
         chunk_size: int = 1000,
         chunk_overlap: int = 150,
+        processing_limits: DocumentProcessingLimits = (
+            DEFAULT_DOCUMENT_PROCESSING_LIMITS
+        ),
     ) -> None:
         self._session = session
         self._storage = storage
@@ -68,6 +88,7 @@ class DocumentService:
             storage=storage,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
+            processing_limits=processing_limits,
         )
         _register_file_transaction_listeners(session)
 
@@ -131,7 +152,12 @@ class DocumentService:
                 metadata_json={},
             )
             self._session.add(document)
-            self._session.flush()
+            try:
+                self._session.flush()
+            except IntegrityError as exc:
+                if _is_document_hash_duplicate(exc):
+                    raise DocumentDuplicateError() from exc
+                raise
             return self._ingestion.process_document(document)
         finally:
             if staged is not None:

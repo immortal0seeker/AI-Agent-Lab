@@ -11,6 +11,7 @@ from app.services.errors import (
     ChatModelNotFoundError,
     ChatProviderUnavailableError,
     ConversationNotFoundError,
+    KnowledgeBaseNotEmptyError,
     KnowledgeBaseNotFoundError,
     ServiceError,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "ConversationService",
     "DocumentService",
     "DocumentIngestionService",
+    "KnowledgeBaseNotEmptyError",
     "KnowledgeBaseNotFoundError",
     "KnowledgeBaseService",
     "ServiceError",

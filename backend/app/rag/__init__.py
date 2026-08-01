@@ -5,11 +5,19 @@ from .chunker import (
     DocumentContentEmptyError,
     chunk_document,
 )
+from .processing_limits import (
+    DEFAULT_DOCUMENT_PROCESSING_LIMITS,
+    DocumentProcessingLimitError,
+    DocumentProcessingLimits,
+)
 from .text_cleaner import clean_parsed_document
 
 __all__ = [
+    "DEFAULT_DOCUMENT_PROCESSING_LIMITS",
     "DocumentChunkDraft",
     "DocumentContentEmptyError",
+    "DocumentProcessingLimitError",
+    "DocumentProcessingLimits",
     "chunk_document",
     "clean_parsed_document",
 ]

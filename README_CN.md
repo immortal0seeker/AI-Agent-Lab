@@ -95,6 +95,8 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 持久化有序 `DocumentChunk`，返回 `parsed` / `chunked`；预期的解析或内容失败
 仍是 HTTP 201 资源，并持久化安全、可见的失败状态。Embedding、Qdrant client、
 检索、Document 查询/删除 API 和前端上传/RAG runtime 仍延期到后续 Plan 3 Step。
+补丁 revision `20260801_0006` 增加同一知识库内的 Document hash 唯一约束，禁止
+删除仍含 Document 的知识库，并在删除回答 Message 时只清空引用、保留 `RagQuery`。
 
 ## v0.1.0 演示
 
@@ -189,7 +191,7 @@ Invoke-RestMethod http://localhost:6333/healthz
 `backend/.env` 或进程环境中覆盖。tracked Compose 配置明确禁用 Qdrant 遥测。
 2026-07-26 已验证固定版本 `qdrant/qdrant:v1.15.4` 容器运行、重启次数为 0，
 且 `/healthz` 返回 HTTP 200 和 `healthz check passed`。该无 API key 的
-Compose 服务仅用于本地开发，不得将 6333 端口暴露给不受信任网络。
+Compose 服务仅用于本地开发，6333 只绑定 `127.0.0.1`，不得暴露给不受信任网络。
 
 ### Document 上传存储
 
@@ -203,30 +205,41 @@ POSIX 路径。如需覆盖非秘密配置，可在未跟踪的 `backend/.env` �
 DOCUMENT_STORAGE_ROOT=./uploads
 DOCUMENT_MAX_UPLOAD_BYTES=20971520
 DOCUMENT_MAX_FILES_PER_KNOWLEDGE_BASE=50
+DOCUMENT_MAX_PDF_PAGES=500
+DOCUMENT_MAX_EXTRACTED_CHARACTERS=10000000
+DOCUMENT_MAX_MARKDOWN_STRUCTURES=20000
+DOCUMENT_MAX_CHUNKS=10000
 RAG_CHUNK_SIZE=1000
 RAG_CHUNK_OVERLAP=150
 ```
 
 上传必须非空，默认上限 20 MiB，每个知识库默认最多 50 个 Document；同一
-知识库按 SHA-256 拒绝重复内容，不同知识库允许相同内容。正常请求回滚会删除
+知识库按 SHA-256 拒绝重复内容，不同知识库允许相同内容。持久化路径必须严格
+使用小写规范形式 `<knowledge_base_uuid>/<document_uuid>.<md|txt|pdf>`；绝对路径、
+混合分隔符、点段、UUID 或后缀大小写变体都会被拒绝。正常请求回滚会删除
 刚提升的文件，但进程异常终止仍可能留下孤儿文件。每个已接受上传都会在请求
 提交前同步执行 Parser、Cleaner 和 Chunker。存储、数据库和非预期处理错误沿用
-安全错误响应，并回滚 Document、chunk 和已提升文件。本批不处理 Document/
-知识库文件删除与孤儿扫描。runtime 上传目录已忽略，不能提交。
+安全错误响应，并回滚 Document、chunk 和已提升文件。删除仍包含任意 Document
+的知识库会返回 HTTP 409，并保留知识库、文档和受控文件。当前不实现 Document
+删除、文件生命周期清理与孤儿扫描。runtime 上传目录已忽略，不能提交。
 
 ### Document 处理
 
 `app.rag.parsers` 提供统一且不可变的 `ParsedDocument` 结果契约，以及独立的
 Markdown、TXT 和文本层 PDF Parser。Markdown 保留原始标记，同时报告标题与围栏
-代码块；TXT 严格支持 UTF-8、UTF-8 BOM 和带 BOM 的 UTF-16；PDF 使用 `pypdf`
+代码块；代码块 metadata 只保存 `language`、`start_line` 和 `end_line`，不重复
+保存代码正文。TXT 严格支持 UTF-8、UTF-8 BOM 和带 BOM 的 UTF-16；PDF 使用 `pypdf`
 并保留从 1 开始的页码 metadata。扫描版或纯图片 PDF 会返回可读限制说明，因为
 Plan 3 不包含 OCR。
 
-Cleaner 会统一换行、移除受限控制/格式字符、折叠只含空白的连续空行、保留
-Markdown 语法与 PDF 分页边界，并更新 Markdown 标题行 metadata。Chunker 默认
+Cleaner 会统一换行、移除受限控制/格式字符，只折叠围栏代码块外的连续空行，
+完整保留围栏内部空行和 PDF 分页边界，并更新 Markdown 标题/代码块行 metadata。
+Chunker 默认
 使用 1000 字符窗口和 150 字符 overlap，优先选择窗口后半段的段落边界、其次
 换行边界；PDF chunk 不跨页，并保留标题/页码来源。`token_count` 是确定性的
-UTF-8 字节估算 `ceil(bytes / 4)`，不是 tokenizer 计费数据。
+UTF-8 字节估算 `ceil(bytes / 4)`，不是 tokenizer 计费数据。默认还会拒绝超过
+500 页的 PDF、超过 10,000,000 字符的提取文本、超过 20,000 项的 Markdown
+结构或会产生超过 10,000 个 chunk 的文档；持久化 heading 最长 512 字符。
 
 成功上传返回 HTTP 201，状态为 `parse_status=parsed`、
 `chunk_status=chunked`、`embedding_status=pending`。编码无效或不可读内容返回

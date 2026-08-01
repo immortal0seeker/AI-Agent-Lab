@@ -18,6 +18,7 @@ from app.knowledge import (
     KnowledgeBaseDocumentLimitReachedError,
 )
 from app.models import Document, DocumentChunk
+from app.rag import DocumentProcessingLimits
 from app.schemas import KnowledgeBaseCreate
 from app.services import (
     DocumentService,
@@ -161,6 +162,44 @@ def test_service_retains_document_when_content_processing_fails(
     assert (storage.root / Path(document.file_path)).exists()
 
 
+def test_service_passes_processing_limits_to_ingestion(
+    db: tuple[Session, Engine],
+    tmp_path: Path,
+) -> None:
+    session, _ = db
+    knowledge_base_id = _create_knowledge_base(session, "Limited processing")
+    storage = DocumentStorage(
+        tmp_path / "uploads",
+        max_upload_bytes=1024,
+    )
+    limits = DocumentProcessingLimits(
+        max_pdf_pages=10,
+        max_extracted_characters=5,
+        max_markdown_structures=10,
+        max_chunks=10,
+    )
+    service = DocumentService(
+        session,
+        storage=storage,
+        max_files_per_knowledge_base=50,
+        processing_limits=limits,
+    )
+
+    document = asyncio.run(
+        service.upload_document(
+            knowledge_base_id,
+            original_filename="private.txt",
+            stream=TrackingStream(b"private content"),
+        )
+    )
+
+    assert document.parse_status == "failed"
+    assert document.chunk_status == "failed"
+    assert document.error_message == "Document exceeds the processing limit."
+    assert _document_count(session) == 1
+    assert _chunk_count(session) == 0
+
+
 def test_service_checks_knowledge_base_before_reading_stream(
     db: tuple[Session, Engine],
     tmp_path: Path,
@@ -269,6 +308,55 @@ def test_service_rejects_same_knowledge_base_duplicate(
     assert _document_count(session) == 1
     assert len(_stored_files(storage.root)) == 1
     assert not any(storage.staging_directory.iterdir())
+
+
+def test_service_normalizes_unique_race_and_cleans_promoted_file(
+    db: tuple[Session, Engine],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session, _ = db
+    knowledge_base_id = _create_knowledge_base(session, "Race")
+    storage = DocumentStorage(tmp_path / "uploads", max_upload_bytes=1024)
+    service = DocumentService(
+        session,
+        storage=storage,
+        max_files_per_knowledge_base=50,
+    )
+    content = b"same race content"
+    asyncio.run(
+        service.upload_document(
+            knowledge_base_id,
+            original_filename="first.txt",
+            stream=TrackingStream(content),
+        )
+    )
+    session.commit()
+    real_scalar = session.scalar
+    document_scalar_calls = 0
+
+    def scalar_without_duplicate_precheck(statement, *args, **kwargs):
+        nonlocal document_scalar_calls
+        if "FROM documents" in str(statement):
+            document_scalar_calls += 1
+            if document_scalar_calls == 2:
+                return None
+        return real_scalar(statement, *args, **kwargs)
+
+    monkeypatch.setattr(session, "scalar", scalar_without_duplicate_precheck)
+
+    with pytest.raises(DocumentDuplicateError):
+        asyncio.run(
+            service.upload_document(
+                knowledge_base_id,
+                original_filename="second.txt",
+                stream=TrackingStream(content),
+            )
+        )
+    session.rollback()
+
+    assert _document_count(session) == 1
+    assert len(_stored_files(storage.root)) == 1
 
 
 def test_service_allows_same_hash_in_different_knowledge_bases(

@@ -3,6 +3,7 @@ from uuid import UUID
 
 import pytest
 
+from app.rag import DocumentProcessingLimitError, DocumentProcessingLimits
 from app.rag.parsers import (
     DocumentParseError,
     DocumentParseLimitationError,
@@ -12,6 +13,18 @@ from tests.pdf_factory import build_pdf
 
 
 DOCUMENT_ID = UUID("33333333-3333-4333-8333-333333333333")
+PAGE_LIMITS = DocumentProcessingLimits(
+    max_pdf_pages=1,
+    max_extracted_characters=10_000,
+    max_markdown_structures=1,
+    max_chunks=10,
+)
+CHARACTER_LIMITS = DocumentProcessingLimits(
+    max_pdf_pages=10,
+    max_extracted_characters=5,
+    max_markdown_structures=1,
+    max_chunks=10,
+)
 
 
 def test_pdf_parser_extracts_ordered_pages(tmp_path: Path) -> None:
@@ -42,6 +55,24 @@ def test_pdf_parser_allows_blank_page_when_other_page_has_text(
     assert parsed.pages is not None
     assert parsed.pages[0].text.strip() == "Text page"
     assert parsed.pages[1].text == ""
+
+
+def test_pdf_parser_rejects_page_limit(tmp_path: Path) -> None:
+    path = tmp_path / "many.pdf"
+    path.write_bytes(build_pdf(["one", "two"]))
+
+    with pytest.raises(DocumentProcessingLimitError):
+        parse_pdf(path, document_id=DOCUMENT_ID, limits=PAGE_LIMITS)
+
+
+def test_pdf_parser_rejects_incremental_character_limit(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "large.pdf"
+    path.write_bytes(build_pdf(["more than five characters"]))
+
+    with pytest.raises(DocumentProcessingLimitError):
+        parse_pdf(path, document_id=DOCUMENT_ID, limits=CHARACTER_LIMITS)
 
 
 def test_pdf_parser_reports_scanned_pdf_limitation(
