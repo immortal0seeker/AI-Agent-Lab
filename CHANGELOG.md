@@ -6,6 +6,14 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added a vendor-neutral asynchronous VectorStore contract with validated
+  collection, point, query, result, and safe error boundaries.
+- Added a Qdrant 1.15.x adapter and lazy collection/timeout configuration for
+  COSINE collection create/check, waited vector upsert, Knowledge-Base-filtered
+  search, and ownership-scoped Document vector deletion.
+- Added a strict Chunk payload builder with canonical Knowledge Base, Document,
+  and Chunk UUIDs plus filename, index, content, heading/page provenance, and
+  nested JSON-safe source metadata for later Retriever results.
 - Added an OpenAI-compatible Embedding adapter with batched `/embeddings`
   requests, query embedding, response-index ordering, actual model/token usage,
   and strict configured-dimension validation.
@@ -59,6 +67,13 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Security And Reliability
 
+- VectorStore operations fail closed on collection dimension/distance/shape
+  mismatch, reject non-finite or wrong-dimension vectors and malformed payloads,
+  suppress Qdrant exception causes, and never copy remote diagnostics into safe
+  application errors.
+- Qdrant search and deletion apply mandatory ownership filters; the local live
+  acceptance used and removed a random temporary collection without touching
+  existing collections.
 - Bound the local Qdrant port to `127.0.0.1` and added configurable limits for
   PDF pages, extracted characters, Markdown structures, and per-Document chunks.
 - Enforced exact canonical stored paths, retained storage-root symlink/reparse

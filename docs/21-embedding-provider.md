@@ -7,8 +7,9 @@ an ordered runtime Registry, and one OpenAI-compatible HTTP adapter. The
 adapter can turn a non-empty batch of strings, or one query string, into
 validated vectors without leaking vendor response shapes into RAG services.
 
-This document does not describe Qdrant collection management or document
-vector ingestion. Those remain assigned to P3-M3-S7～S12.
+Qdrant collection management is implemented separately by the VectorStore
+boundary introduced in P3-M3-S7～S9. This document still does not describe
+document vector ingestion, which remains assigned to P3-M3-S10～S12.
 
 ## Runtime Boundary
 
@@ -144,7 +145,7 @@ code. Remote response bodies are not copied into exceptions.
 
 - No automatic retry, fallback, caching, rate-limit backoff, batch splitting,
   or persisted embedding-call audit row.
-- No Qdrant collection, point, payload, vector upsert, or vector deletion yet.
+- The separate Qdrant VectorStore is not called by this Provider adapter.
 - Document ingestion still stops after local Chunk persistence with
   `embedding_status=pending`.
 - No Retriever, RAG answer generation, Advanced RAG, Rerank, Evaluation,

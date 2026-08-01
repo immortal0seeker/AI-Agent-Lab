@@ -28,7 +28,7 @@ sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
 the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
 audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
-`P3-M3-S6` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
+`P3-M3-S9` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
 ownership boundaries, four knowledge persistence models, a service-owned
 Knowledge Base CRUD API, controlled validated Document upload, and independent
 Markdown/TXT/text-layer-PDF parsers composed with pure cleaning, naive
@@ -37,8 +37,10 @@ audit patch binds Qdrant to loopback, enforces canonical stored paths and
 processing ceilings, and adds final database constraints. M3 S1～S6 add the
 vendor-neutral Embedding Provider/result contract, an ordered runtime Registry,
 and a concrete OpenAI-compatible adapter with independent lazy configuration,
-safe HTTP/response errors, and strict dimension checks. No vector-store client
-or embedding-ingestion runtime exists yet.
+safe HTTP/response errors, and strict dimension checks. M3 S7～S9 add a
+vendor-neutral asynchronous VectorStore contract, a Qdrant 1.15.x adapter, and
+the stable Chunk payload bridge required by M4. Embedding-ingestion runtime does
+not exist yet.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -101,7 +103,7 @@ Current backend layers:
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM abstractions/adapters plus the M3 Embedding abstraction, validated batch result, runtime Registry, and OpenAI-compatible adapter/factory |
 | `knowledge/` | Plan 3 structured knowledge metadata plus controlled Document storage; models live in `models/` and service policy lives in `services/` |
-| `rag/` | Plan 3 document-processing and Naive RAG boundary; pure Markdown/TXT/text-layer-PDF parsers, Cleaner, and naive Chunker exist through M2, while Embedding execution, retrieval, and Qdrant client runtime remain deferred |
+| `rag/` | Plan 3 document-processing and Naive RAG boundary; parsers, Cleaner, naive Chunker, VectorStore contracts, payload builder, and Qdrant adapter exist through M3 S9, while embedding ingestion and Retriever runtime remain deferred |
 | `tools/` | Tool contracts, Registry, schema validation, and read-only policy |
 | `db/` | SQLAlchemy session and database setup |
 | `models/` | ORM models |
@@ -137,9 +139,11 @@ concurrent writes. Future modules should optimize for reliable local SQLite
 operation without adding PostgreSQL-specific infrastructure preemptively.
 
 Plan 3 adds Qdrant as a separate vector-storage service configured through
-`QDRANT_URL`; it does not replace SQLite business or audit persistence. The
-scope through `P3-M3-S6` contains no Qdrant client or Vector Store
-implementation.
+`QDRANT_URL`, `QDRANT_COLLECTION_NAME`, and `QDRANT_TIMEOUT_SECONDS`; it does
+not replace SQLite business or audit persistence. Through `P3-M3-S9`, the
+Qdrant adapter can create/check one COSINE collection, upsert validated points,
+search under a mandatory Knowledge Base filter, and delete under Knowledge Base
+plus Document ownership filters. Upload ingestion does not call it yet.
 
 The initial migration creates:
 
@@ -237,8 +241,9 @@ blank-line multiplicity inside fenced code and remaps heading/code-block line
 metadata; the Chunker bounds persisted headings to the schema's 512-character
 limit.
 
-Document query/delete, Embedding, retrieval, and Qdrant client behavior remain
-deferred. The complete contract is documented in
+Document query/delete, embedding ingestion, and retrieval remain deferred. The
+standalone Qdrant VectorStore behavior is available but is not called by the
+upload transaction. The complete contract is documented in
 [Knowledge Base Design](20-knowledge-base-design.md).
 
 ## Tool Calling Foundation
@@ -554,8 +559,23 @@ Plan 3 Embedding provider target through `P3-M3-S6`:
   order from indexes, and checks returned vectors against the configured
   dimension.
 - Embedding Settings are independent from LLM Settings and remain lazy until
-  the concrete factory is called. Qdrant integration and document embedding
-  execution remain assigned to later M3 steps.
+  the concrete factory is called. Document embedding execution remains
+  assigned to M3 S10～S12.
+
+Plan 3 VectorStore target through `P3-M3-S9`:
+
+- `VectorStore` defines asynchronous collection, upsert, search, ownership
+  delete, and client-lifecycle operations behind validated immutable contracts.
+- `QdrantVectorStore` is the only Qdrant SDK boundary. It uses one default
+  COSINE dense vector, rejects incompatible existing collection configuration,
+  waits for writes, and normalizes SDK failures without exposing diagnostics.
+- search always filters `knowledge_base_id`; deletion matches both
+  `knowledge_base_id` and `document_id`.
+- Chunk payloads store canonical IDs, filename/index/content, optional
+  heading/page, and nested JSON-safe metadata. They provide the source bridge
+  for M4 without implementing a Retriever early.
+- SQLite `vector_id`/status persistence and upload-to-vector orchestration
+  remain assigned to M3 S10～S12.
 
 The Provider stream contract is consumed by `ChatService.stream_complete()` and
 the protocol adapter at `POST /api/v1/chat/stream`. The service emits

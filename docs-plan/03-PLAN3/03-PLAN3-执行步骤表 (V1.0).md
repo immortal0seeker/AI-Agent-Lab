@@ -60,7 +60,7 @@ blocked
 | Batch 6 | P3-M2-S7～S9 | 实现文本清洗和 Chunking | Chunking 测试，Codex review M2 | 已完成（Cleaner、Chunker、同步 Pipeline、正式文档与全量回归通过） |
 | Batch 7 | P3-M3-S1～S3 | 实现 Embedding Provider 抽象 | mock embedding 测试 | 已完成（抽象、批量结果/usage、Registry、正式文档与全量回归通过） |
 | Batch 8 | P3-M3-S4～S6 | 实现 OpenAI-compatible Embedding 和配置 | provider 测试 | 已完成（批量/query adapter、独立配置、安全错误、维度双检、正式文档与全量回归通过） |
-| Batch 9 | P3-M3-S7～S9 | 实现 Qdrant Vector Store | vector store 测试 | 未完成 |
+| Batch 9 | P3-M3-S7～S9 | 实现 Qdrant Vector Store | vector store 测试 | 已完成（抽象、payload、collection/upsert/search/delete、真实临时 collection 与全量回归通过） |
 | Batch 10 | P3-M3-S10～S12 | 实现文档入库 Pipeline | 端到端入库测试，Codex + Claude review M3 | 未完成 |
 | Batch 11 | P3-M4-S1～S3 | 实现 Retriever 和 RAG Prompt | 检索 + prompt 测试 | 未完成 |
 | Batch 12 | P3-M4-S4～S6 | 实现 RAG Query / Chat API | API 测试 | 未完成 |
@@ -379,6 +379,30 @@ feat(embedding): add provider abstraction and registry
 feat(embedding): add openai compatible provider
 ```
 
+### P3-M3-S7～S9 Qdrant Vector Store 验收记录（2026-08-01）
+
+| 验收项 | 结果与证据 |
+|---|---|
+| 范围与基线 | 从 `HEAD == origin/main == 7fbbf10cbbb1c78261cf4279d697e033690f6728` 的干净 `main` 开始，只实现 S7～S9；未创建或切换分支，staged paths 保持 0，既有 `v0.2.0` / `v0.2.1` 标签未移动。 |
+| S7 抽象 | 新增 `app.rag.vectorstores.VectorStore` 异步边界、collection/point/query/result 契约和配置/输入/operation/response/dimension 错误。向量、score、limit、UUID 和 point/chunk traceability 均 fail-closed；mock store 证明业务调用方不依赖 Qdrant response shape。 |
+| S8 Qdrant adapter | 新增与服务端同 minor 的 `qdrant-client 1.15.1` 和 `QdrantVectorStore`：可创建或检查一个默认 COSINE dense collection，拒绝错误维度/距离/named vectors；upsert/delete 使用 `wait=True` 并要求 `completed`，search 强制 Knowledge Base filter，delete 同时匹配 Knowledge Base 与 Document ID。SDK/响应错误不回显 endpoint、body、payload、content、vector 或 cause。 |
+| S9 payload | `build_qdrant_payload()` 验证 Document/Chunk ownership 和 JSON-safe metadata，固定保存规范 `knowledge_base_id`、`document_id`、`chunk_id`、`filename`、`chunk_index`、`content`、`heading`、`page_number`、`metadata`。返回 point ID 必须等于 payload `chunk_id`，并二次拒绝不属于请求 Knowledge Base 的搜索结果。 |
+| TDD | 抽象/payload 首轮因 package 缺失 RED，GREEN `30 passed`；adapter/config 因导出缺失 RED，首轮 SDK shape 校准后 `107 passed`。Codex 自审的 ID/KB traceability RED 为 `2 failed, 42 passed`，修复后 focused `109 passed`；write response status RED 为 `4 failed, 21 passed`，最终 focused `113 passed`。邻接回归曾达 `202 passed, 1 warning`。 |
+| 真实 Qdrant | Compose config 通过；`qdrant/qdrant:v1.15.4` 为 running、restart 0、只绑定 `127.0.0.1:6333`，`/healthz` 为 `healthz check passed`。随机 `codex_p3_m3_s7_s9_*` 临时 collection 两次完成 create/check、2-point upsert、两个 KB 各 1 hit、按 Document 删除后目标 0 hit/另一 KB 1 hit；`finally` 删除后复核临时 collection 数为 0。 |
+| 后端、SQLite 与前端 | 完整 backend `880 passed, 1 warning`；warning 为既有 Starlette TestClient/httpx 弃用提示；`pip check` 无破损。仅对新建系统临时 SQLite 完成 upgrade/current/check/downgrade/re-upgrade，head `20260801_0006` 且临时目录已删除。Frontend typecheck、`18 files / 90 tests`、production build `1813 modules` 通过。未读取或修改 `backend/ai_agent_lab.db`。 |
+| 文档、安全与边界 | README 中英文、架构、知识库设计、Embedding 文档、CHANGELOG、env example、设计与实施计划同步；102 个 Markdown、75 个有效本地链接/图片、0 missing。高置信 secret 0；17 个既有私钥头当前新增 0；`web_fetch` runtime 0；later-Plan runtime path 0；tracked artifact 0。未读取真实 `.env`/key，未调用真实 Provider、付费 API 或网络 Tool。 |
+| Codex self-review | must fix：补 point/chunk ID 一致性、搜索结果 KB 二次校验和 write `completed` 响应校验，均已 RED/GREEN 并纳入全量回归；最终文档复核又将全局验收/桥接清单中的 Qdrant 写入与 payload 三字段从过期的 `pending` 同步为 `implemented`。fix later：S10～S12 串联 parse/chunk/embed/upsert 和持久化 `vector_id`/状态，M4 再实现 Retriever；accepted limitation：当前单 collection 无 payload index、自动 batching/retry/race reconciliation/远端鉴权，真实 Embedding 仍未验收；not applicable：数据库 schema/migration、API route、前端 runtime/截图和外部 review。无剩余 must-fix。 |
+
+**结论：** `P3-M3-S7～S9` 与 Batch 9 完成，可进入
+`P3-M3-S10～S12`；本批未提前实现 ingestion/vector ID/status、Retriever、RAG API、
+前端或任何 Plan 4+ runtime。
+
+本批建议 commit：
+
+```text
+feat(vectorstore): add qdrant vector store
+```
+
 M3 完成后建议 commit：
 
 ```text
@@ -565,7 +589,7 @@ Claude Code 审核后，Codex 负责：
 | 可以清洗文本 | implemented | fence-aware cleaner 与结构行号重映射测试 |
 | 可以切分 Chunk | implemented | chunker、放大上限、heading 边界与 ingestion 测试 |
 | 可以调用 Embedding Provider | pending | provider 测试 |
-| 可以写入 Qdrant | pending | vector store 测试 |
+| 可以写入 Qdrant | implemented | mock/adapter 测试与真实临时 collection create/check/upsert/search/delete 冒烟 |
 | 可以基于 query 检索 Chunk | pending | retriever 测试 |
 | 可以基于检索结果生成回答 | pending | RAG API 测试 |
 | 前端可以上传文档 | pending | 页面截图 |
@@ -589,7 +613,7 @@ Claude Code 审核后，Codex 负责：
 | `rag_queries` 或等价查询记录可用 | pending | Plan 4 可以扩展为检索 Trace |
 | `document_chunks` 至少包含 document_id、chunk_index、content、metadata、vector_id | pending | Parent-Child / metadata filter / rerank 都依赖这些字段 |
 | RAG Query API 返回 answer、sources、retrieval metadata | pending | Evaluation 和 Trace 需要统一结果结构 |
-| Qdrant payload 中保留 knowledge_base_id、document_id、chunk_id | pending | Plan 4 的过滤、来源展示、检索记录都依赖 payload |
+| Qdrant payload 中保留 knowledge_base_id、document_id、chunk_id | implemented | payload builder、ownership 校验与搜索结果二次隔离测试 |
 
 ---
 

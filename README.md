@@ -25,7 +25,7 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M3-S6`.
+Completed scope: `P1-M1-S1` through `P3-M3-S9`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -45,6 +45,10 @@ runtime Registry that selects Provider instances by exact configured name.
 The second M3 batch adds an OpenAI-compatible `/embeddings` adapter with batch
 and query requests, safe HTTP/response errors, independent lazy Settings, and
 strict configured-dimension validation.
+The third M3 batch adds a vendor-neutral asynchronous VectorStore contract,
+an official Qdrant 1.15.x adapter for COSINE collection create/check, vector
+upsert, Knowledge-Base-filtered search, and Document-filtered deletion, plus a
+strict Chunk payload builder that preserves content and source metadata for M4.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -123,7 +127,9 @@ content failures remain HTTP 201 resources with safe visible failure states.
 Patch revision `20260801_0006` makes same-Knowledge-Base document hashes unique,
 restricts deletion of a Knowledge Base that still owns Documents, and safely
 clears a deleted answer Message reference without losing its `RagQuery`.
-Qdrant collection/vector writes, embedding ingestion, retrieval, Document
+The VectorStore can now create/check a collection and independently write,
+filter-search, and delete validated Chunk points. Embedding ingestion,
+persisted `vector_id`/status transitions, Retriever orchestration, Document
 query/delete APIs, and frontend upload/RAG runtime remain deferred to later
 Plan 3 steps.
 
@@ -223,9 +229,26 @@ docker compose up -d qdrant
 Invoke-RestMethod http://localhost:6333/healthz
 ```
 
-The backend defaults `QDRANT_URL` to `http://localhost:6333`. Override it only
-in an untracked `backend/.env` or process environment. The tracked Compose
-configuration disables Qdrant telemetry. On 2026-07-26, the pinned
+The backend uses lazy, non-secret VectorStore configuration:
+
+```text
+QDRANT_URL=http://localhost:6333
+QDRANT_COLLECTION_NAME=ai_agent_lab_chunks
+QDRANT_TIMEOUT_SECONDS=10
+```
+
+Override these values only in an untracked `backend/.env` or process
+environment. `qdrant-client` is pinned to the server's 1.15 minor. The adapter
+creates one default COSINE dense-vector collection or fail-closes when an
+existing collection has a different dimension, distance, or named-vector
+shape. Search always filters `knowledge_base_id`; Document vector deletion
+matches both Knowledge Base and Document IDs. Each payload stores canonical
+Knowledge Base/Document/Chunk UUIDs, filename, chunk index, content, optional
+heading/page, and nested source metadata. These operations are not yet wired
+into upload ingestion.
+
+The tracked Compose configuration disables Qdrant telemetry. On 2026-08-01,
+the pinned
 `qdrant/qdrant:v1.15.4` container was verified running with zero restarts and
 `/healthz` returned HTTP 200 with `healthz check passed`. This no-key Compose
 service is for local development only; Compose binds port 6333 only to
@@ -510,10 +533,12 @@ explicitly deferred with no runtime surface. See the
 [Plan 2 release and patch](docs/13-plan-2-basic-agent.md) and
 [Plan 2 final review](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md) for
 the complete current boundaries.
-Embedding verification is also mock-only: there is no live service acceptance,
-automatic retry/batching, persisted embedding-cost record, Qdrant vector write,
-or retrieval pipeline yet. Returned usage is available in memory, and the
-configured dimension is validated before future storage.
+Embedding Provider verification is still mock-only: there is no live model
+service acceptance, automatic retry/batching, or persisted embedding-cost
+record. Qdrant VectorStore operations have separate unit coverage and a local
+temporary-collection smoke, but no upload-to-embedding-to-vector ingestion or
+Retriever pipeline yet. Returned Provider usage remains in memory, and both
+Provider and VectorStore enforce the configured dimension before storage.
 
 ## Roadmap
 

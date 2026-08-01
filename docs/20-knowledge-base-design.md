@@ -3,23 +3,25 @@
 ## Scope
 
 Plan 3 Milestone 1 establishes the persistence and management boundary for
-Knowledge Bases. Through `P3-M3-S6`, the backend can create, list, read, update,
+Knowledge Bases. Through `P3-M3-S9`, the backend can create, list, read, update,
 and delete Knowledge Base metadata, upload one validated Document through a
 service-owned HTTP API, and synchronously parse, clean, and chunk Markdown,
 TXT, or text-layer PDF through independent processing boundaries. It also
 provides a vendor-neutral Embedding Provider/result contract, runtime Registry,
-and OpenAI-compatible adapter, without invoking that boundary from ingestion
-yet.
+OpenAI-compatible adapter, standalone Qdrant VectorStore, and stable Chunk
+payload, without invoking the embedding/vector boundaries from ingestion yet.
 
 The first M2 batch stores `.md`, `.txt`, and `.pdf` bytes and creates the
 initial Document row. The second adds pure parsers. The final M2 batch composes
 the Parser, Cleaner, and Chunker in the upload transaction, persists
 `DocumentChunk` rows, and exposes final parse/chunk states. M3 S1～S6 add the
 Embedding abstraction, validated batch output, exact-name Provider selection,
-concrete protocol adapter, and lazy initialization. No completed ingestion
-scope creates or persists embeddings, connects a Qdrant client, retrieves
-sources, generates RAG answers, or exposes a frontend Knowledge Base workspace.
-Those capabilities remain assigned to later Plan 3 steps.
+concrete protocol adapter, and lazy initialization. M3 S7～S9 add the
+VectorStore abstraction, Qdrant adapter, and stable Chunk payload. No completed
+ingestion scope creates or persists embeddings, calls the VectorStore, updates
+vector IDs/status, retrieves sources, generates RAG answers, or exposes a
+frontend Knowledge Base workspace. Those capabilities remain assigned to later
+Plan 3 steps.
 
 ## Storage Responsibilities
 
@@ -30,10 +32,12 @@ SQLite remains the default and long-term supported primary database. It owns:
 - Document Chunk text, source metadata, and future vector identifiers;
 - RAG query audit metadata and retrieved-chunk snapshots.
 
-Qdrant is configured as Plan 3's vector-storage service, but the scope through
-M3 S6 contains no Qdrant client or Vector Store runtime. The `vector_store`,
-`vector_collection_name`, and `vector_id` fields are persistence bridges, not
-evidence that a collection or vector has been created.
+Qdrant is Plan 3's vector-storage service. Through M3 S9, its standalone
+VectorStore runtime can create/check a COSINE collection, upsert points, search
+under a Knowledge Base filter, and delete under Knowledge Base plus Document
+ownership filters. The `vector_store` and `vector_collection_name` fields can
+select this runtime later; a nullable `vector_id` is still only a persistence
+bridge because S7～S9 do not update any SQLite row or ingestion state.
 
 Deleting a Knowledge Base that still owns any Document returns HTTP 409. The
 database RESTRICT constraint is the final concurrency gate, and the service
@@ -123,7 +127,54 @@ wrong-dimension vectors. The factory reads independent lazy Embedding Settings
 and unwraps the masked key only during initialization. Safe exceptions do not
 copy remote bodies, source text, vector values, or credentials. Document state
 updates, Qdrant calls, persisted vector IDs, and ingestion orchestration remain
-outside this Provider boundary and are deferred to S7～S12.
+outside this Provider boundary. Standalone Qdrant calls now belong to the
+VectorStore boundary below; state/vector-ID orchestration is deferred to
+S10～S12.
+
+## VectorStore And Qdrant Payload Boundary
+
+`app.rag.vectorstores` owns the asynchronous Naive RAG storage boundary added
+by M3 S7～S9. `VectorStore` exposes collection ensure, non-empty point upsert,
+Knowledge Base search, ownership-scoped Document delete, and client close.
+Inputs and results use UUIDs, finite non-empty vectors, a 1～100 search limit,
+finite scores, and immutable Pydantic contracts. The concrete
+`QdrantVectorStore` uses the official client pinned to Qdrant 1.15.x.
+
+The default configuration is:
+
+| Setting | Default | Contract |
+|---|---:|---|
+| `QDRANT_URL` | `http://localhost:6333` | HTTP(S) endpoint without embedded credentials, query, or fragment |
+| `QDRANT_COLLECTION_NAME` | `ai_agent_lab_chunks` | 1～255 ASCII letters, digits, `.`, `_`, or `-` |
+| `QDRANT_TIMEOUT_SECONDS` | `10` | Integer from 1 through 300 seconds |
+
+Initialization remains lazy. The factory uses the configured Embedding
+dimension and permits a Knowledge Base caller to override the default
+collection name. `ensure_collection()` creates one default COSINE dense-vector
+collection or checks the existing size/distance. Named vectors, different
+dimensions, and different distances fail closed; the adapter never rebuilds or
+deletes an incompatible existing collection.
+
+Every Chunk payload contains:
+
+```text
+knowledge_base_id, document_id, chunk_id, filename, chunk_index,
+content, heading, page_number, metadata
+```
+
+UUIDs serialize as canonical lowercase strings. `metadata` stays nested and
+must be a JSON-safe object with string keys and finite numbers. The builder
+checks that the Document and Chunk share both Document and Knowledge Base
+ownership, copies mutable metadata, and preserves Chunk content for M4's
+`RetrievalResult` without implementing the Retriever in this batch.
+
+Qdrant search always applies an exact `knowledge_base_id` filter and returns
+payload without vectors. Document deletion applies both `knowledge_base_id` and
+`document_id`, preventing a wrong identifier from deleting another Knowledge
+Base's points. SDK and network failures become fixed safe operation errors;
+malformed collection/search responses become safe response errors. Neither
+path copies endpoint diagnostics, payload content, vectors, or exception causes
+into application errors.
 
 ## Controlled Document Storage
 
@@ -486,18 +537,40 @@ The M3 S4～S6 OpenAI-compatible Embedding verification reached:
   targets; zero high-confidence secrets, executable later-Plan runtime, or
   tracked artifacts.
 
+The M3 S7～S9 Qdrant VectorStore verification reached:
+
+- contract/payload RED at missing package import; GREEN: `30 passed`;
+- adapter/config RED at missing exports; SDK shape calibration GREEN:
+  `107 passed`;
+- traceability self-review RED: `2 failed, 42 passed`; write-status self-review
+  RED: `4 failed, 21 passed`; final VectorStore/config focused:
+  `113 passed`;
+- complete backend: `880 passed, 1 warning`; dependency integrity:
+  `No broken requirements found`;
+- temporary-SQLite upgrade/current/check/downgrade/re-upgrade at head
+  `20260801_0006`, followed by verified temporary-directory cleanup;
+- frontend: `18` files / `90` tests, typecheck, and production build with
+  `1813` transformed modules;
+- live local Qdrant create/check, two-point upsert, two Knowledge Base filtered
+  searches, ownership-scoped delete, post-delete isolation, and verified random
+  temporary-collection cleanup;
+- `102` Markdown files, `75` valid local links/images, and zero missing
+  targets; zero high-confidence secrets, added private-key headers, executable
+  later-Plan runtime, or tracked artifacts.
+
 The active Plan 3 execution table contains the security, scope, artifact, and
 Git gates. No verification command read or modified `backend/ai_agent_lab.db`.
 
 ## Deferred Capabilities
 
-The following remain outside completed Plan 3 through M3 S6:
+The following remain outside completed Plan 3 through M3 S9:
 
 - Document list, detail, chunk-query, delete, local-file deletion, and orphan
   recovery workflows;
 - live Embedding service acceptance, automatic retry/splitting, persisted call
   audit/cost, and document embedding execution;
-- Qdrant client, collection lifecycle, vector upsert, and vector deletion;
+- upload-to-Embedding-to-Qdrant orchestration, persisted `vector_id`, and
+  Document embedding lifecycle transitions;
 - Retriever, RAG Prompt, RAG query/chat runtime, and Agent Tool integration;
 - frontend Knowledge Base, upload, RAG Chat, and source display;
 - Advanced RAG, Hybrid Search, Rerank, Evaluation, Memory, OCR, and multimodal

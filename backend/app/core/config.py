@@ -1,7 +1,9 @@
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Self
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,6 +25,16 @@ class Settings(BaseSettings):
     qdrant_url: str = Field(
         default="http://localhost:6333",
         alias="QDRANT_URL",
+    )
+    qdrant_collection_name: str = Field(
+        default="ai_agent_lab_chunks",
+        alias="QDRANT_COLLECTION_NAME",
+    )
+    qdrant_timeout_seconds: int = Field(
+        default=10,
+        ge=1,
+        le=300,
+        alias="QDRANT_TIMEOUT_SECONDS",
     )
     backend_cors_origins: str = Field(
         default="http://localhost:5173",
@@ -156,6 +168,49 @@ class Settings(BaseSettings):
                 "embedding provider must be at most 100 characters"
             )
         return normalized
+
+    @field_validator("qdrant_url")
+    @classmethod
+    def validate_qdrant_url(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized or len(normalized) > 2048:
+            raise ValueError("Qdrant URL must be between 1 and 2048 characters")
+        try:
+            parsed = urlsplit(normalized)
+            _ = parsed.port
+        except ValueError as exc:
+            raise ValueError("Qdrant URL is invalid") from exc
+        if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
+            raise ValueError("Qdrant URL must use HTTP or HTTPS with a host")
+        if (
+            parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError(
+                "Qdrant URL must not contain credentials, query, or fragment"
+            )
+        return normalized.rstrip("/")
+
+    @field_validator("qdrant_collection_name")
+    @classmethod
+    def validate_qdrant_collection_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized or len(normalized) > 255:
+            raise ValueError(
+                "Qdrant collection name must be between 1 and 255 characters"
+            )
+        if re.fullmatch(r"[A-Za-z0-9._-]+", normalized) is None:
+            raise ValueError("Qdrant collection name contains invalid characters")
+        return normalized
+
+    @field_validator("qdrant_timeout_seconds", mode="before")
+    @classmethod
+    def reject_boolean_qdrant_timeout(cls, value: object) -> object:
+        if isinstance(value, bool):
+            raise ValueError("Qdrant timeout must be an integer")
+        return value
 
     @field_validator("document_storage_root", mode="before")
     @classmethod

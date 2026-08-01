@@ -25,7 +25,7 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M3-S6`。
+已完成范围：`P1-M1-S1` 到 `P3-M3-S9`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -40,6 +40,9 @@ M3 首批新增厂商无关的异步 Embedding Provider 契约、包含 token us
 有界批量向量结果，以及可按配置名称精确选择 Provider 实例的有序运行时 Registry。
 M3 第二批新增 OpenAI-compatible `/embeddings` adapter、批量与 query 请求、安全的
 HTTP/响应错误、独立延迟加载配置，以及严格的配置维度校验。
+M3 第三批新增厂商无关的异步 VectorStore 契约、基于官方 Qdrant 1.15.x client 的
+COSINE collection 创建/检查、向量 upsert、按知识库过滤 search、按 Document 过滤
+delete，以及为 M4 保留 content 与来源 metadata 的严格 Chunk payload builder。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -97,9 +100,10 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 安全的 not-found 响应与请求级事务。嵌套 Document POST 已支持 `.md`、`.txt`
 和 `.pdf` 上传，并返回同步解析、清洗和基础 Chunking 的最终结果。成功上传会
 持久化有序 `DocumentChunk`，返回 `parsed` / `chunked`；预期的解析或内容失败
-仍是 HTTP 201 资源，并持久化安全、可见的失败状态。Qdrant collection/向量写入、
-Embedding ingestion、检索、Document 查询/删除 API 和前端上传/RAG runtime 仍延期
-到后续 Plan 3 Step。
+仍是 HTTP 201 资源，并持久化安全、可见的失败状态。VectorStore 现已能独立创建/
+检查 collection，并写入、按知识库过滤检索和按 Document 删除经过校验的 Chunk point；
+Embedding ingestion、`vector_id`/状态持久化、Retriever 编排、Document 查询/删除 API
+和前端上传/RAG runtime 仍延期到后续 Plan 3 Step。
 补丁 revision `20260801_0006` 增加同一知识库内的 Document hash 唯一约束，禁止
 删除仍含 Document 的知识库，并在删除回答 Message 时只清空引用、保留 `RagQuery`。
 
@@ -192,9 +196,23 @@ docker compose up -d qdrant
 Invoke-RestMethod http://localhost:6333/healthz
 ```
 
-后端 `QDRANT_URL` 默认是 `http://localhost:6333`；只允许在未跟踪的
-`backend/.env` 或进程环境中覆盖。tracked Compose 配置明确禁用 Qdrant 遥测。
-2026-07-26 已验证固定版本 `qdrant/qdrant:v1.15.4` 容器运行、重启次数为 0，
+后端使用延迟加载且不含 secret 的 VectorStore 配置：
+
+```text
+QDRANT_URL=http://localhost:6333
+QDRANT_COLLECTION_NAME=ai_agent_lab_chunks
+QDRANT_TIMEOUT_SECONDS=10
+```
+
+只允许在未跟踪的 `backend/.env` 或进程环境中覆盖。`qdrant-client` 与服务端固定在
+1.15 minor。adapter 创建一个默认 COSINE dense-vector collection；若已有 collection
+的维度、距离或 named-vector 结构不同则 fail-closed。search 始终过滤
+`knowledge_base_id`，Document 向量删除同时匹配 Knowledge Base 与 Document ID。
+payload 保存规范 UUID、filename、chunk index、content、可选 heading/page 和嵌套来源
+metadata；这些操作尚未接入上传 ingestion。
+
+tracked Compose 配置明确禁用 Qdrant 遥测。2026-08-01 已验证固定版本
+`qdrant/qdrant:v1.15.4` 容器运行、重启次数为 0，
 且 `/healthz` 返回 HTTP 200 和 `healthz check passed`。该无 API key 的
 Compose 服务仅用于本地开发，6333 只绑定 `127.0.0.1`，不得暴露给不受信任网络。
 
@@ -439,9 +457,10 @@ usage/cost 记录，`web_fetch` 也继续明确延期且没有运行时表面。
 [Agent API](docs/12-agent-api.md)和
 [Plan 2 发布与补丁说明](docs/13-plan-2-basic-agent.md)和
 [Plan 2 最终复审记录](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)。
-Embedding 验证同样只使用 Mock：尚无真实服务验收、自动重试/拆批、持久化 embedding
-成本记录、Qdrant 向量写入或检索流水线；返回 usage 仅存在于内存，配置维度会在未来
-存储前完成校验。
+Embedding Provider 验证仍只使用 Mock：尚无真实模型服务验收、自动重试/拆批或持久化
+embedding 成本记录。Qdrant VectorStore 已有独立单测和本地临时 collection smoke，
+但尚无上传到 embedding 再到向量的 ingestion 或 Retriever 流水线；Provider usage
+仍只存在于内存，Provider 与 VectorStore 都会在存储前校验配置维度。
 
 ## Roadmap
 

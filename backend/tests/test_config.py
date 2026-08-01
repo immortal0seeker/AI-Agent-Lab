@@ -16,6 +16,8 @@ def test_settings_default_agent_run_timeout_is_bounded() -> None:
     assert settings.agent_run_timeout_seconds == 120.0
     assert settings.model_registry_path is None
     assert settings.qdrant_url == "http://localhost:6333"
+    assert settings.qdrant_collection_name == "ai_agent_lab_chunks"
+    assert settings.qdrant_timeout_seconds == 10
 
 
 def test_settings_default_embedding_provider_configuration_is_lazy() -> None:
@@ -71,9 +73,39 @@ def test_settings_accepts_qdrant_url_override() -> None:
     settings = Settings(
         _env_file=None,
         QDRANT_URL="http://qdrant.internal:6333",
+        QDRANT_COLLECTION_NAME="project_chunks-v1",
+        QDRANT_TIMEOUT_SECONDS=45,
     )
 
     assert settings.qdrant_url == "http://qdrant.internal:6333"
+    assert settings.qdrant_collection_name == "project_chunks-v1"
+    assert settings.qdrant_timeout_seconds == 45
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("QDRANT_URL", ""),
+        ("QDRANT_URL", "ftp://localhost:6333"),
+        ("QDRANT_URL", "http://user:password@localhost:6333"),
+        ("QDRANT_URL", "http://localhost:6333?token=synthetic"),
+        ("QDRANT_URL", "http://localhost:6333#fragment"),
+        ("QDRANT_COLLECTION_NAME", ""),
+        ("QDRANT_COLLECTION_NAME", "bad/name"),
+        ("QDRANT_COLLECTION_NAME", "x" * 256),
+        ("QDRANT_TIMEOUT_SECONDS", 0),
+        ("QDRANT_TIMEOUT_SECONDS", 301),
+        ("QDRANT_TIMEOUT_SECONDS", True),
+        ("QDRANT_TIMEOUT_SECONDS", float("nan")),
+        ("QDRANT_TIMEOUT_SECONDS", float("inf")),
+    ],
+)
+def test_settings_rejects_invalid_qdrant_configuration(
+    field_name: str,
+    value: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **{field_name: value})
 
 
 def test_settings_default_document_upload_limits() -> None:
