@@ -37,4 +37,14 @@ describe("App workspace selection", () => {
     expect(html).toContain("Read-only ToolCall workspace");
     expect(html).toContain("Loading tools-capable models...");
   });
+
+  it("restores Knowledge workspace from the URL", () => {
+    stubWindow("?workspace=knowledge");
+
+    const html = renderToStaticMarkup(<App />);
+
+    expect(html).toContain("<h1>Knowledge</h1>");
+    expect(html).toContain("Knowledge Base workspace");
+    expect(html).toContain("Loading Knowledge Bases...");
+  });
 });

@@ -6,6 +6,17 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added a third responsive Knowledge workspace with typed Knowledge Base and
+  Document contracts, explicit loading/empty/error states, Knowledge Base
+  list/create selection, and shared backend health visibility.
+- Added safe frontend Knowledge API wrappers for plural list/create and nested
+  multipart Document upload. Browser-owned multipart boundaries, encoded owner
+  IDs, structured backend errors, transport failures, and invalid successful
+  JSON are covered without exposing response bodies.
+- Added `.md`/`.txt`/`.pdf` upload controls and a final Document lifecycle card
+  for parse, chunk, and embedding states. HTTP 201 processing-failure resources
+  remain visible, while paths, hashes, raw metadata, and stale cross-Knowledge-
+  Base results are excluded from the UI.
 - Added one traceable `RagQuery` audit row for every successful retrieval-only
   Query, grounded Chat, and Agent knowledge-search Tool call. Audits preserve
   requested Top-K, ordered source snapshots, retrieval latency, and optional

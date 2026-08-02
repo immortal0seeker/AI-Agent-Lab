@@ -626,6 +626,27 @@ Plan 3 VectorStore, ingestion, retrieval, and Naive RAG target through
   `RagQueryService`, restricts Tool Top-K to 1～20, returns bounded source
   summaries, and initializes Embedding/Qdrant only when the Tool executes.
 
+Plan 3 frontend target through `P3-M5-S3`:
+
+- `WorkspaceView` has three explicit values: `chat`, `agent`, and `knowledge`;
+  unknown URL values still fail safely to Chat.
+- `api/knowledge.ts` is the browser boundary for Knowledge Base list/create and
+  nested multipart Document upload. It uses the existing safe backend error
+  envelope and leaves multipart `Content-Type` construction to the browser.
+- `KnowledgeBasePage` owns feature-local list/create/upload state. It composes
+  `KnowledgeBaseList`, `KnowledgeBaseCreateForm`, `FileUploadPanel`, and
+  `DocumentStatusCard`; no RAG store is introduced before M5 S4.
+- Initial list and health requests ignore results after unmount. Create and
+  upload serialize conflicting actions, and changing the selected Knowledge
+  Base clears the previous upload response.
+- The upload view shows only the returned original filename, Document ID, type,
+  byte size, creation time, safe processing error, and exact parse/chunk/
+  embedding states. It intentionally excludes stored paths, hashes, raw
+  metadata, and Provider diagnostics.
+- Upload is synchronous, so the page does not poll. Because there are no
+  Document list/detail/chunk-query routes, the current page cannot restore a
+  persistent Document history or preview Chunks after refresh.
+
 The Provider stream contract is consumed by `ChatService.stream_complete()` and
 the protocol adapter at `POST /api/v1/chat/stream`. The service emits
 protocol-neutral domain events; the route owns SSE framing and stream-scoped
@@ -673,13 +694,15 @@ Do not write secrets to:
 
 ## Deferred Capabilities
 
-The Plan 2 release includes read-only Tool execution and the bounded
-Simple Agent loop. The following remain outside the current architecture:
+The current workspace includes read-only Tool execution, the bounded Simple
+Agent loop, backend Naive RAG, and the first Knowledge frontend batch. The
+following remain outside the current architecture:
 
 - `web_fetch` or another network Tool
 - streaming Tool Calling
 - Agent Runtime v2, Planner, Human Approval, cancel/resume/retry, and replay
-- RagQuery audit persistence, RAG Agent Tool integration, and RAG frontend
+- frontend RAG Chat/source display and a frontend for the Agent knowledge Tool
+- persistent Document list/detail/Chunk preview/retry/delete workflows
 - Persisted embedding-call usage/cost audit
 - Memory systems
 - MCP integrations

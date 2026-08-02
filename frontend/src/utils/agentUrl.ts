@@ -1,11 +1,12 @@
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type WorkspaceView = "chat" | "agent";
+export type WorkspaceView = "chat" | "agent" | "knowledge";
 
 export function readWorkspace(search: string): WorkspaceView {
-  return new URLSearchParams(search).get("workspace") === "agent"
-    ? "agent"
+  const workspace = new URLSearchParams(search).get("workspace");
+  return workspace === "agent" || workspace === "knowledge"
+    ? workspace
     : "chat";
 }
 

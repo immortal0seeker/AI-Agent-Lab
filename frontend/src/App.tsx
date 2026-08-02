@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import ChatPage from "./pages/ChatPage";
 import AgentPage from "./pages/AgentPage";
+import KnowledgeBasePage from "./pages/KnowledgeBasePage";
 import {
   buildWorkspaceUrl,
   readWorkspace,
@@ -21,9 +22,11 @@ export default function App() {
     );
   };
 
-  return workspace === "agent" ? (
-    <AgentPage onSelectWorkspace={selectWorkspace} />
-  ) : (
-    <ChatPage onSelectWorkspace={selectWorkspace} />
-  );
+  if (workspace === "agent") {
+    return <AgentPage onSelectWorkspace={selectWorkspace} />;
+  }
+  if (workspace === "knowledge") {
+    return <KnowledgeBasePage onSelectWorkspace={selectWorkspace} />;
+  }
+  return <ChatPage onSelectWorkspace={selectWorkspace} />;
 }

@@ -10,9 +10,10 @@ import {
 const RUN_ID = "00000000-0000-0000-0000-000000000101";
 
 describe("Agent workspace URL helpers", () => {
-  it("defaults to Chat and recognizes only Agent workspace", () => {
+  it("defaults to Chat and recognizes the explicit workspaces", () => {
     expect(readWorkspace("")).toBe("chat");
     expect(readWorkspace("?workspace=agent")).toBe("agent");
+    expect(readWorkspace("?workspace=knowledge")).toBe("knowledge");
     expect(readWorkspace("?workspace=unknown")).toBe("chat");
   });
 
@@ -43,6 +44,17 @@ describe("Agent workspace URL helpers", () => {
       ),
     ).toBe(
       `http://localhost:5173/?conversation=chat-1&run=${RUN_ID}`,
+    );
+  });
+
+  it("selects Knowledge while preserving unrelated state", () => {
+    expect(
+      buildWorkspaceUrl(
+        `http://localhost:5173/?conversation=chat-1&run=${RUN_ID}#documents`,
+        "knowledge",
+      ),
+    ).toBe(
+      `http://localhost:5173/?conversation=chat-1&run=${RUN_ID}&workspace=knowledge#documents`,
     );
   });
 

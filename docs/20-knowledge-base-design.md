@@ -470,7 +470,39 @@ deleting the knowledge base`.
 
 The Document upload request is `multipart/form-data` with one required `file`
 field. Upload now runs the complete vector-ingestion pipeline. There are still
-no Document list, detail, chunk-query, retry, or delete routes through M4 S3.
+no Document list, detail, chunk-query, retry, or delete routes through M5 S3.
+
+## Frontend Knowledge Workspace
+
+`P3-M5-S1～S3` adds `?workspace=knowledge` as the third explicit frontend
+workspace. A dedicated typed API module mirrors `KnowledgeBaseRead`,
+`KnowledgeBaseCreate`, and `DocumentRead` for:
+
+- `GET /api/v1/knowledge-bases`;
+- `POST /api/v1/knowledge-bases`;
+- `POST /api/v1/knowledge-bases/{knowledge_base_id}/documents`.
+
+The page uses feature-local state rather than introducing the RAG store planned
+for S4. It renders list loading/error/empty/ready states, creates and selects a
+Knowledge Base, validates `.md`, `.txt`, and `.pdf` filenames, and sends one
+browser-owned `FormData` file part without overriding the multipart boundary.
+Create and upload serialize conflicting controls. Initial effects and mutation
+responses are ownership-gated so unmounted or stale work cannot replace the
+current selection.
+
+The upload endpoint returns the final synchronous Document resource. The UI
+therefore displays exact parse, chunk, and embedding states, including a safe
+HTTP 201 processing-failure resource. It renders the original filename,
+Document/Knowledge Base ownership context, type, byte size, creation time, and
+safe `error_message`; it never renders `file_path`, `file_hash`, raw metadata,
+Provider diagnostics, or response bodies.
+
+Changing the selected Knowledge Base clears the previous upload result. The UI
+does not poll or fabricate a persisted Document list: without Document list,
+detail, chunk-query, retry, and delete routes it can show only the latest upload
+response for the current page session. Chunk preview and persistent Document
+history remain explicit limitations. RAG Chat and source cards remain
+`P3-M5-S4～S6`.
 
 ## Error And Transaction Behavior
 
@@ -774,16 +806,42 @@ The M4 S7～S8 RagQuery audit and Agent Tool verification reached:
 The active Plan 3 execution table contains the security, scope, artifact, and
 Git gates. No verification command read or modified `backend/ai_agent_lab.db`.
 
+The M5 S1～S3 frontend Knowledge workspace verification reached:
+
+- API module RED reproduced the missing import, then six wrapper tests passed
+  for list/create/multipart, encoded ownership, safe errors, transport failure,
+  and invalid JSON;
+- workspace/list/create RED reproduced the missing `knowledge` URL/page;
+  upload/status RED reproduced six missing-form cases. Self-review regressions
+  then covered create-vs-initial-list ownership, stale file errors, and
+  create-vs-list-retry ownership, raising the final page total to `14 passed`;
+- the complete frontend suite reached `20` files / `112` tests, TypeScript
+  checking passed, and the production build transformed `1819` modules;
+- complete backend regression remained `1024 passed, 1 warning`, with only the
+  known Starlette TestClient/httpx deprecation warning; dependency integrity
+  remained `No broken requirements found`;
+- a real headed Playwright browser used only intercepted synthetic health,
+  Knowledge Base, and upload responses. Desktop `1440×900` create/select/upload
+  and `390×844` responsive layout passed visual inspection; a fresh session
+  reported zero console errors and warnings;
+- the synthetic upload fixture and Playwright snapshots/screenshots/logs were
+  removed after inspection. The browser did not read the protected user
+  database, load a real secret, or call a Provider;
+- documentation verification read `115` Markdown files and checked `94` local
+  links/images with zero unreadable or missing targets. The final changed-text
+  secret scan, later-Plan runtime scan, and tracked/untracked artifact scan all
+  reported zero findings.
+
 ## Deferred Capabilities
 
-The following remain outside completed Plan 3 through M4 S8:
+The following remain outside completed Plan 3 through M5 S3:
 
 - Document list, detail, chunk-query, delete, local-file deletion, and orphan
   recovery workflows;
 - live Embedding service acceptance, automatic retry/splitting, persisted call
   audit/cost, and hard-crash orphan reconciliation;
 - RAG streaming and a frontend for the backend-only Agent knowledge Tool;
-- frontend Knowledge Base, upload, RAG Chat, and source display;
+- frontend RAG Chat, source display, and Agent knowledge Tool UI;
 - Advanced RAG, Hybrid Search, Rerank, Evaluation, Memory, OCR, and multimodal
   capabilities.
 

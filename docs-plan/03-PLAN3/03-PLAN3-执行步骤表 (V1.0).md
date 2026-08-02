@@ -65,7 +65,7 @@ blocked
 | Batch 11 | P3-M4-S1～S3 | 实现 Retriever 和来源结构 | Retriever/schema 测试 | 已完成（query embedding、Top-K/threshold、KB 隔离、完整来源结构与真实临时 Qdrant smoke 通过） |
 | Batch 12 | P3-M4-S4～S6 | 实现 RAG Prompt、Query / Chat API | API 测试 | 已完成（有界 Prompt、纯检索 Query、会话 Chat、回滚与真实临时 Qdrant API smoke 通过） |
 | Batch 13 | P3-M4-S7～S8 | 持久化检索审计并注册 search_knowledge_base 工具 | Agent 工具调用测试，Codex self-review M4 | 已完成（RagQuery Top-K/来源/延迟审计、Query/Chat/Tool ID、懒加载 Agent Tool、真实临时 Qdrant smoke 与全量回归通过） |
-| Batch 14 | P3-M5-S1～S3 | 实现知识库页面和上传 UI | 浏览器手测 | 未完成 |
+| Batch 14 | P3-M5-S1～S3 | 实现知识库页面和上传 UI | 浏览器手测 | 已完成（类型/API、列表/创建、上传/三段状态、桌面/窄屏 Mock 浏览器与全量回归通过） |
 | Batch 15 | P3-M5-S4～S6 | 实现 RAG Chat 和来源展示 | 浏览器手测，Codex review M5 | 未完成 |
 | Batch 16 | P3-M6-S1～S6 | 测试、文档、截图、封版 | Codex + Claude final review | 未完成 |
 
@@ -564,6 +564,35 @@ feat(rag): add naive rag query chat and tool integration
 | P3-M5-S5 | 实现 RAG Chat 页面 | Cursor | `RagChatPage.tsx` | 可选择知识库并提问 | Codex |
 | P3-M5-S6 | 实现来源片段展示组件 | Cursor | `SourceCitationList.tsx`、source cards | 展示文档名、chunk 片段、score、metadata | Codex review |
 
+### P3-M5-S1～S3 实施记录（2026-08-02）
+
+- 新增严格的 Knowledge Base/Document 前端类型，以及列表、创建、嵌套 multipart
+  上传 API 封装；浏览器负责 multipart boundary，错误只显示后端安全消息。
+- 新增第三个 `?workspace=knowledge` 工作台，覆盖列表加载、空态、错误重试、创建、
+  自动选中和共享 API health；未提前引入 S4 的 RAG store。
+- 新增 `.md` / `.txt` / `.pdf` 上传、上传中冲突控制和 Parse / Chunk / Embedding
+  三段状态卡；HTTP 201 处理失败资源仍可见，页面不显示路径、hash 或原始 metadata。
+- 当前后端没有 Document list/detail/chunk-query/retry/delete API，因此页面只显示
+  当前会话最近一次上传响应，刷新后不能恢复文档历史，也不伪造 Chunk Preview。
+- TDD 最终聚焦结果为 Knowledge API `6 passed`、Knowledge page `14 passed`；前端全量
+  `20 files / 112 tests`、typecheck、生产 build（`1819 modules`）通过。后端全量保持
+  `1024 passed, 1 warning`，依赖检查无损坏。
+- 本地 headed Playwright 仅拦截合成 API：桌面 `1440×900` 创建/选中/上传/状态流与
+  `390×844` 响应式布局通过目视检查；新 session 控制台为 0 error / 0 warning。
+  验收后已删除合成文件和浏览器临时产物，未读取用户 SQLite、真实 `.env` 或凭据。
+- 文档检查读取 `115` 个 Markdown 并校验 `94` 个本地链接/图片，0 unreadable/missing；
+  最终 changed-text secret、later-Plan runtime、tracked/untracked artifact 扫描均为 0。
+- Codex self-review 的 must-fix 已解决：初始列表加载期间禁止创建、选择新文件时清除
+  陈旧上传错误、创建请求期间禁止列表重试，均以 RED/GREEN 回归覆盖；另修正 README
+  中仍称前端 Knowledge Base 不存在的陈旧限制。fix later：S4～S6 RAG Chat/store/来源卡。
+  accepted limitation：仅展示当前会话最近上传响应，无持久
+  Document 查询/Chunk Preview/retry/delete；not applicable：后端 schema/migration、真实
+  Provider、外部 review、tag。无剩余 must-fix。
+
+**结论：** `P3-M5-S1～S3` 与 Batch 14 已完成，可进入 `P3-M5-S4～S6`；本批未
+实现 RAG store/Chat/来源卡、持久 Document 查询、Advanced RAG、Rerank、Evaluation、
+Memory、OCR、多模态或任何 Plan 4+ runtime。
+
 M5 完成后建议 commit：
 
 ```text
@@ -679,8 +708,8 @@ Claude Code 审核后，Codex 负责：
 | 可以写入 Qdrant | implemented | mock/adapter 测试与真实临时 collection create/check/upsert/search/delete 冒烟 |
 | 可以基于 query 检索 Chunk | implemented | Mock Provider/VectorStore focused tests 与真实临时 Qdrant Top-K/threshold/KB 隔离 smoke |
 | 可以基于检索结果生成回答 | implemented | RAG Chat service/API、Prompt、来源与回滚测试 |
-| 前端可以上传文档 | pending | 页面截图 |
-| 前端可以查看文档状态 | pending | 页面截图 |
+| 前端可以上传文档 | implemented | Knowledge API/page 测试与本地 Mock Playwright 创建/上传 smoke |
+| 前端可以查看文档状态 | implemented | 最近上传响应的 Parse/Chunk/Embedding 状态卡；持久文档列表仍延期 |
 | 前端可以进行 RAG Chat | pending | 页面截图 |
 | 前端可以展示来源片段 | pending | 页面截图 |
 | search_knowledge_base 工具可用 | implemented | schema/安全失败/Registry/Agent ToolCall 测试与真实临时 Qdrant smoke |

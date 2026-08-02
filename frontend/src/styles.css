@@ -17,6 +17,7 @@ body {
 }
 
 button,
+input,
 select,
 textarea {
   font: inherit;
@@ -27,6 +28,7 @@ button {
 }
 
 button:focus-visible,
+input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
   outline: 2px solid #1677a6;
@@ -90,7 +92,7 @@ textarea:focus-visible {
 
 .workspace-navigation {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
   margin-top: 20px;
   padding: 3px;
@@ -1189,6 +1191,495 @@ textarea:focus-visible {
   font-size: 12px;
 }
 
+.knowledge-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.knowledge-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 68px;
+  gap: 20px;
+  padding: 12px 24px;
+  border-bottom: 1px solid #e0e4e7;
+}
+
+.knowledge-header h1 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.knowledge-header p {
+  margin: 3px 0 0;
+  color: #77828a;
+  font-size: 11px;
+}
+
+.knowledge-content {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: 18px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px;
+  background: #f7f8f9;
+}
+
+.knowledge-library-column {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+}
+
+.knowledge-create-form,
+.knowledge-list-panel,
+.knowledge-detail-panel {
+  min-width: 0;
+  border: 1px solid #d8dde1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.knowledge-create-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.knowledge-form-heading h2,
+.knowledge-list-panel h2,
+.knowledge-selected-summary h2,
+.document-upload-panel h3,
+.document-status-card h3 {
+  margin: 0;
+  color: #27323a;
+}
+
+.knowledge-form-heading h2,
+.knowledge-list-panel h2,
+.knowledge-selected-summary h2 {
+  font-size: 15px;
+}
+
+.knowledge-eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: #7c878e;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.knowledge-create-form label,
+.document-file-picker {
+  display: grid;
+  gap: 5px;
+}
+
+.knowledge-create-form label > span,
+.document-file-picker > span {
+  color: #68747d;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.knowledge-create-form input,
+.knowledge-create-form textarea,
+.document-file-picker input {
+  width: 100%;
+  border: 1px solid #cbd2d7;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #27323a;
+}
+
+.knowledge-create-form input {
+  height: 36px;
+  padding: 0 10px;
+}
+
+.knowledge-create-form textarea {
+  min-height: 70px;
+  resize: vertical;
+  padding: 9px 10px;
+  line-height: 1.45;
+}
+
+.knowledge-create-form input:disabled,
+.knowledge-create-form textarea:disabled,
+.document-file-picker input:disabled {
+  background: #f1f3f4;
+  color: #77828a;
+}
+
+.knowledge-create-form button,
+.document-upload-panel form > button,
+.knowledge-list-state button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.knowledge-create-form button,
+.document-upload-panel form > button {
+  justify-self: end;
+  padding: 0 13px;
+  border: 1px solid #207a55;
+  background: #207a55;
+  color: #ffffff;
+}
+
+.knowledge-create-form button:hover:not(:disabled),
+.document-upload-panel form > button:hover:not(:disabled) {
+  background: #176543;
+}
+
+.knowledge-create-form button:disabled,
+.document-upload-panel form > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.knowledge-form-error,
+.document-processing-error {
+  margin: 0;
+  padding: 9px 10px;
+  border-left: 3px solid #c44835;
+  background: #fff4f1;
+  color: #8f3024;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.knowledge-list-panel {
+  overflow: hidden;
+}
+
+.knowledge-list-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e2e6e9;
+}
+
+.knowledge-count {
+  min-width: 26px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #edf0f2;
+  color: #59666f;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.knowledge-list-state {
+  display: grid;
+  place-items: center;
+  gap: 7px;
+  min-height: 150px;
+  padding: 20px;
+  color: #77828a;
+  font-size: 11px;
+  text-align: center;
+}
+
+.knowledge-list-state[role="status"] svg,
+.knowledge-create-form .lucide-loader-circle,
+.document-upload-panel .lucide-loader-circle {
+  animation: loading-spin 1s linear infinite;
+}
+
+.knowledge-list-state strong {
+  color: #344149;
+  font-size: 12px;
+}
+
+.knowledge-list-state--error {
+  color: #8f3024;
+}
+
+.knowledge-list-state button {
+  margin-top: 5px;
+  padding: 0 11px;
+  border: 1px solid #cbd2d7;
+  background: #ffffff;
+  color: #344149;
+}
+
+.knowledge-base-list {
+  display: grid;
+  gap: 4px;
+  max-height: 430px;
+  margin: 0;
+  overflow-y: auto;
+  padding: 8px;
+  list-style: none;
+}
+
+.knowledge-base-list button {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #344149;
+  text-align: left;
+}
+
+.knowledge-base-list button:hover:not(:disabled) {
+  background: #f2f5f6;
+}
+
+.knowledge-base-list button[aria-current="true"] {
+  border-color: #bdd5c8;
+  background: #f1f8f4;
+}
+
+.knowledge-base-list button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.knowledge-base-list strong,
+.knowledge-base-list span,
+.knowledge-base-list code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-base-list strong {
+  font-size: 12px;
+}
+
+.knowledge-base-list span {
+  margin-top: 4px;
+  color: #77828a;
+  font-size: 10px;
+}
+
+.knowledge-base-list code {
+  margin-top: 6px;
+  color: #8b959b;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 8px;
+}
+
+.knowledge-detail-panel {
+  align-self: start;
+  min-height: 420px;
+  padding: 18px;
+}
+
+.knowledge-detail-empty {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  min-height: 380px;
+  color: #77828a;
+  text-align: center;
+}
+
+.knowledge-detail-empty strong {
+  margin-top: 10px;
+  color: #344149;
+  font-size: 14px;
+}
+
+.knowledge-detail-empty span {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.knowledge-selected-summary > p {
+  margin: 7px 0 0;
+  color: #68747d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.knowledge-selected-summary > dl,
+.document-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 18px;
+  margin: 16px 0 0;
+  padding: 12px;
+  border: 1px solid #e1e5e8;
+  border-radius: 6px;
+  background: #fafbfb;
+}
+
+.knowledge-selected-summary dt,
+.document-meta dt {
+  color: #7c878e;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.knowledge-selected-summary dd,
+.document-meta dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  color: #344149;
+  font-size: 10px;
+}
+
+.document-upload-panel,
+.document-status-card {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #e0e4e7;
+}
+
+.document-upload-panel > header,
+.document-status-card > header,
+.document-status-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.document-upload-panel h3,
+.document-status-card h3 {
+  font-size: 13px;
+}
+
+.document-upload-panel > p {
+  margin: 7px 0 0;
+  color: #77828a;
+  font-size: 11px;
+}
+
+.document-upload-panel form {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.document-file-picker input {
+  padding: 8px;
+  font-size: 11px;
+}
+
+.document-file-picker input::file-selector-button {
+  margin-right: 10px;
+  padding: 5px 9px;
+  border: 1px solid #cbd2d7;
+  border-radius: 4px;
+  background: #f5f7f8;
+  color: #344149;
+  cursor: pointer;
+}
+
+.document-file-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 30px;
+  padding: 7px 9px;
+  border: 1px solid #e1e5e8;
+  border-radius: 5px;
+  background: #fafbfb;
+  color: #77828a;
+  font-size: 10px;
+}
+
+.document-file-selection strong {
+  overflow: hidden;
+  color: #344149;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-outcome {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.document-outcome--success {
+  background: #edf7f1;
+  color: #176c42;
+}
+
+.document-outcome--error {
+  background: #fff4f1;
+  color: #a33728;
+}
+
+.document-lifecycle {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.document-lifecycle > div {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #e1e5e8;
+  border-radius: 6px;
+  background: #fafbfb;
+}
+
+.document-lifecycle span {
+  color: #7c878e;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.document-status {
+  font-size: 11px;
+}
+
+.document-status--success {
+  color: #176c42;
+}
+
+.document-status--error {
+  color: #a33728;
+}
+
+.document-status--pending {
+  color: #526e7a;
+}
+
+.document-processing-error {
+  margin-top: 12px;
+}
+
+.document-meta dd {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+
 @media (max-width: 720px) {
   .workspace-shell {
     grid-template-columns: 1fr;
@@ -1333,6 +1824,43 @@ textarea:focus-visible {
     min-height: 0;
   }
 
+  .knowledge-workspace {
+    height: auto;
+    min-height: 0;
+  }
+
+  .knowledge-header {
+    min-height: 58px;
+    padding: 10px 14px;
+  }
+
+  .knowledge-header p {
+    display: none;
+  }
+
+  .knowledge-content {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .knowledge-base-list {
+    max-height: 300px;
+  }
+
+  .knowledge-detail-panel {
+    min-height: 0;
+  }
+
+  .knowledge-detail-empty {
+    min-height: 220px;
+  }
+
+  .knowledge-selected-summary > dl,
+  .document-meta,
+  .document-lifecycle {
+    grid-template-columns: 1fr;
+  }
+
   .agent-header {
     min-height: 58px;
     padding: 10px 14px;
@@ -1369,6 +1897,12 @@ textarea:focus-visible {
   .conversation-loading svg,
   .workspace-state > svg,
   .agent-state[role="status"] > svg {
+    animation: none;
+  }
+
+  .knowledge-list-state[role="status"] svg,
+  .knowledge-create-form .lucide-loader-circle,
+  .document-upload-panel .lucide-loader-circle {
     animation: none;
   }
 }

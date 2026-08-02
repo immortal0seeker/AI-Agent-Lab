@@ -25,7 +25,7 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M4-S8`。
+已完成范围：`P1-M1-S1` 到 `P3-M5-S3`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -58,6 +58,10 @@ M4 最后一批让每次成功的 Query、Chat 或 Agent Tool 检索都持久化
 两个 RAG API 都返回 `rag_query_id`。只读 `search_knowledge_base` Tool 复用同一
 service，将 Top-K 限制为 20、来源摘要限制为 600 字符，并把检索文本标记为不可信
 数据；其依赖延迟到真正调用 Tool 时初始化，不影响普通 Plan 2 Agent 请求。
+M5 首批新增第三个响应式 Knowledge 工作台：包含严格的 Knowledge Base/Document
+前端类型、安全的列表/创建/multipart 上传 API 封装，以及明确的加载、空、错误状态。
+用户可选择知识库并上传 `.md`、`.txt` 或 `.pdf`，随后查看同步 Document 响应中的
+parse、chunk、embedding 生命周期；页面不会暴露存储路径、hash 或原始 metadata。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -123,7 +127,9 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 可在不调用 LLM 的前提下调试检索结果；RAG Chat API 可生成一次非流式知识库回答并写入
 既有会话。Revision `20260801_0007` 为 `rag_queries` 增加严格持久化的 `top_k`；
 Query、Chat 与 `search_knowledge_base` Tool 成功检索时都会写入可追踪审计并返回 ID。
-Document 查询/删除 API 和前端上传/RAG runtime 仍延期。
+Document 列表/详情/Chunk 查询/删除 API 与前端 RAG Chat/来源 runtime 仍延期。
+因此 Knowledge 工作台当前只显示所选知识库的最近一次上传响应，刷新后不能恢复
+持久化文档历史，也不能预览 Chunk。
 补丁 revision `20260801_0006` 增加同一知识库内的 Document hash 唯一约束，禁止
 删除仍含 Document 的知识库，并在删除回答 Message 时只清空引用、保留 `RagQuery`。
 
@@ -503,7 +509,7 @@ embedding 成本记录。上传到 Embedding 再到 Qdrant 的 ingestion 已有 
 边界覆盖，以及完成清理的临时 Qdrant、临时 SQLite、Mock LLM API smoke。RAG Chat
 目前非流式、要求已有 Conversation；Query/Chat/Tool 已创建 RagQuery 审计，但后端
 Agent Tool 尚无专用前端，且没有 RAG streaming、Advanced RAG、Trace runtime 或
-前端 Knowledge Base/RAG 流程。Embedding Provider usage 仍只存在于内存。
+前端 RAG Chat/来源流程。Embedding Provider usage 仍只存在于内存。
 正常请求回滚会补偿 vectors，但 Qdrant 写入后进程硬崩溃仍可能留下需要后续
 reconciliation 的 orphan points。
 

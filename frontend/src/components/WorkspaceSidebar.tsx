@@ -1,6 +1,7 @@
 import {
   Activity,
   Bot,
+  Database,
   History,
   MessageSquarePlus,
   MessagesSquare,
@@ -38,7 +39,14 @@ type AgentSidebarProps = SharedSidebarProps & {
   activeWorkspace: "agent";
 };
 
-type WorkspaceSidebarProps = ChatSidebarProps | AgentSidebarProps;
+type KnowledgeSidebarProps = SharedSidebarProps & {
+  activeWorkspace: "knowledge";
+};
+
+type WorkspaceSidebarProps =
+  | ChatSidebarProps
+  | AgentSidebarProps
+  | KnowledgeSidebarProps;
 
 export default function WorkspaceSidebar(props: WorkspaceSidebarProps) {
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
@@ -98,6 +106,15 @@ export default function WorkspaceSidebar(props: WorkspaceSidebarProps) {
         >
           <Bot size={15} aria-hidden="true" />
           Agent
+        </button>
+        <button
+          type="button"
+          aria-label="Knowledge workspace"
+          aria-current={activeWorkspace === "knowledge" ? "page" : undefined}
+          onClick={() => selectWorkspace("knowledge")}
+        >
+          <Database size={15} aria-hidden="true" />
+          Knowledge
         </button>
       </nav>
 
@@ -168,9 +185,22 @@ export default function WorkspaceSidebar(props: WorkspaceSidebarProps) {
           ) : null}
         </>
       ) : (
-        <section className="agent-sidebar-note" aria-label="Current Agent task">
-          <span>Current task</span>
-          <p>Run and inspect one traceable Agent task at a time.</p>
+        <section
+          className="agent-sidebar-note"
+          aria-label={
+            props.activeWorkspace === "agent"
+              ? "Current Agent task"
+              : "Knowledge workspace summary"
+          }
+        >
+          <span>
+            {props.activeWorkspace === "agent" ? "Current task" : "Knowledge"}
+          </span>
+          <p>
+            {props.activeWorkspace === "agent"
+              ? "Run and inspect one traceable Agent task at a time."
+              : "Create a Knowledge Base and ingest one document at a time."}
+          </p>
         </section>
       )}
 
