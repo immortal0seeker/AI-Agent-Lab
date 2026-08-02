@@ -8,9 +8,12 @@ This repository is not a collection of disconnected demos. The goal is to build 
 
 ## Current Stage
 
-Latest existing Git tag: `v0.2.1` (Plan 2 audit-remediation patch), published
-from commit `872310b`. The original `v0.2.0` basic Agent release remains at
-`0e3f3a6`; neither existing tag may be moved or rewritten. Plan 2 is complete.
+Release target: `v0.3.0` (Plan 3 Knowledge Base + Naive RAG). The tracked
+release metadata, changelog, sanitized screenshots, and Codex final review are
+prepared in the current release-candidate working tree. The latest existing Git
+tag remains `v0.2.1` at commit `872310b` until the user commits this verified
+batch and creates the annotated `v0.3.0` tag. The original `v0.2.0` release
+remains at `0e3f3a6`; existing tags must not be moved or rewritten.
 
 Plan 1 covers:
 
@@ -25,7 +28,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M5-S6`.
+Verified implementation scope: `P1-M1-S1` through `P3-M6-S5`, plus the tracked
+`P3-M6-S6` release artifacts. The final Plan 3 tag gate remains a manual user
+action.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -85,6 +90,19 @@ Chunk index/content, score, heading/page metadata, stable nested metadata, and
 RagQuery/LLMCall/Conversation correlation IDs returned by the backend. Client
 ownership checks reject mismatched Knowledge Base, Conversation, source, index,
 or source-count responses instead of displaying untrusted cross-session data.
+
+M6 re-audits every Plan 3 backend layer without adding duplicate low-value
+tests: the S1～S3 data/API/processing/pipeline group reached `339 passed`, and
+the S4 Query/Chat/Tool group reached `112 passed`. Complete backend regression
+reached `1024 passed` with one known Starlette/httpx deprecation warning;
+frontend verification reached `25` files / `149` tests and a production build
+of `1826` transformed modules. A fresh synthetic browser Demo verified upload,
+`parsed/chunked/ready`, one dedicated Conversation, grounded answer/source
+display, narrow layout, and zero request/console issues. A real local Qdrant
+smoke used a random collection and the production adapter, proved Knowledge
+Base isolation and Document-scoped deletion, then removed and rechecked the
+collection. Package/OpenAPI/frontend metadata is now `0.3.0`; the final
+annotated tag is intentionally left to the user's Git workflow.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -195,6 +213,18 @@ user-local conversation database was used to create them.
 These are sanitized local Mock demonstrations with synthetic IDs and no project
 backend database. They are evidence for the published `v0.2.0` release; they do
 not prove live Provider Tool capability.
+
+## v0.3.0 Release Candidate Demo
+
+![Knowledge Base upload and ingestion](docs/assets/plan3/knowledge-base-workspace.png)
+
+![RAG answer with ordered sources](docs/assets/plan3/rag-chat-sources.png)
+
+These are sanitized local Mock demonstrations with synthetic documents,
+identifiers, Provider responses, and audit metadata. The clean acceptance used
+no real API key, paid Provider, user SQLite database, or network Tool. Desktop
+`1440×900` and narrow `390×844` layouts passed; the committed images are the
+release evidence for the user-created `v0.3.0` tag.
 
 ## Non-Goals For Plan 1
 
@@ -385,6 +415,23 @@ The upload request remains synchronous. A successful Qdrant upsert registers
 request-transaction cleanup so a later SQLite commit failure best-effort deletes
 the Document vectors before closing the Qdrant client. See
 [Document Ingestion Pipeline](docs/22-document-ingestion-pipeline.md).
+
+### Plan 3 Demo Flow
+
+After Qdrant, backend, and frontend are running:
+
+1. Open the `Knowledge` workspace.
+2. Create or select a Knowledge Base.
+3. Upload one `.md`, `.txt`, or text-layer `.pdf` file and wait for
+   `Parsed / Chunked / Ready`.
+4. Switch to `RAG Chat`, select a configured model, and ask a question.
+5. Inspect the grounded answer, ordered source cards, score, heading/page
+   metadata, and RagQuery/LLMCall/Conversation IDs.
+
+The first RAG question creates a dedicated Conversation; later questions reuse
+it until `New RAG chat` is selected. The flow is synchronous and non-streaming.
+Refreshing does not restore prior Document/RAG source cards because persistent
+Document and RagQuery read APIs are outside Plan 3.
 
 ### Backend
 
@@ -589,6 +636,7 @@ Release documentation:
 - [Naive RAG Query and Chat](docs/23-naive-rag.md)
 - [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - [Plan 2 final review record](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
+- [Plan 3 v0.3.0 Codex final review](docs/reviews/2026-08-02-plan3-v0.3.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
 
@@ -631,7 +679,7 @@ still leave orphan points for later reconciliation.
 
 - Plan 1: Project foundation + Basic Chat + LLM Providers
 - Plan 2: Tool Calling + Simple Agent Loop
-- Plan 3: Knowledge Base + Document Ingestion + Naive RAG
+- Plan 3: Knowledge Base + Document Ingestion + Naive RAG (`v0.3.0` release candidate; manual tag gate pending)
 - Plan 4: Trace + Advanced RAG + Rerank + Evaluation
 - Plan 5: Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6: MCP + Voice + Vision + Desktop

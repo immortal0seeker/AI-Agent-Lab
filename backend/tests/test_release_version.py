@@ -4,7 +4,7 @@ import tomllib
 from pathlib import Path
 
 
-EXPECTED_RELEASE_VERSION = "0.2.1"
+EXPECTED_RELEASE_VERSION = "0.3.0"
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
 
@@ -25,7 +25,7 @@ def _fastapi_version() -> str:
     raise AssertionError("FastAPI version metadata is missing")
 
 
-def test_backend_release_metadata_matches_plan2_version() -> None:
+def test_backend_release_metadata_matches_release_version() -> None:
     project = tomllib.loads(
         (BACKEND_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     )
@@ -34,7 +34,7 @@ def test_backend_release_metadata_matches_plan2_version() -> None:
     assert _fastapi_version() == EXPECTED_RELEASE_VERSION
 
 
-def test_frontend_release_metadata_matches_plan2_version() -> None:
+def test_frontend_release_metadata_matches_release_version() -> None:
     package = json.loads(
         (PROJECT_ROOT / "frontend" / "package.json").read_text(encoding="utf-8")
     )

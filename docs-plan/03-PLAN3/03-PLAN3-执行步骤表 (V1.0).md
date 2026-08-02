@@ -44,7 +44,7 @@ blocked
 | Phase 3 | M3 Embedding 与 Vector Store | Step 9～12 | Embedding Provider、OpenAI-compatible Embedding、Qdrant Vector Store、文档入库 Pipeline | 20～30 h | Codex | Codex + Claude Code |
 | Phase 4 | M4 Retriever 与 Naive RAG API | Step 13～17 | Retriever、RAG Prompt、RAG Query API、RAG Chat API、search_knowledge_base 工具 | 15～25 h | Codex | Codex self-review |
 | Phase 5 | M5 前端知识库与 RAG Chat | Step 18～19 | 知识库页面、文档上传 UI、RAG Chat、来源展示 | 15～25 h | Cursor + Codex | Codex review |
-| Phase 6 | M6 测试、文档与封版 | Step 20～22 | RAG 测试、README、docs、截图、CHANGELOG、v0.3.0 tag | 10～20 h | Codex + Cursor | Codex + Claude Code |
+| Phase 6 | M6 测试、文档与封版 | Step 20～22 | RAG 测试、README、docs、截图、CHANGELOG、v0.3.0 tag | 10～20 h | Codex + Cursor | Codex self-review |
 
 ---
 
@@ -67,7 +67,7 @@ blocked
 | Batch 13 | P3-M4-S7～S8 | 持久化检索审计并注册 search_knowledge_base 工具 | Agent 工具调用测试，Codex self-review M4 | 已完成（RagQuery Top-K/来源/延迟审计、Query/Chat/Tool ID、懒加载 Agent Tool、真实临时 Qdrant smoke 与全量回归通过） |
 | Batch 14 | P3-M5-S1～S3 | 实现知识库页面和上传 UI | 浏览器手测 | 已完成（类型/API、列表/创建、上传/三段状态、桌面/窄屏 Mock 浏览器与全量回归通过） |
 | Batch 15 | P3-M5-S4～S6 | 实现 RAG Chat 和来源展示 | 浏览器手测，Codex review M5 | 已完成（类型/API/store、会话提问、来源卡、桌面/窄屏 Mock 浏览器与全量回归通过） |
-| Batch 16 | P3-M6-S1～S6 | 测试、文档、截图、封版 | Codex + Claude final review | 未完成 |
+| Batch 16 | P3-M6-S1～S6 | 测试、文档、截图、封版 | Codex final self-review | 发布候选已验证；等待用户手动 commit 与 `v0.3.0` tag gate |
 
 ---
 
@@ -665,13 +665,33 @@ feat(frontend): add knowledge base and rag chat pages
 | P3-M6-S3 | 补 Embedding、Vector Store、Ingestion、Retriever 测试 | Codex | RAG pipeline 测试 | mock embedding + test Qdrant 或 mock vector store 通过 | Codex |
 | P3-M6-S4 | 补 RAG Query / Chat / Tool 测试 | Codex | RAG API 和 Tool 测试 | 检索、回答、来源、rag_queries 记录通过 | Codex |
 | P3-M6-S5 | 补前端检查和 Demo 验证 | Cursor + Codex | 前端 build、截图、手动验证记录 | 上传文档、提问、展示来源可跑通 | Codex |
-| P3-M6-S6 | 更新 README、docs、CHANGELOG、创建 v0.3.0 tag | Codex + Claude Code | 文档、截图、tag、桥接检查表 | 全量测试通过，tag 存在 | Codex + Claude final review |
+| P3-M6-S6 | 更新 README、docs、CHANGELOG、创建 v0.3.0 tag | Codex | 文档、截图、tag、桥接检查表 | 全量测试通过，tag 存在 | Codex final self-review |
 
 M6 完成后建议 commit：
 
 ```text
 chore: release v0.3.0 naive rag
 ```
+
+### P3-M6-S1～S6 发布候选实施记录（2026-08-02）
+
+| 验收项 | 新鲜证据 |
+|---|---|
+| S1～S3 后端测试审计 | 数据模型/schema/migration、Knowledge Base/Document service/API、Markdown/TXT/PDF Parser、Cleaner、Chunker、Embedding、VectorStore/Qdrant payload、Ingestion/补偿与 Retriever 合并聚焦组 `339 passed, 1 warning`；既有覆盖已经包含 ownership、限制、安全错误和回滚，因此未堆叠重复测试。 |
+| S4 RAG/Tool 审计 | Prompt/schema/Query/Chat/Tool/Agent 聚焦组 `112 passed, 1 warning`；检索、回答、有序来源、RagQuery Top-K/延迟/Conversation/answer 关联、零命中、完整回滚、Tool 上限/安全失败与懒加载均有覆盖。两组唯一 warning 都是已知 Starlette TestClient/httpx 弃用提示。 |
+| 版本 TDD | 先把 release contract 改为 `0.3.0`，观察后端与前端仍为 `0.2.1` 的 2 个预期 RED；随后只同步 backend package、FastAPI、frontend package 与 lockfile root metadata，聚焦 GREEN 为 `2 passed`。 |
+| 完整后端与迁移 | 系统临时目录执行 backend 全量 `1024 passed, 1 warning`；`pip check` 无破损。临时 SQLite 完成 upgrade/current `--check-heads`/`alembic check`/downgrade `20260801_0007 -> 20260801_0006`/re-upgrade，最终 head `20260801_0007`，临时目录已删除；未打开用户数据库。 |
+| S5 前端与 Demo | typecheck 通过，Vitest `25 files / 149 tests`，生产 build `1826 modules`。全新 headed Playwright Mock 会话完成上传、`Parsed / Chunked / Ready`、Conversation、RAG answer/source/metadata/审计 ID、桌面 `1440×900`、窄屏 `390×844` 与 `New RAG chat`；failed request、console warning/error、横向溢出均为 0。两张脱敏正式截图已目视检查，临时脚本/fixture/log/snapshot/session/Vite 均清理。 |
+| Docker/Qdrant | Docker client/server `29.6.2`；Compose config 通过；`qdrant/qdrant:v1.15.4` running、restart 0、仅 `127.0.0.1:6333`、healthz HTTP 200。随机 `codex_p3_m6_*` collection 用生产 adapter 完成双 KB upsert、ownership search、Document scoped delete、foreign owner 保留和最终删除复核。 |
+| 文档与链接 | README 中英文、CHANGELOG、Architecture、Knowledge Base、Naive RAG、设计、实施计划、Codex final review 与执行表已同步；`120` 个 Markdown、`103` 个本地链接/图片，0 read error、0 missing。 |
+| 安全、产物、边界与 Git | 最终 `17` 个预期路径（`12 modified + 5 untracked`），staged `0`；高置信 token、unexpected private-key header、tracked artifact、unexpected untracked artifact 均为 `0`。唯一 runtime 路径是 `backend/app/main.py` 的 FastAPI 版本号，未新增 Plan 4+ 或网络 Tool runtime。`git diff --check` 通过；`main` 的 `HEAD == origin/main == a9c7fa5e1c000dce1ef369ef2fb8f25ba0b5386b`，既有标签 peeled targets 未漂移，`v0.3.0` 仍不存在。 |
+| Codex self-review | must-fix：版本 metadata 已用 RED/GREEN 修复，当前无剩余。fix later：无 Plan 3 修复项；Advanced RAG/Trace/Evaluation 属于 Plan 4。recorded limitation：Mock-only LLM/Embedding、同步非流式、刷新不恢复 Document/RAG 来源、无 Document 删除/硬崩溃 orphan reconciliation/OCR。not applicable：Claude/Fable/真实 Provider/网络 Tool/新 migration/由 Codex 执行 Git 发布。 |
+
+**结论：** `P3-M6-S1～S5` 与 S6 的 tracked 发布候选材料已经完成并通过 Codex
+final self-review。按仓库 Git 规则，本批不 stage、commit、push 或 tag；当前
+`v0.3.0` 仍应不存在。用户手动提交本批并创建 annotated `v0.3.0` 后，必须确认
+`git rev-parse HEAD` 与 `git rev-parse 'v0.3.0^{}'` 相同且工作区干净。只有该 tag
+gate 通过后，Plan 3 才正式完成并可进入 `P4-M1-S1～S3`。
 
 ---
 

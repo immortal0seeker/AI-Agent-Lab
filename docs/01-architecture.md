@@ -27,8 +27,9 @@ bounded ToolCall audit details. M5 adds safety regression coverage plus
 sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
 the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
-  audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
-  `P3-M5-S6` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
+  audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; its
+  `P3-M6-S1～S6` release candidate adds Qdrant configuration, explicit
+  `knowledge/` and `rag/`
 ownership boundaries, four knowledge persistence models, a service-owned
 Knowledge Base CRUD API, controlled validated Document upload, and independent
 Markdown/TXT/text-layer-PDF parsers composed with pure cleaning, naive
@@ -49,7 +50,11 @@ the stable Chunk payload bridge required by M4. M3 S10～S12 add an independentl
   retrieval and add a bounded read-only Knowledge Base search Tool to the
   existing Simple Agent through lazy request-scoped RAG initialization. M5
   adds the responsive Knowledge workspace, controlled upload/status flow, and
-  a typed current-session RAG Chat with exact source and audit-ID display.
+  a typed current-session RAG Chat with exact source and audit-ID display. M6
+  revalidates every backend/frontend boundary, publishes sanitized release
+  screenshots, synchronizes runtime metadata to `0.3.0`, and records the
+  Codex-only final review. The user-created annotated `v0.3.0` tag is the only
+  remaining release gate.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -687,6 +692,41 @@ The list is ordered by recent successful activity. Messages retain deterministic
 creation order. No composite workspace bootstrap endpoint, pagination, rename,
 or delete behavior is introduced in M3.
 
+## Plan 3 v0.3.0 Release Gate
+
+M6 closes Plan 3 without changing runtime architecture. Existing focused tests
+provide the S1～S4 acceptance evidence: the combined model/API/document-
+processing/Embedding/VectorStore/ingestion/Retriever group reached
+`339 passed`, and RAG Query/Chat/Tool/Agent reached `112 passed`. Complete
+backend regression reached `1024 passed` with one known Starlette/httpx
+deprecation warning; the frontend reached `25` files / `149` tests, TypeScript
+checking, and a production build of `1826` transformed modules.
+
+The release browser acceptance is deliberately outside production state. A
+fresh Playwright session intercepted only local API routes with complete
+synthetic Knowledge Base, Document, model, Conversation, RAG answer/source,
+usage, and audit resources. It verified desktop `1440×900`, narrow `390×844`,
+zero horizontal overflow, zero failed requests, zero console warnings/errors,
+and `New RAG chat` reset. The resulting sanitized screenshots are committed in
+`docs/assets/plan3/`; no real credential, Provider, user SQLite database, or
+network Tool was used.
+
+The local infrastructure gate verified Docker Engine `29.6.2`, running
+`qdrant/qdrant:v1.15.4`, restart count zero, loopback-only
+`127.0.0.1:6333`, and HTTP 200 health. A random temporary collection exercised
+the production Qdrant adapter for collection creation, two-Knowledge-Base
+upsert, ownership-filtered search, Document-scoped deletion, and final cleanup.
+Temporary-SQLite Alembic upgrade/current/check/downgrade/re-upgrade passed at
+head `20260801_0007` and the directory was removed.
+
+The five Plan 4 bridge contracts remain intact: shared
+`search_knowledge_base` retrieval/audit, persisted `RagQuery` Top-K/source/
+latency/linkage fields, source-rich `DocumentChunk`, RAG response retrieval
+metadata/audit identity, and Qdrant Knowledge Base/Document/Chunk payload IDs.
+No Trace, Advanced RAG, reranking, or evaluation runtime is added. Package,
+OpenAPI, frontend, and lockfile metadata is `0.3.0`; the user commits the
+verified batch and creates the annotated `v0.3.0` tag.
+
 ## Security Boundaries
 
 Secrets must not be committed.
@@ -713,7 +753,8 @@ Do not write secrets to:
 ## Deferred Capabilities
 
 The current workspace includes read-only Tool execution, the bounded Simple
-Agent loop, backend Naive RAG, and the Knowledge/RAG frontend through M5. The
+Agent loop, backend Naive RAG, and the Plan 3 release-candidate Knowledge/RAG
+frontend. The
 following remain outside the current architecture:
 
 - `web_fetch` or another network Tool

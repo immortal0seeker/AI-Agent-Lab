@@ -862,6 +862,45 @@ Engine 29.6.2, Compose config success, running `qdrant/qdrant:v1.15.4`, restart
 count zero, loopback-only `127.0.0.1:6333`, and `/healthz` HTTP 200 with
 `healthz check passed`.
 
+## Plan 3 v0.3.0 Release Verification
+
+M6 treats test completion as an evidence audit instead of adding duplicate
+assertions. The S1～S3 model/schema/migration/Knowledge Base and Document API,
+Parser/Cleaner/Chunker, Embedding/VectorStore/ingestion/Retriever group reached
+`339 passed`. The S4 Prompt/schema/Query/Chat/Tool/Agent group reached
+`112 passed`. Complete backend regression reached `1024 passed, 1 warning`;
+the only warning remains the known Starlette TestClient/httpx deprecation, and
+`pip check` reported no broken requirements.
+
+Release metadata used an explicit TDD cycle: the version consistency test was
+changed to `0.3.0` and failed against all remaining `0.2.1` production values,
+then backend package, FastAPI OpenAPI, frontend package, and lockfile root
+metadata were synchronized and the focused test reached `2 passed`.
+
+The final frontend gate reached `25` files / `149` tests, TypeScript checking,
+and a production build with `1826` transformed modules. A clean synthetic
+Playwright session performed upload, verified `Parsed / Chunked / Ready`,
+created one dedicated RAG Conversation, rendered the grounded answer and exact
+source/audit fields, checked `1440×900` and `390×844`, and reset with
+`New RAG chat`. All six local API categories returned HTTP 200; failed requests,
+console warnings/errors, and horizontal overflow were zero. Two sanitized
+screenshots are committed under `docs/assets/plan3/`; all scripts, fixtures,
+logs, snapshots, sessions, and the Vite process were removed.
+
+Docker Engine `29.6.2`, Compose config, Qdrant `v1.15.4` running with restart
+count zero, loopback-only `127.0.0.1:6333`, and HTTP 200 health passed. A random
+`codex_p3_m6_*` collection exercised the production adapter with two Knowledge
+Bases: upsert returned both Chunk IDs, each filtered search returned only its
+owner, deleting one Document removed only its point, and final cleanup rechecked
+the collection as absent. A fresh temporary SQLite completed Alembic
+upgrade/current/check/downgrade/re-upgrade at head `20260801_0007` and was
+removed. No verification opened `backend/ai_agent_lab.db`.
+
+The `v0.3.0` tracked release candidate preserves every Plan 4 bridge field and
+adds no Plan 4 runtime. Repository policy leaves the release commit and
+annotated tag to the user; Plan 3 is formally complete only after the tag's
+peeled target equals the user's release commit.
+
 ## Deferred Capabilities
 
 The following remain outside completed Plan 3 through M5 S6:

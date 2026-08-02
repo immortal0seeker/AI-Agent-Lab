@@ -8,9 +8,10 @@ AI Agent Lab 是一个分阶段构建的 AI Engineering Workspace，用来学习
 
 ## 当前阶段
 
-当前最新 Git tag 是 Plan 2 审计修复补丁 `v0.2.1`，对应已发布提交
-`872310b`。原始 Plan 2 基础 Agent 发布 `v0.2.0` 仍指向 `0e3f3a6`；两个既有
-tag 都不得移动或改写。Plan 2 已完成。
+目标发布版本是 `v0.3.0`（Plan 3 Knowledge Base + Naive RAG）。当前发布候选
+工作区已经准备好 tracked 版本 metadata、CHANGELOG、脱敏截图和 Codex 最终复审。
+在用户提交本批并创建 annotated `v0.3.0` tag 前，当前最新既有 tag 仍是指向
+`872310b` 的 `v0.2.1`；原始 `v0.2.0` 仍指向 `0e3f3a6`。既有 tag 不得移动或改写。
 
 Plan 1 覆盖：
 
@@ -25,7 +26,8 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M5-S6`。
+已验证实现范围：`P1-M1-S1` 到 `P3-M6-S5`，以及 `P3-M6-S6` 的 tracked
+发布材料。Plan 3 最终 tag gate 仍由用户手动完成。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -68,6 +70,16 @@ Conversation，后续问题复用该会话，`New RAG chat` 会开启新的前�
 回答按后端顺序显示来源文件名、Chunk 编号/内容、score、heading/page、稳定嵌套
 metadata，以及 RagQuery、LLMCall、Conversation 关联 ID。前端 ownership 校验会拒绝
 知识库、会话、来源、索引或来源数量不匹配的响应，不展示跨会话不可信数据。
+
+M6 在不堆叠低价值重复测试的前提下重新审计所有 Plan 3 后端层：S1～S3 的
+数据/API/处理/Pipeline 聚焦组达到 `339 passed`，S4 Query/Chat/Tool 聚焦组达到
+`112 passed`。完整后端回归为 `1024 passed`，只有一条已知 Starlette/httpx
+弃用 warning；前端为 `25` 个文件 / `149` 个测试，生产 build 转换 `1826`
+个模块。全新合成浏览器 Demo 验证了上传、`parsed/chunked/ready`、专用
+Conversation、回答/来源展示、窄屏布局，以及 0 request/console 问题。真实本地
+Qdrant smoke 使用随机 collection 和生产 adapter，验证 Knowledge Base 隔离与
+按 Document 删除后清理并复核 collection 不存在。包/OpenAPI/前端 metadata 已
+同步为 `0.3.0`；annotated tag 明确保留给用户的 Git 工作流。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -156,6 +168,17 @@ Knowledge 工作台现已提供当前会话内的非流式 RAG Chat 与精确来
 
 以上均为只使用合成 ID 的本地脱敏 Mock 演示，没有读取项目后端数据库。它们是
 已发布 `v0.2.0` 的验收证据，但不证明真实 Provider Tool 能力。
+
+## v0.3.0 发布候选演示
+
+![Knowledge Base 上传与入库](docs/assets/plan3/knowledge-base-workspace.png)
+
+![带有序来源的 RAG 回答](docs/assets/plan3/rag-chat-sources.png)
+
+以上是只使用合成文档、ID、Provider 响应和审计 metadata 的本地脱敏 Mock 演示。
+干净验收没有使用真实 API key、付费 Provider、用户 SQLite 或网络 Tool。桌面
+`1440×900` 与窄屏 `390×844` 均通过；这两张图是用户创建 `v0.3.0` tag 时的
+正式发布证据。
 
 ## Plan 1 非目标
 
@@ -318,6 +341,22 @@ Provider 或 VectorStore 失败会保留已解析/切分的 Chunk，返回
 上传请求仍为同步执行。Qdrant upsert 成功后会登记请求事务清理；若随后 SQLite commit
 失败，系统会在关闭 Qdrant client 前 best-effort 删除该 Document 的 vectors。详见
 [Document Ingestion Pipeline](docs/22-document-ingestion-pipeline.md)。
+
+### Plan 3 演示流程
+
+启动 Qdrant、后端和前端后：
+
+1. 打开 `Knowledge` 工作区。
+2. 创建或选择一个 Knowledge Base。
+3. 上传一个 `.md`、`.txt` 或文本层 `.pdf`，等待显示
+   `Parsed / Chunked / Ready`。
+4. 切换到 `RAG Chat`，选择已配置模型并提问。
+5. 查看 grounded answer、有序来源卡、分数、heading/page metadata，以及
+   RagQuery/LLMCall/Conversation ID。
+
+第一次提问会创建专用 Conversation，后续提问会复用它，直到点击
+`New RAG chat`。当前流程同步且非流式；由于持久 Document/RagQuery 读取 API
+不属于 Plan 3，刷新后不会恢复此前的 Document/RAG 来源卡。
 
 ### 后端
 
@@ -498,6 +537,7 @@ npm run build
 - [Naive RAG Query 与 Chat](docs/23-naive-rag.md)
 - [Plan 1 最终复审记录](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - [Plan 2 最终复审记录](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
+- [Plan 3 v0.3.0 Codex 最终复审](docs/reviews/2026-08-02-plan3-v0.3.0-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
 
@@ -531,7 +571,7 @@ reconciliation 的 orphan points。
 
 - Plan 1：项目骨架 + 基础 Chat + LLM Providers
 - Plan 2：Tool Calling + 简单 Agent Loop
-- Plan 3：Knowledge Base + Document Ingestion + Naive RAG
+- Plan 3：Knowledge Base + Document Ingestion + Naive RAG（`v0.3.0` 发布候选，等待用户手动 tag gate）
 - Plan 4：Trace + Advanced RAG + Rerank + Evaluation
 - Plan 5：Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6：MCP + Voice + Vision + Desktop

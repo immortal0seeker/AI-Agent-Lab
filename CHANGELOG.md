@@ -2,7 +2,7 @@
 
 All notable changes to AI Agent Lab are documented in this file.
 
-## [Unreleased]
+## [0.3.0] - 2026-08-02
 
 ### Added
 
@@ -159,6 +159,43 @@ All notable changes to AI Agent Lab are documented in this file.
 - Made non-empty Knowledge Base deletion a stable HTTP 409 that preserves
   metadata and controlled files, and normalized only the Document hash unique
   race to the existing safe duplicate response.
+
+### Release Verification
+
+- Synchronized backend package, FastAPI OpenAPI, frontend package, and lockfile
+  root metadata to `0.3.0` through an observed failing-then-passing release
+  consistency test.
+- Re-audited the complete S1～S3 model/API/document-processing/Embedding/
+  VectorStore/ingestion/Retriever group (`339 passed`) and the S4 RAG
+  Query/Chat/Tool/Agent group (`112 passed`) without adding duplicate tests.
+- Completed backend regression with `1024 passed` and one known Starlette/httpx
+  deprecation warning; `pip check` reported no broken requirements. A fresh
+  temporary SQLite completed Alembic upgrade/current/check/downgrade/re-upgrade
+  at head `20260801_0007` and was removed.
+- Completed frontend TypeScript checking, `25` files / `149` tests, and a
+  production build with `1826` transformed modules. A clean Playwright Mock
+  Demo exercised Document upload, lifecycle display, Conversation creation,
+  grounded answer/source display, desktop/narrow layouts, and session reset
+  with zero failed requests and zero console warnings/errors.
+- Added sanitized Plan 3 release screenshots under `docs/assets/plan3/`. No
+  real Provider, API key, user database, local private file, or network Tool
+  was used.
+- Revalidated Docker Engine `29.6.2`, Qdrant `v1.15.4` running with zero
+  restarts on loopback-only `127.0.0.1:6333`, HTTP 200 health, and a cleaned
+  random-collection production-adapter smoke for Knowledge Base isolation and
+  Document-scoped deletion.
+
+### Known Limitations
+
+- Release verification remains Mock-only for LLM and Embedding Providers; it
+  does not prove live paid Provider connectivity.
+- Document ingestion and RAG Chat are synchronous. RAG Chat is non-streaming
+  and current-session source cards are not restored after refresh.
+- Persistent Document list/detail/chunk-query/delete, Agent knowledge-Tool UI,
+  hard-crash vector orphan reconciliation, Advanced RAG, reranking, evaluation,
+  Trace runtime, memory, OCR, and multimodal behavior remain deferred.
+- The annotated `v0.3.0` tag is created by the user after committing this
+  verified release batch; Codex does not stage, commit, push, or tag it.
 
 ## [0.2.1] - 2026-07-20
 

@@ -239,6 +239,30 @@ Stable API errors include:
 Error responses and logs do not include the query, source content, Prompt,
 vectors, credentials, endpoint details, or underlying private diagnostics.
 
+## v0.3.0 Release Verification
+
+M6 re-ran the complete RAG Prompt/schema/service/API/Tool/Agent group as one
+S4 gate: `112 passed` with only the known Starlette TestClient/httpx warning.
+The group proves ordered retrieval, grounded answer/source metadata,
+`RagQuery` persistence and answer linkage, zero-hit behavior, full Chat
+rollback, bounded safe Tool summaries, and lazy ordinary-Agent initialization.
+No paid or live LLM/Embedding Provider was called.
+
+The clean release browser Demo used complete synthetic API resources. It
+created a dedicated Conversation, sent one non-streaming RAG question, rendered
+the exact answer, source score/provenance/metadata, and RagQuery/LLMCall/
+Conversation IDs, then verified `New RAG chat` reset. Desktop `1440×900` and
+narrow `390×844` had zero failed requests, console warnings/errors, or
+horizontal overflow. The committed screenshot is
+[`rag-chat-sources.png`](assets/plan3/rag-chat-sources.png).
+
+A separate local Qdrant smoke used the production adapter and a random
+collection. Two equal vectors with different Knowledge Base ownership were
+upserted; each filtered search returned only its own Chunk, Document deletion
+removed only the targeted owner's point, and final cleanup rechecked the
+collection as absent. This verifies the Naive RAG storage/retrieval boundary,
+not live semantic model quality.
+
 ## Current Limitations
 
 - No live paid Embedding or LLM Provider acceptance is performed.
