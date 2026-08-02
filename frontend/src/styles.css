@@ -1680,6 +1680,412 @@ textarea:focus-visible {
   gap: 5px;
 }
 
+.knowledge-view-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(110px, 1fr));
+  gap: 4px;
+  margin-top: 18px;
+  padding: 3px;
+  border: 1px solid #d8dde1;
+  border-radius: 7px;
+  background: #f2f4f5;
+}
+
+.knowledge-view-tabs button {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #68747d;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.knowledge-view-tabs button[aria-selected="true"] {
+  border-color: #cbd2d7;
+  background: #ffffff;
+  color: #27323a;
+  box-shadow: 0 1px 2px rgba(31, 42, 49, 0.08);
+}
+
+.rag-chat-page {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 18px;
+  border-top: 1px solid #e0e4e7;
+}
+
+.rag-chat-header,
+.rag-chat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.rag-chat-header h3 {
+  margin: 0;
+  color: #27323a;
+  font-size: 14px;
+}
+
+.rag-chat-header p {
+  margin: 5px 0 0;
+  color: #77828a;
+  font-size: 11px;
+}
+
+.rag-chat-header > button,
+.rag-workspace-state button,
+.rag-composer > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #c5ccd1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344149;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.rag-chat-header > button:disabled,
+.rag-composer > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.rag-chat-toolbar {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e0e4e7;
+  border-radius: 6px;
+  background: #fafbfb;
+}
+
+.rag-chat-toolbar .model-selector {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.rag-chat-toolbar code,
+.rag-chat-toolbar > span {
+  min-width: 0;
+  overflow: hidden;
+  color: #7c878e;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rag-workspace-state,
+.rag-chat-empty {
+  display: grid;
+  place-items: center;
+  gap: 7px;
+  min-height: 130px;
+  padding: 18px;
+  border: 1px dashed #cbd2d7;
+  border-radius: 7px;
+  color: #77828a;
+  font-size: 11px;
+  text-align: center;
+}
+
+.rag-workspace-state[role="status"] svg,
+.rag-composer .lucide-loader-circle {
+  animation: loading-spin 1s linear infinite;
+}
+
+.rag-workspace-state--error {
+  border-color: #e2b4ac;
+  background: #fff8f6;
+  color: #8f3024;
+}
+
+.rag-chat-empty strong {
+  color: #344149;
+  font-size: 12px;
+}
+
+.rag-turn-list {
+  display: grid;
+  gap: 12px;
+}
+
+.rag-answer-panel {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid #dce1e4;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.rag-answer-question,
+.rag-answer-content {
+  display: grid;
+  gap: 4px;
+}
+
+.rag-answer-question > span,
+.rag-answer-content > span {
+  color: #7c878e;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.rag-answer-question p,
+.rag-answer-content p,
+.rag-source-content {
+  margin: 0;
+  color: #344149;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.rag-answer-content {
+  padding: 10px;
+  border-left: 3px solid #348361;
+  background: #f4faf6;
+}
+
+.rag-answer-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.rag-answer-summary span,
+.rag-source-location span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #edf0f2;
+  color: #59666f;
+  font-size: 9px;
+}
+
+.rag-answer-audit,
+.rag-source-provenance {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.rag-answer-audit > div,
+.rag-source-provenance > div {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #e1e5e8;
+  border-radius: 5px;
+  background: #fafbfb;
+}
+
+.rag-answer-audit dt,
+.rag-source-provenance dt,
+.rag-source-metadata dt {
+  color: #7c878e;
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.rag-answer-audit dd,
+.rag-source-provenance dd,
+.rag-source-metadata dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  color: #344149;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 8px;
+}
+
+.rag-source-list {
+  display: grid;
+  gap: 9px;
+  padding-top: 2px;
+}
+
+.rag-source-list > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rag-source-list h4 {
+  margin: 0;
+  color: #344149;
+  font-size: 12px;
+}
+
+.rag-source-list > header > span {
+  min-width: 24px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #edf0f2;
+  color: #59666f;
+  font-size: 9px;
+  text-align: center;
+}
+
+.rag-source-empty {
+  padding: 14px;
+  border: 1px dashed #cbd2d7;
+  border-radius: 6px;
+  color: #77828a;
+  font-size: 10px;
+  text-align: center;
+}
+
+.rag-source-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.rag-source-card {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid #dce1e4;
+  border-radius: 6px;
+  background: #fbfcfc;
+}
+
+.rag-source-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rag-source-card > header > div {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
+}
+
+.rag-source-card > header strong {
+  overflow: hidden;
+  color: #344149;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rag-source-index {
+  color: #207a55;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.rag-source-score {
+  flex: 0 0 auto;
+  color: #526e7a;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 9px;
+}
+
+.rag-source-content {
+  padding: 9px;
+  border-left: 2px solid #a9c6b5;
+  background: #f5f9f6;
+}
+
+.rag-source-location {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.rag-source-provenance {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rag-source-metadata {
+  display: grid;
+  gap: 6px;
+}
+
+.rag-source-metadata h5 {
+  margin: 0;
+  color: #59666f;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.rag-source-metadata > p {
+  margin: 0;
+  color: #8b959b;
+  font-size: 9px;
+}
+
+.rag-source-metadata dl {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.rag-source-metadata dl > div {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.3fr) minmax(0, 1fr);
+  gap: 8px;
+  padding-top: 5px;
+  border-top: 1px solid #e6e9eb;
+}
+
+.rag-composer {
+  display: grid;
+  gap: 9px;
+  padding-top: 4px;
+}
+
+.rag-composer label {
+  display: grid;
+  gap: 5px;
+}
+
+.rag-composer label > span {
+  color: #68747d;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.rag-composer textarea {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+  padding: 9px 10px;
+  border: 1px solid #cbd2d7;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #27323a;
+  line-height: 1.45;
+}
+
+.rag-composer textarea:disabled {
+  background: #f1f3f4;
+  color: #77828a;
+}
+
+.rag-composer > button {
+  justify-self: end;
+  border-color: #207a55;
+  background: #207a55;
+  color: #ffffff;
+}
+
 @media (max-width: 720px) {
   .workspace-shell {
     grid-template-columns: 1fr;
@@ -1861,6 +2267,35 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .knowledge-view-tabs {
+    display: grid;
+  }
+
+  .rag-chat-header,
+  .rag-chat-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rag-chat-header > button,
+  .rag-composer > button {
+    width: 100%;
+  }
+
+  .rag-chat-toolbar .model-selector,
+  .rag-chat-toolbar .model-selector select {
+    width: 100%;
+  }
+
+  .rag-answer-audit,
+  .rag-source-provenance {
+    grid-template-columns: 1fr;
+  }
+
+  .rag-source-metadata dl > div {
+    grid-template-columns: 1fr;
+  }
+
   .agent-header {
     min-height: 58px;
     padding: 10px 14px;
@@ -1903,6 +2338,11 @@ textarea:focus-visible {
   .knowledge-list-state[role="status"] svg,
   .knowledge-create-form .lucide-loader-circle,
   .document-upload-panel .lucide-loader-circle {
+    animation: none;
+  }
+
+  .rag-workspace-state[role="status"] svg,
+  .rag-composer .lucide-loader-circle {
     animation: none;
   }
 }

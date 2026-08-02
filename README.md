@@ -25,7 +25,7 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Completed scope: `P1-M1-S1` through `P3-M5-S3`.
+Completed scope: `P1-M1-S1` through `P3-M5-S6`.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -76,6 +76,15 @@ explicit loading/empty/error states, and a selected-Knowledge-Base upload flow.
 The UI accepts `.md`, `.txt`, and `.pdf`, then displays the synchronous
 Document response's parse, chunk, and embedding lifecycle without exposing
 stored paths, hashes, or raw metadata.
+The final M5 batch adds typed RAG Query/Chat contracts, safe API wrappers, and
+a focused RAG store inside the Knowledge workspace. The Documents/RAG Chat tabs
+reuse the selected Knowledge Base; the first question creates a dedicated
+Conversation, subsequent questions reuse it, and `New RAG chat` starts a fresh
+session. Each non-streaming answer shows the exact ordered source filename,
+Chunk index/content, score, heading/page metadata, stable nested metadata, and
+RagQuery/LLMCall/Conversation correlation IDs returned by the backend. Client
+ownership checks reject mismatched Knowledge Base, Conversation, source, index,
+or source-count responses instead of displaying untrusted cross-session data.
 
 The M1 foundation includes Tool and ToolResult contracts, ToolCall transport
 schemas, an ordered Tool Registry, Draft 2020-12 argument validation, read-only
@@ -162,11 +171,11 @@ retrieval results without an LLM call, while the RAG chat endpoint produces one
 grounded non-streaming answer and writes it to existing conversation history.
 Revision `20260801_0007` adds a strict persisted `top_k` field to
 `rag_queries`. Successful Query, Chat, and `search_knowledge_base` Tool calls
-now write traceable audit rows and return their IDs. Document list/detail/
-chunk-query/delete APIs and the frontend RAG Chat/source runtime remain
-deferred. The Knowledge workspace can therefore display the latest upload
-response for the current selection, but cannot reload a persistent Document
-history or preview Chunks.
+now write traceable audit rows and return their IDs. The Knowledge workspace
+provides a current-session non-streaming RAG Chat and exact source cards, but
+Document list/detail/chunk-query/delete APIs remain deferred. It therefore
+cannot reload persistent Document or RAG source history after refresh, preview
+Chunks outside an answer, or expose the Agent knowledge Tool through the UI.
 
 ## v0.1.0 Demo
 
@@ -546,6 +555,15 @@ operator explicitly configures a tools-capable Registry entry and Provider.
 Keep real Provider credentials only in an untracked `backend/.env` or process
 environment; never place them in Registry JSON or frontend `VITE_*` variables.
 
+Use the sidebar `Knowledge` control to open the Knowledge workspace. Create or
+select a Knowledge Base, upload a supported document from the `Documents` tab,
+then switch to `RAG Chat`. Choose a registered model and ask a question; the
+first turn creates a dedicated backend Conversation and later turns reuse it.
+The answer panel shows ordered source cards and audit IDs. `New RAG chat` clears
+only the current frontend session and starts a new Conversation on the next
+question. This flow is non-streaming and current-session only: refreshing does
+not restore prior RAG turns or source cards.
+
 Frontend checks:
 
 ```powershell
@@ -578,7 +596,9 @@ Release documentation:
 
 Release verification uses mock Providers; it does not prove live
 DeepSeek/OpenRouter connectivity. Usage, estimated cost, and latency are stored
-on backend `LLMCall` records but are not displayed in the frontend. The current
+on backend `LLMCall` records. The RAG answer panel shows the response token total,
+but it does not expose persisted cost/latency and the other workspaces do not
+display those metrics. The current
 editable-install workflow also leaves `models.json` out of future wheel/sdist
 package data. Provider retry/fallback, failed-call audit rows, conversation
 management extensions, Markdown rendering, and later-Plan features remain
@@ -597,10 +617,12 @@ service acceptance, automatic retry/batching, or persisted embedding-cost
 record. Upload-to-Embedding-to-Qdrant ingestion has Mock API coverage and a
 local temporary-collection smoke. The standalone Retriever and Naive RAG
 Query/Chat APIs have Mock boundary coverage plus a cleaned temporary-Qdrant,
-temporary-SQLite, Mock-LLM API smoke. RAG Chat is non-streaming, requires an
-existing Conversation, and the backend-only Agent Tool has no dedicated
-frontend. Query/Chat/Tool now create RagQuery audit rows, but no RAG streaming,
-Advanced RAG, Trace runtime, or frontend RAG Chat/source flow exists.
+temporary-SQLite, Mock-LLM API smoke. The frontend creates a dedicated
+Conversation on the first RAG question and renders current-session answers,
+ordered sources, and correlation IDs. It does not restore RAG turns/sources
+after refresh, and the backend-only Agent Tool has no dedicated frontend.
+Query/Chat/Tool create RagQuery audit rows, but no RAG streaming, Advanced RAG,
+or Trace runtime exists.
 Returned Embedding Provider usage remains in memory. Normal request
 rollback compensates vectors, while a hard process crash after Qdrant write can
 still leave orphan points for later reconciliation.

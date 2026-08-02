@@ -66,7 +66,7 @@ blocked
 | Batch 12 | P3-M4-S4～S6 | 实现 RAG Prompt、Query / Chat API | API 测试 | 已完成（有界 Prompt、纯检索 Query、会话 Chat、回滚与真实临时 Qdrant API smoke 通过） |
 | Batch 13 | P3-M4-S7～S8 | 持久化检索审计并注册 search_knowledge_base 工具 | Agent 工具调用测试，Codex self-review M4 | 已完成（RagQuery Top-K/来源/延迟审计、Query/Chat/Tool ID、懒加载 Agent Tool、真实临时 Qdrant smoke 与全量回归通过） |
 | Batch 14 | P3-M5-S1～S3 | 实现知识库页面和上传 UI | 浏览器手测 | 已完成（类型/API、列表/创建、上传/三段状态、桌面/窄屏 Mock 浏览器与全量回归通过） |
-| Batch 15 | P3-M5-S4～S6 | 实现 RAG Chat 和来源展示 | 浏览器手测，Codex review M5 | 未完成 |
+| Batch 15 | P3-M5-S4～S6 | 实现 RAG Chat 和来源展示 | 浏览器手测，Codex review M5 | 已完成（类型/API/store、会话提问、来源卡、桌面/窄屏 Mock 浏览器与全量回归通过） |
 | Batch 16 | P3-M6-S1～S6 | 测试、文档、截图、封版 | Codex + Claude final review | 未完成 |
 
 ---
@@ -593,6 +593,44 @@ feat(rag): add naive rag query chat and tool integration
 实现 RAG store/Chat/来源卡、持久 Document 查询、Advanced RAG、Rerank、Evaluation、
 Memory、OCR、多模态或任何 Plan 4+ runtime。
 
+### P3-M5-S4～S6 实施记录（2026-08-02）
+
+- 新增完整的 RAG Query/Chat 前端类型与安全 POST 封装，并补齐既有 Conversation
+  create wrapper；结构化安全错误、transport failure 和成功响应无效 JSON 均有回归。
+- 新增独立 Zustand RAG store：初始化已注册模型，首问创建以知识库名命名的专用
+  Conversation，后续问题复用；知识库切换和 `New RAG chat` 会使活动请求失效并清理
+  当前回合。响应 Conversation/Knowledge Base/source owner、连续索引和来源数量不一致
+  时以固定消息 fail closed，不显示跨 owner 数据。
+- Knowledge 工作台新增 Documents/RAG Chat 标签、问题输入、模型选择、loading/empty/
+  error/sending/result 状态，以及当前 session 回合。刷新后不伪造无法读取的 RagQuery
+  或来源历史。
+- 新增回答与来源组件，按后端原顺序展示问题、回答、strategy、Top-K、检索/使用数、
+  context characters、Provider/Model、token 总数、RagQuery/LLMCall/Conversation ID，
+  以及文件名、Chunk 编号/内容、score、heading/page、Document/Chunk ID 与稳定嵌套
+  metadata。
+- TDD 逐项复现缺失 API、store、标签页、RAG 页面、来源卡和回答面板的 RED；Codex
+  自审追加旧 owner 回合保护与 Unicode code-point 标题边界测试并先 RED 后 GREEN。
+  前端全量最终为 `25 files / 149 tests`，typecheck 与生产 build（`1826 modules`）通过。
+- 后端从系统临时目录完成 `1024 passed, 1 warning`，仅保留既知 Starlette TestClient/
+  httpx 弃用提示；`pip check` 无破损，临时目录已删除，未读取或修改用户 SQLite。
+- 本地 headed Chromium 只拦截合成 health、Knowledge Base、Models、Conversation create
+  与 RAG Chat：桌面 `1440×900`、窄屏 `390×844` 均无横向溢出，首问严格为 1 次
+  Conversation create + 1 次 RAG Chat，回答/来源/score/metadata/审计 ID、`New RAG chat`
+  清理和 0 console issue 均通过；目视检查后已删除脚本、截图、日志和浏览器状态。
+- 补充运行时验收确认 Docker Desktop 4.83.0 / Engine 29.6.2 可访问；Compose 静态
+  配置退出 0，`qdrant/qdrant:v1.15.4` 为 running、restart count 0，仅发布
+  `127.0.0.1:6333`，`/healthz` 返回 HTTP 200 / `healthz check passed`。
+- Codex self-review：must fix 已解决——Knowledge 页面 owner 与全局 store 尚未同步的
+  瞬间隐藏旧回合并禁用操作；Conversation 标题按 Unicode code point 有界截断，避免
+  长 emoji 名称产生孤立 surrogate。fix later 为持久 RAG 回合/来源恢复和 Agent knowledge
+  Tool 前端；accepted limitation 为 Mock-only 与 RAG 非流式；
+  not applicable 为后端 schema/migration、Plan 4+ runtime、外部 review 与 tag。无剩余
+  must-fix。
+
+**结论：** `P3-M5-S4～S6`、Batch 15 与完整 M5 已完成，可进入 `P3-M6-S1～S3`；
+本批未实现持久 Document/RagQuery 查询、RAG streaming、Advanced RAG、Rerank、
+Evaluation、Trace runtime、Memory、OCR、多模态或任何 Plan 4+ runtime。
+
 M5 完成后建议 commit：
 
 ```text
@@ -710,11 +748,11 @@ Claude Code 审核后，Codex 负责：
 | 可以基于检索结果生成回答 | implemented | RAG Chat service/API、Prompt、来源与回滚测试 |
 | 前端可以上传文档 | implemented | Knowledge API/page 测试与本地 Mock Playwright 创建/上传 smoke |
 | 前端可以查看文档状态 | implemented | 最近上传响应的 Parse/Chunk/Embedding 状态卡；持久文档列表仍延期 |
-| 前端可以进行 RAG Chat | pending | 页面截图 |
-| 前端可以展示来源片段 | pending | 页面截图 |
+| 前端可以进行 RAG Chat | implemented | RAG API/store/page 测试与本地 Mock 浏览器首问、会话复用边界、New RAG chat smoke |
+| 前端可以展示来源片段 | implemented | source/answer 组件测试与桌面/窄屏 Mock 浏览器对 filename、Chunk、score、metadata、审计 ID 验收 |
 | search_knowledge_base 工具可用 | implemented | schema/安全失败/Registry/Agent ToolCall 测试与真实临时 Qdrant smoke |
-| README 已更新 | implemented | 中英文 README 已同步至 M4 S8 审计、Tool 与剩余前端/Advanced RAG 限制 |
-| docs 已更新 | implemented | Architecture、Knowledge Base、Naive RAG、CHANGELOG、设计/实施计划与执行表 |
+| README 已更新 | implemented | 中英文 README 已同步至 M5 S6 RAG Chat/source 行为与当前限制 |
+| docs 已更新 | implemented | Architecture、Knowledge Base、Naive RAG、CHANGELOG、设计/实施计划与执行表已同步至 M5 S6 |
 | 已创建 v0.3.0 tag | pending | `git tag --list` 输出 |
 
 ---

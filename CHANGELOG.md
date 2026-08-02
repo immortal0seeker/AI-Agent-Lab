@@ -6,6 +6,17 @@ All notable changes to AI Agent Lab are documented in this file.
 
 ### Added
 
+- Added typed frontend RAG Query/Chat contracts, safe API wrappers, robust
+  Conversation creation, and a focused Zustand RAG store. Dedicated
+  Conversations are created on first question and reused within the current
+  RAG session with Unicode-safe bounded titles; stale or ownership-inconsistent
+  responses fail closed.
+- Added Documents/RAG Chat tabs to the Knowledge workspace with registered-model
+  initialization, loading/empty/error/sending/success states, draft-preserving
+  safe failures, and `New RAG chat` session reset behavior.
+- Added non-streaming RAG answer and source components that preserve backend
+  order and render filename, Chunk index/content, score, heading/page, stable
+  nested metadata, token summary, and RagQuery/LLMCall/Conversation IDs.
 - Added a third responsive Knowledge workspace with typed Knowledge Base and
   Document contracts, explicit loading/empty/error states, Knowledge Base
   list/create selection, and shared backend health visibility.

@@ -21,6 +21,7 @@ import type {
   KnowledgeDocument,
 } from "../types/knowledge";
 import type { WorkspaceView } from "../utils/agentUrl";
+import RagChatPage from "./RagChatPage";
 
 type KnowledgeBasePageProps = {
   onSelectWorkspace: (workspace: WorkspaceView) => void;
@@ -31,6 +32,8 @@ type UploadState =
   | { status: "uploading" }
   | { status: "error"; message: string }
   | { status: "result"; document: KnowledgeDocument };
+
+type KnowledgeView = "documents" | "rag";
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -56,6 +59,7 @@ export default function KnowledgeBasePage({
   const [uploadState, setUploadState] = useState<UploadState>({
     status: "idle",
   });
+  const [activeView, setActiveView] = useState<KnowledgeView>("documents");
 
   useEffect(() => {
     mountedRef.current = true;
@@ -299,25 +303,63 @@ export default function KnowledgeBasePage({
                     <dd>{selectedKnowledgeBase.vector_store}</dd>
                   </div>
                 </dl>
-                <FileUploadPanel
-                  key={selectedKnowledgeBase.id}
-                  busy={uploading}
-                  disabled={creating}
-                  error={
-                    uploadState.status === "error"
-                      ? uploadState.message
-                      : null
-                  }
-                  onFileChange={() => {
-                    if (uploadState.status === "error") {
-                      setUploadState({ status: "idle" });
-                    }
-                  }}
-                  onUpload={submitUpload}
-                />
-                {uploadState.status === "result" ? (
-                  <DocumentStatusCard document={uploadState.document} />
-                ) : null}
+                <div className="knowledge-view-tabs" role="tablist" aria-label="Knowledge tools">
+                  <button
+                    id="knowledge-documents-tab"
+                    type="button"
+                    role="tab"
+                    aria-selected={activeView === "documents"}
+                    aria-controls="knowledge-documents-panel"
+                    onClick={() => setActiveView("documents")}
+                  >
+                    Documents
+                  </button>
+                  <button
+                    id="knowledge-rag-tab"
+                    type="button"
+                    role="tab"
+                    aria-selected={activeView === "rag"}
+                    aria-controls="knowledge-rag-panel"
+                    onClick={() => setActiveView("rag")}
+                  >
+                    RAG Chat
+                  </button>
+                </div>
+                {activeView === "documents" ? (
+                  <section
+                    id="knowledge-documents-panel"
+                    role="tabpanel"
+                    aria-labelledby="knowledge-documents-tab"
+                  >
+                    <FileUploadPanel
+                      key={selectedKnowledgeBase.id}
+                      busy={uploading}
+                      disabled={creating}
+                      error={
+                        uploadState.status === "error"
+                          ? uploadState.message
+                          : null
+                      }
+                      onFileChange={() => {
+                        if (uploadState.status === "error") {
+                          setUploadState({ status: "idle" });
+                        }
+                      }}
+                      onUpload={submitUpload}
+                    />
+                    {uploadState.status === "result" ? (
+                      <DocumentStatusCard document={uploadState.document} />
+                    ) : null}
+                  </section>
+                ) : (
+                  <section
+                    id="knowledge-rag-panel"
+                    role="tabpanel"
+                    aria-labelledby="knowledge-rag-tab"
+                  >
+                    <RagChatPage knowledgeBase={selectedKnowledgeBase} />
+                  </section>
+                )}
               </div>
             )}
           </section>

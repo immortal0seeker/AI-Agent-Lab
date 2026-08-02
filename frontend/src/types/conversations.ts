@@ -1,3 +1,9 @@
+export type ConversationCreate = {
+  title?: string;
+  default_provider?: string | null;
+  default_model?: string | null;
+};
+
 export type ConversationSummary = {
   id: string;
   title: string;

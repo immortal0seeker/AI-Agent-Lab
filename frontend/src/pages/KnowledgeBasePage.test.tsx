@@ -533,3 +533,54 @@ describe("KnowledgeBasePage document upload flow", () => {
     act(() => root.unmount());
   });
 });
+
+describe("KnowledgeBasePage RAG workspace tabs", () => {
+  it("opens RAG Chat for the currently selected Knowledge Base", async () => {
+    const { container, root } = mountPage();
+    await flushEffects();
+
+    const documentsTab = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Documents",
+    );
+    const ragTab = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "RAG Chat",
+    );
+    expect(documentsTab?.getAttribute("aria-selected")).toBe("true");
+    expect(ragTab).toBeDefined();
+
+    act(() => ragTab?.click());
+    expect(container.textContent).toContain("Ask Engineering notes");
+
+    const research = container.querySelector('[aria-label="Select Research"]');
+    act(() => (research as HTMLButtonElement).click());
+    expect(container.textContent).toContain("Ask Research");
+    act(() => root.unmount());
+  });
+
+  it("preserves the latest upload while visiting RAG Chat", async () => {
+    vi.mocked(uploadKnowledgeDocument).mockResolvedValue(readyDocument);
+    const { container, root } = mountPage();
+    await flushEffects();
+    const { form, input } = uploadControls(container);
+
+    act(() => selectFile(input, new File(["notes"], "release-notes.md")));
+    await act(async () => {
+      form.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      );
+      await Promise.resolve();
+    });
+    await flushEffects();
+    expect(container.textContent).toContain(readyDocument.id);
+
+    const findTab = (label: string) =>
+      [...container.querySelectorAll("button")].find(
+        (button) => button.textContent?.trim() === label,
+      );
+    act(() => findTab("RAG Chat")?.click());
+    expect(container.textContent).not.toContain(readyDocument.id);
+    act(() => findTab("Documents")?.click());
+    expect(container.textContent).toContain(readyDocument.id);
+    act(() => root.unmount());
+  });
+});

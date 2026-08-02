@@ -25,7 +25,7 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已完成范围：`P1-M1-S1` 到 `P3-M5-S3`。
+已完成范围：`P1-M1-S1` 到 `P3-M5-S6`。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -62,6 +62,12 @@ M5 首批新增第三个响应式 Knowledge 工作台：包含严格的 Knowledg
 前端类型、安全的列表/创建/multipart 上传 API 封装，以及明确的加载、空、错误状态。
 用户可选择知识库并上传 `.md`、`.txt` 或 `.pdf`，随后查看同步 Document 响应中的
 parse、chunk、embedding 生命周期；页面不会暴露存储路径、hash 或原始 metadata。
+M5 最后一批在 Knowledge 工作台内新增严格的 RAG Query/Chat 类型、安全 API 封装与
+独立 RAG store。Documents/RAG Chat 标签复用当前知识库；首个问题创建专用
+Conversation，后续问题复用该会话，`New RAG chat` 会开启新的前端会话。每个非流式
+回答按后端顺序显示来源文件名、Chunk 编号/内容、score、heading/page、稳定嵌套
+metadata，以及 RagQuery、LLMCall、Conversation 关联 ID。前端 ownership 校验会拒绝
+知识库、会话、来源、索引或来源数量不匹配的响应，不展示跨会话不可信数据。
 
 M1 地基包括 Tool 与 ToolResult 契约、ToolCall 传输 schema、有序 Tool
 Registry、Draft 2020-12 参数校验、只读路径策略，以及 AgentRun/ToolCall ORM
@@ -127,9 +133,9 @@ Alembic revision `20260726_0005` 新增 SQLite `knowledge_bases`、`documents`�
 可在不调用 LLM 的前提下调试检索结果；RAG Chat API 可生成一次非流式知识库回答并写入
 既有会话。Revision `20260801_0007` 为 `rag_queries` 增加严格持久化的 `top_k`；
 Query、Chat 与 `search_knowledge_base` Tool 成功检索时都会写入可追踪审计并返回 ID。
-Document 列表/详情/Chunk 查询/删除 API 与前端 RAG Chat/来源 runtime 仍延期。
-因此 Knowledge 工作台当前只显示所选知识库的最近一次上传响应，刷新后不能恢复
-持久化文档历史，也不能预览 Chunk。
+Knowledge 工作台现已提供当前会话内的非流式 RAG Chat 与精确来源卡；Document
+列表/详情/Chunk 查询/删除 API 仍延期。因此刷新后不能恢复持久化 Document 或 RAG
+来源历史，不能脱离回答预览 Chunk，也没有 Agent knowledge Tool 前端。
 补丁 revision `20260801_0006` 增加同一知识库内的 Document hash 唯一约束，禁止
 删除仍含 Document 的知识库，并在删除回答 Message 时只清空引用、保留 `RagQuery`。
 
@@ -461,6 +467,12 @@ tracked 示例 Registry 模型会继续保持 `supports_tools=false`，因此只
 真实 Provider 凭据只能放在未跟踪的 `backend/.env` 或进程环境中，不能写入
 Registry JSON 或前端 `VITE_*` 变量。
 
+通过侧栏 `Knowledge` 控件可进入 Knowledge 工作台。创建或选择知识库，在
+`Documents` 标签上传支持的文档，再切换到 `RAG Chat`；选择已注册模型并提问后，
+第一轮会创建专用后端 Conversation，后续轮次会复用。回答面板展示有序来源卡和
+审计 ID。`New RAG chat` 只清理当前前端会话，下一次提问再创建新 Conversation。
+该流程为非流式且仅保留当前 session，刷新不会恢复以前的 RAG 回合或来源卡。
+
 前端检查：
 
 ```powershell
@@ -492,7 +504,8 @@ npm run build
 ## 当前限制
 
 封版验证只使用 Mock Provider，不能证明真实 DeepSeek/OpenRouter 已连通。
-Token、预估成本和延迟保存在后端 `LLMCall` 中，但当前前端尚不展示。
+Token、预估成本和延迟保存在后端 `LLMCall` 中。RAG 回答面板展示响应中的 token
+总数，但不展示持久化 cost/latency，其他工作台也尚未展示这些指标。
 当前 editable install 工作流也没有把 `models.json` 声明为未来 wheel/sdist
 的 package data。Provider retry/fallback、失败调用审计记录、会话管理扩展、
 Markdown 渲染以及后续 Plan 能力仍然延后。Agent 执行仍为同步非流式，不提供运行
@@ -506,10 +519,11 @@ usage/cost 记录，`web_fetch` 也继续明确延期且没有运行时表面。
 Embedding Provider 验证仍只使用 Mock：尚无真实模型服务验收、自动重试/拆批或持久化
 embedding 成本记录。上传到 Embedding 再到 Qdrant 的 ingestion 已有 Mock API 覆盖和
 本地临时 collection smoke。独立 Retriever 与 Naive RAG Query/Chat API 已有 Mock
-边界覆盖，以及完成清理的临时 Qdrant、临时 SQLite、Mock LLM API smoke。RAG Chat
-目前非流式、要求已有 Conversation；Query/Chat/Tool 已创建 RagQuery 审计，但后端
-Agent Tool 尚无专用前端，且没有 RAG streaming、Advanced RAG、Trace runtime 或
-前端 RAG Chat/来源流程。Embedding Provider usage 仍只存在于内存。
+边界覆盖，以及完成清理的临时 Qdrant、临时 SQLite、Mock LLM API smoke。前端在
+首个 RAG 问题时创建专用 Conversation，并展示当前 session 的回答、有序来源与关联
+ID；刷新后不会恢复 RAG 回合/来源。Query/Chat/Tool 已创建 RagQuery 审计，但后端
+Agent Tool 尚无专用前端，且没有 RAG streaming、Advanced RAG 或 Trace runtime。
+Embedding Provider usage 仍只存在于内存。
 正常请求回滚会补偿 vectors，但 Qdrant 写入后进程硬崩溃仍可能留下需要后续
 reconciliation 的 orphan points。
 

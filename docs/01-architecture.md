@@ -28,7 +28,7 @@ sanitized desktop/mobile release evidence; no network Tool is implemented at
 this stage. The final review revalidated all five Plan 3 bridge contracts, and
 the user published `v0.2.0` from commit `0e3f3a6` and the subsequent `v0.2.1`
   audit patch from commit `872310b`. Plan 3 starts from `v0.2.1`; through
-  `P3-M4-S8` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
+  `P3-M5-S6` it adds Qdrant configuration, explicit `knowledge/` and `rag/`
 ownership boundaries, four knowledge persistence models, a service-owned
 Knowledge Base CRUD API, controlled validated Document upload, and independent
 Markdown/TXT/text-layer-PDF parsers composed with pure cleaning, naive
@@ -47,7 +47,9 @@ the stable Chunk payload bridge required by M4. M3 S10～S12 add an independentl
   a non-streaming RAG Chat service/route that persists Message and LLMCall rows.
   M4 S7～S8 persist a RagQuery audit for each successful Query/Chat/Tool
   retrieval and add a bounded read-only Knowledge Base search Tool to the
-  existing Simple Agent through lazy request-scoped RAG initialization.
+  existing Simple Agent through lazy request-scoped RAG initialization. M5
+  adds the responsive Knowledge workspace, controlled upload/status flow, and
+  a typed current-session RAG Chat with exact source and audit-ID display.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -413,15 +415,16 @@ Expected Plan 1 frontend areas:
 
 The UI should feel like an engineering workspace: quiet, dense, readable, and practical. It should not become a marketing landing page.
 
-The frontend includes typed health, Models, Conversations, Messages, Chat, and
-Agent API wrappers, an SSE parser, Zustand Chat state, page/component
+The frontend includes typed health, Models, Conversations, Messages, Chat,
+Agent, Knowledge, and RAG API wrappers, an SSE parser, Zustand Chat/RAG state,
+page/component
 boundaries, and a responsive Chat workspace. The store guards stale stream and
 history callbacks, preserves partial output after Stop, and replaces temporary
 messages with canonical backend data after a successful `done` event. It loads
 Registry models and recent conversations independently, while
 `?conversation=<uuid>` preserves the selected conversation across refreshes.
 
-`App` uses small URL helpers to select the Chat or Agent workspace without
+`App` uses small URL helpers to select the Chat, Agent, or Knowledge workspace without
 introducing a router or moving the existing Chat state. `AgentPage` independently
 loads health and Registry models, filters to `supports_tools=true`, and owns the
 synchronous create/restore flow. The controlled task form, result panel, and
@@ -626,7 +629,7 @@ Plan 3 VectorStore, ingestion, retrieval, and Naive RAG target through
   `RagQueryService`, restricts Tool Top-K to 1～20, returns bounded source
   summaries, and initializes Embedding/Qdrant only when the Tool executes.
 
-Plan 3 frontend target through `P3-M5-S3`:
+Plan 3 frontend implementation through `P3-M5-S6`:
 
 - `WorkspaceView` has three explicit values: `chat`, `agent`, and `knowledge`;
   unknown URL values still fail safely to Chat.
@@ -635,7 +638,8 @@ Plan 3 frontend target through `P3-M5-S3`:
   envelope and leaves multipart `Content-Type` construction to the browser.
 - `KnowledgeBasePage` owns feature-local list/create/upload state. It composes
   `KnowledgeBaseList`, `KnowledgeBaseCreateForm`, `FileUploadPanel`, and
-  `DocumentStatusCard`; no RAG store is introduced before M5 S4.
+  `DocumentStatusCard`, then exposes Documents/RAG Chat tabs for the selected
+  Knowledge Base.
 - Initial list and health requests ignore results after unmount. Create and
   upload serialize conflicting actions, and changing the selected Knowledge
   Base clears the previous upload response.
@@ -646,6 +650,20 @@ Plan 3 frontend target through `P3-M5-S3`:
 - Upload is synchronous, so the page does not poll. Because there are no
   Document list/detail/chunk-query routes, the current page cannot restore a
   persistent Document history or preview Chunks after refresh.
+- `api/rag.ts` and `types/rag.ts` define the strict non-streaming Query/Chat
+  browser contract. `api/conversations.ts` also exposes robust Conversation
+  creation with the same safe structured/transport/invalid-JSON failures.
+- The focused Zustand RAG store initializes registered models, creates one
+  dedicated Conversation on the first question, reuses it for the current
+  session, and ignores aborted or stale requests. It validates response
+  Conversation/Knowledge Base ownership plus every source owner/index/count
+  before accepting data.
+- `RagChatPage`, `RagComposer`, and `RagAnswerPanel` render loading, no-model,
+  empty, sending, safe-error, and result states. Source cards keep backend
+  order and display filename, Chunk index/content, score, heading/page, stable
+  nested metadata, and RagQuery/LLMCall/Conversation correlation IDs.
+- RAG Chat is non-streaming and current-session only. There is no RagQuery list
+  or detail endpoint, so refresh cannot restore prior RAG turns or source cards.
 
 The Provider stream contract is consumed by `ChatService.stream_complete()` and
 the protocol adapter at `POST /api/v1/chat/stream`. The service emits
@@ -695,13 +713,13 @@ Do not write secrets to:
 ## Deferred Capabilities
 
 The current workspace includes read-only Tool execution, the bounded Simple
-Agent loop, backend Naive RAG, and the first Knowledge frontend batch. The
+Agent loop, backend Naive RAG, and the Knowledge/RAG frontend through M5. The
 following remain outside the current architecture:
 
 - `web_fetch` or another network Tool
 - streaming Tool Calling
 - Agent Runtime v2, Planner, Human Approval, cancel/resume/retry, and replay
-- frontend RAG Chat/source display and a frontend for the Agent knowledge Tool
+- a frontend for the Agent knowledge Tool
 - persistent Document list/detail/Chunk preview/retry/delete workflows
 - Persisted embedding-call usage/cost audit
 - Memory systems

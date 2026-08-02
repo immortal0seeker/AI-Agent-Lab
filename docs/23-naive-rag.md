@@ -16,9 +16,10 @@ retrieval audit to that Conversation and answer Message. Every successful Query,
 Chat, or Agent Tool retrieval persists one `rag_queries` row.
 
 M4 S8 also registers a bounded read-only `search_knowledge_base` Tool for the
-existing Simple Agent. This scope does not add a frontend or implement Advanced
-RAG, hybrid search, metadata filtering, reranking, evaluation, Trace runtime,
-memory, OCR, or multimodal behavior.
+existing Simple Agent. M5 S4～S6 adds a current-session frontend RAG Chat and
+source display on top of these existing endpoints; neither milestone adds
+Advanced RAG, hybrid search, metadata filtering, reranking, evaluation, Trace
+runtime, memory, OCR, or multimodal behavior.
 
 ## Runtime Components
 
@@ -242,8 +243,9 @@ vectors, credentials, endpoint details, or underlying private diagnostics.
 
 - No live paid Embedding or LLM Provider acceptance is performed.
 - No RAG streaming endpoint is present.
-- No frontend Knowledge Base/RAG workspace, source card, or dedicated Agent
-  knowledge-Tool UI is present.
+- The Knowledge workspace has non-streaming current-session RAG Chat and source
+  cards, but refresh cannot restore prior RAG turns/sources because no RagQuery
+  list/detail endpoint exists. No dedicated Agent knowledge-Tool UI is present.
 - No query rewrite, hybrid retrieval, metadata filtering, reranking, evaluation,
   trace runtime, memory, OCR, or multimodal behavior is present.
 

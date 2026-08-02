@@ -470,7 +470,7 @@ deleting the knowledge base`.
 
 The Document upload request is `multipart/form-data` with one required `file`
 field. Upload now runs the complete vector-ingestion pipeline. There are still
-no Document list, detail, chunk-query, retry, or delete routes through M5 S3.
+no Document list, detail, chunk-query, retry, or delete routes through M5 S6.
 
 ## Frontend Knowledge Workspace
 
@@ -501,8 +501,9 @@ Changing the selected Knowledge Base clears the previous upload result. The UI
 does not poll or fabricate a persisted Document list: without Document list,
 detail, chunk-query, retry, and delete routes it can show only the latest upload
 response for the current page session. Chunk preview and persistent Document
-history remain explicit limitations. RAG Chat and source cards remain
-`P3-M5-S4～S6`.
+history remain explicit limitations. `P3-M5-S4～S6` now provides RAG Chat and
+source cards for the current frontend session without claiming persisted RAG
+history restoration.
 
 ## Error And Transaction Behavior
 
@@ -832,16 +833,45 @@ The M5 S1～S3 frontend Knowledge workspace verification reached:
   secret scan, later-Plan runtime scan, and tracked/untracked artifact scan all
   reported zero findings.
 
+The M5 S4～S6 frontend RAG verification adds:
+
+- strict frontend Query/Chat and Conversation-create wrappers plus a focused
+  Zustand store that owns registered-model initialization, one dedicated
+  Conversation per current RAG session, and abort/stale-response guards;
+- Documents/RAG Chat tabs inside the selected Knowledge Base workspace, with
+  explicit loading, no-model, empty, sending, safe-error, and result states;
+- answer/source cards that keep backend source order and show filename, Chunk
+  index/content, score, heading/page, stable nested metadata, token summary,
+  and RagQuery/LLMCall/Conversation IDs;
+- fail-closed client ownership validation for response Conversation/Knowledge
+  Base IDs and each source owner/index/count. A visible Knowledge Base never
+  renders turns owned by an older store selection.
+
+Fresh M5 S4～S6 verification reached `25` frontend files / `149` tests,
+TypeScript checking, and a production build of `1826` modules. Complete backend
+regression remained `1024 passed, 1 warning`, with only the known Starlette
+TestClient/httpx deprecation warning; `pip check` reported no broken
+requirements. A headed browser used only intercepted synthetic health,
+Knowledge Base, Models, Conversation-create, and RAG Chat responses. Desktop
+`1440×900` and narrow `390×844` assertions verified one Conversation create,
+one RAG request, exact answer/source/score/metadata/audit fields, no horizontal
+overflow, `New RAG chat` reset, and zero console issues. All synthetic scripts,
+screenshots, logs, and Playwright state were removed after visual inspection.
+The supplemental Docker runtime gate then confirmed Docker Desktop 4.83.0 /
+Engine 29.6.2, Compose config success, running `qdrant/qdrant:v1.15.4`, restart
+count zero, loopback-only `127.0.0.1:6333`, and `/healthz` HTTP 200 with
+`healthz check passed`.
+
 ## Deferred Capabilities
 
-The following remain outside completed Plan 3 through M5 S3:
+The following remain outside completed Plan 3 through M5 S6:
 
 - Document list, detail, chunk-query, delete, local-file deletion, and orphan
   recovery workflows;
 - live Embedding service acceptance, automatic retry/splitting, persisted call
   audit/cost, and hard-crash orphan reconciliation;
-- RAG streaming and a frontend for the backend-only Agent knowledge Tool;
-- frontend RAG Chat, source display, and Agent knowledge Tool UI;
+- RAG streaming, persisted frontend RAG turn/source restoration, and a frontend
+  for the backend-only Agent knowledge Tool;
 - Advanced RAG, Hybrid Search, Rerank, Evaluation, Memory, OCR, and multimodal
   capabilities.
 
