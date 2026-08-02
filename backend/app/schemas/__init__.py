@@ -43,6 +43,12 @@ from app.schemas.rag import (
     RetrievalResult,
 )
 from app.schemas.tool import ToolCallRequest, ToolCallResponse, ToolCallStatus
+from app.schemas.trace import (
+    TraceRunCreate,
+    TraceRunRead,
+    TraceStepCreate,
+    TraceStepRead,
+)
 
 __all__ = [
     "AgentRunCreate",
@@ -86,4 +92,8 @@ __all__ = [
     "ToolCallRead",
     "ToolCallResponse",
     "ToolCallStatus",
+    "TraceRunCreate",
+    "TraceRunRead",
+    "TraceStepCreate",
+    "TraceStepRead",
 ]

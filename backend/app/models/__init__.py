@@ -7,6 +7,7 @@ from app.models.llm_call import LLMCall
 from app.models.message import Message
 from app.models.rag_query import RagQuery
 from app.models.tool_call import ToolCall
+from app.models.trace import TraceRun, TraceStep
 
 __all__ = [
     "AgentRun",
@@ -18,4 +19,6 @@ __all__ = [
     "Message",
     "RagQuery",
     "ToolCall",
+    "TraceRun",
+    "TraceStep",
 ]

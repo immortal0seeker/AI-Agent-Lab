@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.llm_call import LLMCall
     from app.models.message import Message
     from app.models.rag_query import RagQuery
+    from app.models.trace import TraceRun
 
 
 class Conversation(Base):
@@ -70,4 +71,10 @@ class Conversation(Base):
         cascade="all, delete",
         passive_deletes=True,
         foreign_keys="RagQuery.conversation_id",
+    )
+    trace_runs: Mapped[list[TraceRun]] = relationship(
+        "TraceRun",
+        back_populates="conversation",
+        passive_deletes=True,
+        foreign_keys="TraceRun.conversation_id",
     )

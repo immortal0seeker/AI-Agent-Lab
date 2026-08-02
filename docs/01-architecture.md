@@ -183,6 +183,11 @@ Plan 3 revision `20260726_0005` adds:
 - `document_chunks`
 - `rag_queries`
 
+Plan 4 revision `20260802_0008` adds:
+
+- `trace_runs`
+- `trace_steps`
+
 All model IDs use UUID v4 values. Datetimes are stored as timezone-naive UTC
 values because SQLite does not preserve timezone information consistently.
 Deleting a conversation cascades to its messages and LLM calls. Deleting an
@@ -219,6 +224,24 @@ composite foreign key rejects an answer from a different Conversation.
 Deleting only the answer Message clears that optional reference and preserves
 the query record. Revision `20260801_0007` backfills Top-K 5 for older rows and
 enforces the persisted 1～100 range.
+
+`TraceRun` is the Plan 4 cross-cutting audit envelope for future Chat, Agent,
+RAG, Tool, and Evaluation execution. Optional Conversation, AgentRun, and user
+Message correlations use direct `SET NULL` foreign keys so operational deletion
+does not erase Trace history; composite foreign keys reject correlations owned
+by another Conversation. Pydantic and ORM write validation require a
+Conversation whenever an AgentRun or user Message correlation is supplied.
+SQLite cannot combine that requirement with an immediate database `CHECK`
+because Conversation deletion applies several `SET NULL` actions in sequence,
+so raw maintenance SQL must preserve the same invariant explicitly.
+
+`TraceStep` belongs to one TraceRun and uses a positive, per-run-unique
+one-based index for deterministic Timeline order. Deleting a TraceRun cascades
+to its steps. Shared string enums plus named database checks constrain run type,
+step type, and lifecycle status, while token/cost/latency values are
+non-negative and JSON defaults are isolated. This S1～S3 foundation does not
+create or update Trace rows at runtime; Trace Service and Context remain the
+next M1 batch.
 
 Foreign-key columns used by conversation and message lookups are indexed.
 SQLAlchemy metadata uses a stable naming convention for primary keys, foreign
@@ -722,18 +745,21 @@ The local infrastructure gate verified Docker Engine `29.6.2`, running
 `127.0.0.1:6333`, and HTTP 200 health. A random temporary collection exercised
 the production Qdrant adapter for collection creation, two-Knowledge-Base
 upsert, ownership-filtered search, Document-scoped deletion, and final cleanup.
-Temporary-SQLite Alembic upgrade/current/check/downgrade/re-upgrade passed at
-head `20260801_0007` and the directory was removed.
+The Plan 3 release Temporary-SQLite lifecycle passed at head `20260801_0007`.
+Plan 4 S1～S3 independently passed upgrade/current/check/downgrade/re-upgrade
+at head `20260802_0008`; both temporary directories were removed.
 
 The five Plan 4 bridge contracts remain intact: shared
 `search_knowledge_base` retrieval/audit, persisted `RagQuery` Top-K/source/
 latency/linkage fields, source-rich `DocumentChunk`, RAG response retrieval
 metadata/audit identity, and Qdrant Knowledge Base/Document/Chunk payload IDs.
 The post-release audit further makes embedding Provider/actual-model identity
-part of the payload, query filter, response, and audit snapshot. No Trace,
-Advanced RAG, reranking, or evaluation runtime is added. Package, OpenAPI,
-frontend, and lockfile metadata is `0.3.0`; annotated tag `v0.3.0` remains at
-the original release commit while its audit repair awaits manual release.
+part of the payload, query filter, response, and audit snapshot. Plan 4 now has
+Trace persistence types/models/schemas but no active Trace, Advanced RAG,
+reranking, or evaluation runtime. Package, OpenAPI, frontend, and lockfile
+metadata remains the Plan 3 `0.3.0` product baseline; annotated `v0.3.0` stays
+at the original release commit and its audit repair is published as annotated
+`v0.3.1`.
 
 ## Security Boundaries
 

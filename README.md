@@ -9,12 +9,11 @@ This repository is not a collection of disconnected demos. The goal is to build 
 ## Current Stage
 
 Plan 3 Knowledge Base + Naive RAG was released as the annotated `v0.3.0` tag at
-commit `46ea94a`. An independent post-release audit found and repaired two
-Important vector-boundary gaps: embedding-identity isolation and compatible
-concurrent collection creation. Those repairs await the user's manual Git
-action; `v0.3.0` intentionally remains
-at the original release commit until the user decides whether an unpublished
-tag may be replaced or a follow-up `v0.3.1` should be published.
+commit `46ea94a`. An independent post-release audit repaired embedding-identity
+isolation and compatible concurrent collection creation; the user published
+those repairs as annotated `v0.3.1` at `6bcf423` while preserving the original
+tag. Plan 4 has started with TraceRun/TraceStep persistence contracts and no
+active Trace runtime integration yet.
 
 Plan 1 covers:
 
@@ -686,7 +685,7 @@ the repaired retrieval filter.
 
 - Plan 1: Project foundation + Basic Chat + LLM Providers
 - Plan 2: Tool Calling + Simple Agent Loop
-- Plan 3: Knowledge Base + Document Ingestion + Naive RAG (`v0.3.0`; post-release audit repair awaiting manual Git action)
-- Plan 4: Trace + Advanced RAG + Rerank + Evaluation
+- Plan 3: Knowledge Base + Document Ingestion + Naive RAG (`v0.3.0`; audit hardening published as `v0.3.1`)
+- Plan 4: Trace + Advanced RAG + Rerank + Evaluation (Trace persistence foundation in progress)
 - Plan 5: Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6: MCP + Voice + Vision + Desktop

@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from app.models.conversation import Conversation
     from app.models.message import Message
     from app.models.tool_call import ToolCall
+    from app.models.trace import TraceRun
 
 
 class AgentRun(Base):
@@ -97,4 +98,10 @@ class AgentRun(Base):
         back_populates="agent_run",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    trace_runs: Mapped[list[TraceRun]] = relationship(
+        "TraceRun",
+        back_populates="agent_run",
+        passive_deletes=True,
+        foreign_keys="TraceRun.agent_run_id",
     )

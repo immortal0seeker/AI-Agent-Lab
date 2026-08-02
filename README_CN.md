@@ -9,10 +9,9 @@ AI Agent Lab 是一个分阶段构建的 AI Engineering Workspace，用来学习
 ## 当前阶段
 
 Plan 3 Knowledge Base + Naive RAG 已由用户发布为 annotated `v0.3.0` tag，指向
-commit `46ea94a`。独立的发布后终审发现并修复了两个 Important 向量边界缺口：
-embedding 身份隔离和兼容 collection 的并发首建；修复仍在当前工作区等待用户手动处理
-Git。`v0.3.0` 会继续指向原发布提交，
-直到用户根据 tag 是否已对外发布，选择手动替换未发布 tag 或发布后续 `v0.3.1`。
+commit `46ea94a`。独立发布后终审修复了 embedding 身份隔离和兼容 collection
+并发首建；用户已将修复发布为指向 `6bcf423` 的 annotated `v0.3.1`，并保留原始
+tag。Plan 4 已从 TraceRun/TraceStep 持久化契约开始，目前尚未启用 Trace runtime。
 
 Plan 1 覆盖：
 
@@ -576,7 +575,7 @@ reconciliation 的 orphan points。
 
 - Plan 1：项目骨架 + 基础 Chat + LLM Providers
 - Plan 2：Tool Calling + 简单 Agent Loop
-- Plan 3：Knowledge Base + Document Ingestion + Naive RAG（`v0.3.0`；发布后终审修复等待用户手动处理 Git）
-- Plan 4：Trace + Advanced RAG + Rerank + Evaluation
+- Plan 3：Knowledge Base + Document Ingestion + Naive RAG（`v0.3.0`；终审加固发布为 `v0.3.1`）
+- Plan 4：Trace + Advanced RAG + Rerank + Evaluation（Trace 持久化地基进行中）
 - Plan 5：Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6：MCP + Voice + Vision + Desktop
