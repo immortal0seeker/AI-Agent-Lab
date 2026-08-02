@@ -12,8 +12,10 @@ Plan 3 Knowledge Base + Naive RAG was released as the annotated `v0.3.0` tag at
 commit `46ea94a`. An independent post-release audit repaired embedding-identity
 isolation and compatible concurrent collection creation; the user published
 those repairs as annotated `v0.3.1` at `6bcf423` while preserving the original
-tag. Plan 4 has started with TraceRun/TraceStep persistence contracts and no
-active Trace runtime integration yet.
+tag. Plan 4 M1 is complete through `P4-M1-S7`: TraceRun/TraceStep persistence,
+strict lifecycle writes, request-local Trace Context, and JSON-safe token/cost/
+latency metadata are available. Chat/RAG/Agent runtime hooks, Trace API, and
+Timeline UI are not yet implemented.
 
 Plan 1 covers:
 
@@ -28,8 +30,8 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Verified implementation scope: `P1-M1-S1` through `P3-M6-S6`, plus the current
-Plan 3 final-audit repair. Plan 4 implementation has not started.
+Verified implementation scope: `P1-M1-S1` through `P4-M1-S7`, including the
+Plan 3 final-audit repair and the complete Plan 4 M1 Trace foundation.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -637,9 +639,11 @@ Release documentation:
 - [Embedding Provider](docs/21-embedding-provider.md)
 - [Document Ingestion Pipeline](docs/22-document-ingestion-pipeline.md)
 - [Naive RAG Query and Chat](docs/23-naive-rag.md)
+- [Trace Observability Foundation](docs/30-trace-observability.md)
 - [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - [Plan 2 final review record](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 - [Plan 3 v0.3.0 Codex final review](docs/reviews/2026-08-02-plan3-v0.3.0-final-review.md)
+- [Plan 4 M1 Trace foundation final review](docs/reviews/2026-08-02-plan4-m1-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
 
@@ -686,6 +690,6 @@ the repaired retrieval filter.
 - Plan 1: Project foundation + Basic Chat + LLM Providers
 - Plan 2: Tool Calling + Simple Agent Loop
 - Plan 3: Knowledge Base + Document Ingestion + Naive RAG (`v0.3.0`; audit hardening published as `v0.3.1`)
-- Plan 4: Trace + Advanced RAG + Rerank + Evaluation (Trace persistence foundation in progress)
+- Plan 4: Trace + Advanced RAG + Rerank + Evaluation (M1 Trace foundation complete; runtime integration deferred to M2)
 - Plan 5: Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6: MCP + Voice + Vision + Desktop

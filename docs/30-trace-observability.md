@@ -1,0 +1,298 @@
+# Trace Observability Foundation
+
+## Current Scope
+
+Plan 4 M1 provides a persistent, reusable Trace foundation. It defines one
+`TraceRun` audit envelope, ordered `TraceStep` children, strict schemas and
+database constraints, lifecycle writes, request-local context propagation, and
+JSON-safe token/cost/latency metadata.
+
+The foundation is intentionally inactive in product runtime paths. Chat, RAG,
+Tool, and Agent execution do not yet create Trace records. There is no Trace
+API or frontend Timeline. Those integrations remain Plan 4 M2 work.
+
+SQLite remains the business and audit database. Qdrant remains vector storage
+only and is not involved in Trace persistence.
+
+## Component Map
+
+| Component | Responsibility |
+|---|---|
+| [`trace_types.py`](../backend/app/observability/trace_types.py) | Dependency-light run, step, and status string enums |
+| [`trace.py` ORM](../backend/app/models/trace.py) | `TraceRun` / `TraceStep` persistence, constraints, relationships, and ownership validation |
+| [`trace.py` schemas](../backend/app/schemas/trace.py) | Strict create/read validation and JSON-safe public field types |
+| [`20260802_0008`](../backend/alembic/versions/20260802_0008_trace_foundation.py) | `trace_runs` / `trace_steps` schema migration |
+| [`trace_service.py`](../backend/app/observability/trace_service.py) | Run/step lifecycle mutations and deterministic step-index allocation |
+| [`trace_context.py`](../backend/app/observability/trace_context.py) | Request/task-local Trace ID binding and step context management |
+| [`token_cost.py`](../backend/app/observability/token_cost.py) | Provider latency timing, token/cost calculation, and Trace metadata serialization |
+| [`llm_usage.py`](../backend/app/services/llm_usage.py) | Compatibility re-exports for existing Chat/RAG callers |
+
+The implemented dependency direction is:
+
+```text
+Trace enums
+-> ORM / schemas
+-> Trace Service
+-> Trace Context
+
+LLM TokenUsage + ModelInfo
+-> token/cost helper
+-> JSON-safe TraceStep output metadata
+```
+
+## TraceRun Contract
+
+`TraceRun` is the cross-cutting audit envelope for a single observable
+execution. The model supports future Chat, Agent, RAG, Tool, and Evaluation
+writers without replacing existing `LLMCall`, `AgentRun`, `ToolCall`, or
+`RagQuery` records.
+
+| Field group | Fields | Contract |
+|---|---|---|
+| Identity | `id`, `run_type`, `status` | UUID v4 identity; checked string enum values |
+| Optional correlations | `conversation_id`, `agent_run_id`, `user_message_id` | Indexed UUID links; AgentRun/Message correlations require their owning Conversation |
+| Request/result | `title`, `input_text`, `output_text` | Title is at most 255 characters; input is required and non-blank; output is nullable |
+| Provider identity | `provider`, `model` | Optional bounded identifiers; no secret or credential field exists |
+| Usage totals | `total_input_tokens`, `total_output_tokens`, `total_tokens`, `estimated_cost`, `latency_ms` | Nullable, non-negative metrics; cost is `Numeric(18, 8)` |
+| Diagnostics | `error_message`, `metadata_json` | Nullable normalized error and non-null isolated JSON object |
+| Lifecycle | `started_at`, `ended_at`, `created_at` | Timezone-naive UTC values, matching the repository SQLite convention |
+
+The current Service does not automatically aggregate multiple Step usage
+records into the Run total fields. Later runtime integration must choose and
+test an explicit aggregation policy.
+
+## TraceStep Contract
+
+Each `TraceStep` belongs to exactly one `TraceRun`.
+
+| Field group | Fields | Contract |
+|---|---|---|
+| Identity/order | `id`, `trace_run_id`, `step_index` | UUID v4; required parent; positive one-based index unique within one Run |
+| Classification | `step_type`, `name`, `status` | Checked string enums; name is required, non-blank, and at most 255 characters |
+| Data | `input_json`, `output_json` | Non-null isolated input object and nullable output object |
+| Diagnostics | `error_message`, `latency_ms` | Nullable error and non-negative elapsed milliseconds |
+| Lifecycle | `started_at`, `ended_at`, `created_at` | Timezone-naive UTC values |
+
+The relationship orders Steps by `step_index`, so a future Timeline has a
+deterministic sequence. `TraceService.add_step()` queries the current maximum
+index and assigns the next value; the unique database constraint is the final
+race guard.
+
+## Types And Statuses
+
+Run types:
+
+```text
+chat
+agent
+rag_query
+rag_chat
+evaluation
+tool
+```
+
+Step types:
+
+```text
+build_context
+llm_call
+tool_call
+rag_retrieve
+query_rewrite
+bm25_search
+vector_search
+hybrid_fusion
+parent_child_expand
+rerank
+build_prompt
+final_answer
+eval_metric
+```
+
+Shared persisted statuses:
+
+```text
+pending
+running
+completed
+failed
+cancelled
+```
+
+The enums reserve stable vocabulary for later Plan 4 integrations. Presence in
+an enum does not mean its runtime strategy exists. In M1, `TraceService`
+implements creation into `running` and terminal transitions to `completed` or
+`failed`; it does not implement a cancellation operation.
+
+## Lifecycle And Transactions
+
+The implemented lifecycle is:
+
+```text
+create_run(pending input) -> running TraceRun
+running TraceRun -> add_step -> running TraceStep
+running TraceStep -> finish_step -> completed TraceStep
+running TraceStep -> fail_step -> failed TraceStep
+running TraceRun -> finish_run -> completed TraceRun
+running TraceRun -> fail_run -> failed TraceRun
+```
+
+`create_run()` rejects a create schema whose status is not `pending`.
+`add_step()` rejects a non-running Run. Every finish/fail method accepts only a
+running record with a start time. Repeated terminal transitions fail with
+`TraceStateError` before mutation.
+
+Terminal operations record an end time and calculate elapsed milliseconds from
+the persisted UTC start/end values. Clock regression is clamped to zero.
+Completion clears an existing error. Failure rejects blank error text and
+clears partial output. Explicit `fail_run()` / `fail_step()` callers must pass
+an error that has already crossed the product layer's safe-error normalization
+boundary.
+
+The Service adds/updates records and calls `Session.flush()` so generated IDs
+and database constraints are available immediately. It never commits or rolls
+back. The calling request/service owns the transaction:
+
+- committing the caller transaction preserves both business and Trace state;
+- rolling it back removes uncommitted Trace state with the business changes;
+- preserving a structured product failure requires the product layer to catch
+  a normalized failure and deliberately commit the request transaction.
+
+## Trace Context
+
+`bind_trace_run_id()` stores a UUID in a `ContextVar` and resets the exact token
+in `finally`. Nested bindings restore the outer ID, exceptional exits do not
+leak it, and copied execution contexts retain independent values.
+
+`TraceContext.activate()` binds one Run ID for a wider request block.
+`TraceContext.step()` also binds that ID, adds a running Step, and owns its
+terminal transition:
+
+```python
+with trace_context.activate():
+    with trace_context.step(
+        TraceStepType.LLM_CALL,
+        name="Call model",
+    ) as trace_step:
+        trace_step.output_json = metrics.to_step_metadata()
+```
+
+Normal exit completes the Step with its current `output_json`. If an ordinary
+application exception exits the block, the context clears partial output,
+stores only the exception class name, marks the Step failed, restores the
+previous ContextVar value, and re-raises the original exception. It does not
+persist arbitrary exception text, prompts, filesystem paths, Provider
+diagnostics, or credentials.
+
+The context manager does not automatically finish or fail the enclosing Run.
+The product flow owns the Run outcome.
+
+## Token, Cost, And Latency Metadata
+
+`ProviderLatencyTimer` uses `perf_counter()` and can accumulate multiple
+measured sections. Negative clock deltas and the exposed millisecond value are
+clamped to zero.
+
+`build_llm_call_metrics()` copies validated `TokenUsage` counts. When usage and
+both per-million model prices are available, estimated cost is:
+
+```text
+(
+  input_tokens * input_price_per_1m
+  + output_tokens * output_price_per_1m
+) / 1_000_000
+```
+
+The result uses `Decimal`, `ROUND_HALF_UP`, and eight decimal places. Cost is
+`None` when usage or either price is unavailable. Zero prices remain known
+prices rather than becoming null.
+
+`LLMCallMetrics.to_step_metadata()` returns a fresh JSON-safe object:
+
+```json
+{
+  "usage": {
+    "input_tokens": 1000,
+    "output_tokens": 500,
+    "total_tokens": 1500,
+    "estimated_cost": "0.00125000"
+  },
+  "latency_ms": 123
+}
+```
+
+The Decimal cost is a fixed-point string to avoid float precision loss. Unknown
+values remain explicit JSON nulls. The existing Chat/RAG service imports still
+resolve to the exact canonical helper objects through the compatibility module;
+M1 does not yet write this metadata from those runtime paths.
+
+## Persistence And Deletion
+
+Migration `20260802_0008` creates `trace_runs` before `trace_steps` and drops
+them in reverse order during downgrade.
+
+Optional operational correlations preserve the audit envelope:
+
+- direct Conversation, AgentRun, and user Message foreign keys use
+  `ON DELETE SET NULL`;
+- composite `(agent_run_id, conversation_id)` and
+  `(user_message_id, conversation_id)` foreign keys reject cross-Conversation
+  ownership and use `NO ACTION`;
+- Pydantic and ORM insert/update validation require `conversation_id` whenever
+  an AgentRun or user Message correlation is present;
+- deleting a `TraceRun` cascades to all of its `TraceStep` children.
+
+SQLite applies several `SET NULL` actions sequentially when a Conversation is
+deleted. An immediate database check for correlation presence would block the
+approved audit-preserving deletion during an intermediate state. Therefore the
+presence rule lives at the Pydantic and ORM boundaries, while the composite
+foreign keys retain database cross-owner protection. Raw maintenance SQL that
+bypasses both application gates must preserve the same invariant explicitly.
+
+## Security And Reliability Boundaries
+
+- Trace schemas reject unknown fields, blank required text/names, invalid enum
+  values, negative metrics, and malformed JSON values.
+- Automatic context failures persist only exception class names. Explicit
+  failure methods assume already-normalized safe text.
+- Provider/model fields identify execution configuration; they never store API
+  keys or secret references.
+- JSON payloads are intended for bounded, traceable metadata. M1 does not add
+  a generic raw Provider-payload logger.
+- The Service shares the business transaction and never creates a hidden audit
+  Session, avoiding SQLite lock contention and orphan audit writes.
+- Concurrent writers to one Run are not serialized by a new lock. The current
+  local-first, primarily single-user boundary uses next-index allocation plus
+  the unique constraint as the final guard.
+- Run/Step cancellation behavior and multi-Step metric aggregation are not
+  implemented in M1.
+
+## Verification
+
+The executable contracts live in:
+
+- [`test_trace_models.py`](../backend/tests/test_trace_models.py)
+- [`test_trace_schemas.py`](../backend/tests/test_trace_schemas.py)
+- [`test_trace_types.py`](../backend/tests/test_trace_types.py)
+- [`test_trace_migration.py`](../backend/tests/test_trace_migration.py)
+- [`test_trace_service.py`](../backend/tests/test_trace_service.py)
+- [`test_trace_context.py`](../backend/tests/test_trace_context.py)
+- [`test_llm_usage.py`](../backend/tests/test_llm_usage.py)
+
+Detailed implementation evidence is recorded in the
+[S1-S3 review](reviews/2026-08-02-plan4-m1-s1-s3-review.md) and
+[S4-S6 review](reviews/2026-08-02-plan4-m1-s4-s6-review.md).
+
+## Deferred To Later Plan 4 Batches
+
+- No Chat, RAG, Tool, or Agent runtime currently creates
+  `TraceRun` / `TraceStep` records.
+- No Trace list/detail/step API exists.
+- No frontend Trace Timeline exists.
+- No automatic multi-Step Run cost aggregation or cancellation policy exists.
+- Advanced retrieval candidate records, reranking, and evaluation remain later
+  Plan 4 work.
+
+These are explicit boundaries, not partially available features. M2 will own
+runtime hooks, standardized LLM/RAG metadata, query surfaces, and Timeline
+behavior after their contracts and tests are implemented.

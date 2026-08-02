@@ -55,7 +55,7 @@ blocked
 |---|---|---|---|---|
 | Batch 1 | P4-M1-S1～S3 | 确认 Plan3 地基，建立 Trace 数据模型 | 迁移和模型测试 | 已完成（Plan 3 桥接回归、Trace ORM/schema/枚举、0008 迁移与 Codex self-review 通过） |
 | Batch 2 | P4-M1-S4～S6 | 实现 Trace Service / Context / Step writer | Trace 单元测试 | 已完成（严格生命周期、ContextVar、Mock usage metadata、兼容回归与 Codex self-review 通过） |
-| Batch 3 | P4-M1-S7 | 完成 Trace 基础文档和 M1 review | Codex + Claude review M1 | 未完成 |
+| Batch 3 | P4-M1-S7 | 完成 Trace 基础文档和 M1 review | Codex self-review M1 | 已完成（正式 Trace 文档、全量回归、迁移生命周期与 Codex self-review 通过） |
 | Batch 4 | P4-M2-S1～S3 | 接入 LLM 调用 Trace 和成本记录 | LLM Trace 测试 | 未完成 |
 | Batch 5 | P4-M2-S4～S6 | 接入 RAG 检索 Trace 和候选记录 | RAG Trace 测试 | 未完成 |
 | Batch 6 | P4-M2-S7～S9 | 实现 Trace API 和前端 Timeline | API 测试 + 浏览器手测 | 未完成 |
@@ -102,7 +102,7 @@ blocked
 | P4-M1-S4 | 实现 Trace Service | Codex | `observability/trace_service.py` | create_run、add_step、finish_run、fail_run 测试通过 | Codex |
 | P4-M1-S5 | 实现 Trace Context | Codex | `observability/trace_context.py` | 同一请求内能读取 trace_run_id | Codex |
 | P4-M1-S6 | 实现 token / cost / latency 辅助记录结构 | Codex | `observability/token_cost.py` | mock LLM usage 可写入 step metadata | Codex |
-| P4-M1-S7 | 完成 Trace 基础文档和 M1 review | Codex | `docs/30-trace-observability.md` 初版 | 文档说明 TraceRun / TraceStep 字段和生命周期 | Codex + Claude review |
+| P4-M1-S7 | 完成 Trace 基础文档和 M1 review | Codex | `docs/30-trace-observability.md` 初版 | 文档说明 TraceRun / TraceStep 字段和生命周期 | Codex |
 
 M1 完成后建议 commit：
 
