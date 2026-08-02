@@ -9,8 +9,11 @@ All notable changes to AI Agent Lab are documented in this file.
 - Added the Plan 4 Trace persistence foundation with shared string-enum
   contracts, strict Pydantic schemas, `trace_runs` / `trace_steps` ORM models,
   audit-preserving optional correlations, deterministic step ordering, and
-  Alembic revision `20260802_0008`. Runtime Trace Service/Context integration
-  remains scoped to the next M1 batch.
+  Alembic revision `20260802_0008`.
+- Added caller-transaction-owned Trace lifecycle writes, request-local nested
+  Trace context and safe step management, plus canonical JSON-safe token,
+  cost, and latency metadata with legacy LLM usage import compatibility.
+  Chat, RAG, and Agent runtime Trace wiring remains scoped to Plan 4 M2.
 
 ## [0.3.1] - 2026-08-02
 

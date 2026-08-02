@@ -54,7 +54,7 @@ blocked
 | 执行批次 | 建议领取范围 | 批次目标 | 完成后动作 | 状态 |
 |---|---|---|---|---|
 | Batch 1 | P4-M1-S1～S3 | 确认 Plan3 地基，建立 Trace 数据模型 | 迁移和模型测试 | 已完成（Plan 3 桥接回归、Trace ORM/schema/枚举、0008 迁移与 Codex self-review 通过） |
-| Batch 2 | P4-M1-S4～S6 | 实现 Trace Service / Context / Step writer | Trace 单元测试 | 未完成 |
+| Batch 2 | P4-M1-S4～S6 | 实现 Trace Service / Context / Step writer | Trace 单元测试 | 已完成（严格生命周期、ContextVar、Mock usage metadata、兼容回归与 Codex self-review 通过） |
 | Batch 3 | P4-M1-S7 | 完成 Trace 基础文档和 M1 review | Codex + Claude review M1 | 未完成 |
 | Batch 4 | P4-M2-S1～S3 | 接入 LLM 调用 Trace 和成本记录 | LLM Trace 测试 | 未完成 |
 | Batch 5 | P4-M2-S4～S6 | 接入 RAG 检索 Trace 和候选记录 | RAG Trace 测试 | 未完成 |
