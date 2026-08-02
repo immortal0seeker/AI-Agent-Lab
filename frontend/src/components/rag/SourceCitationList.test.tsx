@@ -15,6 +15,8 @@ const sources: RagSource[] = [
     knowledge_base_id: knowledgeBaseId,
     document_id: "00000000-0000-0000-0000-000000000702",
     chunk_id: "00000000-0000-0000-0000-000000000703",
+    embedding_provider: "openai_compatible",
+    embedding_model: "text-embedding-3-small",
     filename: "architecture.md",
     chunk_index: 2,
     content: "Routes delegate business work to services.",
@@ -32,6 +34,8 @@ const sources: RagSource[] = [
     knowledge_base_id: knowledgeBaseId,
     document_id: "00000000-0000-0000-0000-000000000704",
     chunk_id: "00000000-0000-0000-0000-000000000705",
+    embedding_provider: "openai_compatible",
+    embedding_model: "text-embedding-3-small",
     filename: "manual.pdf",
     chunk_index: 5,
     content: "The local workspace keeps SQLite as the primary database.",
@@ -83,6 +87,8 @@ describe("SourceCitationList", () => {
     expect(cards[0]?.textContent).toContain("Chunk 2");
     expect(cards[0]?.textContent).toContain(sources[0].document_id);
     expect(cards[0]?.textContent).toContain(sources[0].chunk_id);
+    expect(cards[0]?.textContent).toContain("openai_compatible");
+    expect(cards[0]?.textContent).toContain("text-embedding-3-small");
     expect(cards[0]?.textContent).toContain("source_format");
     expect(cards[0]?.textContent).toContain("md");
     expect(cards[0]?.textContent).toContain('{"reviewed":true}');

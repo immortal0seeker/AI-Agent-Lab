@@ -167,6 +167,8 @@ def test_ingestion_pipeline_embeds_and_upserts_complete_chunk_points() -> None:
     assert first_payload.knowledge_base_id == document.knowledge_base_id
     assert first_payload.document_id == document.id
     assert first_payload.chunk_id == chunks[0].id
+    assert first_payload.embedding_provider == "deterministic"
+    assert first_payload.embedding_model == "synthetic-embedding"
     assert first_payload.filename == "guide.md"
     assert first_payload.content == "first chunk"
     assert first_payload.heading == "Intro"

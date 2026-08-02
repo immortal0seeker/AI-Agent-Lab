@@ -34,6 +34,8 @@ def make_retrieval_result() -> RetrievalResult:
         knowledge_base_id=KNOWLEDGE_BASE_ID,
         document_id=DOCUMENT_ID,
         chunk_id=CHUNK_ID,
+        embedding_provider="openai_compatible",
+        embedding_model="text-embedding-3-small",
         filename="guide.md",
         chunk_index=0,
         content="Grounded source",
@@ -160,6 +162,12 @@ def test_rag_query_response_serializes_results_and_metadata() -> None:
     payload = response.model_dump(mode="json")
     assert payload["rag_query_id"] == str(RAG_QUERY_ID)
     assert payload["results"][0]["chunk_id"] == str(CHUNK_ID)
+    assert payload["results"][0]["embedding_provider"] == (
+        "openai_compatible"
+    )
+    assert payload["results"][0]["embedding_model"] == (
+        "text-embedding-3-small"
+    )
     assert payload["metadata"] == {
         "strategy": "naive_vector",
         "knowledge_base_id": str(KNOWLEDGE_BASE_ID),

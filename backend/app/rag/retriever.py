@@ -59,6 +59,8 @@ class Retriever:
         search_results = await self._vector_store.search(
             VectorSearchQuery(
                 knowledge_base_id=knowledge_base_id,
+                embedding_provider=self._embedding_provider.name,
+                embedding_model=embedding.model,
                 vector=embedding.vectors[0],
                 limit=top_k,
                 score_threshold=score_threshold,
@@ -70,6 +72,9 @@ class Retriever:
             or any(
                 not isinstance(result, VectorSearchResult)
                 or result.payload.knowledge_base_id != knowledge_base_id
+                or result.payload.embedding_provider
+                != self._embedding_provider.name
+                or result.payload.embedding_model != embedding.model
                 or (
                     score_threshold is not None
                     and result.score < score_threshold
@@ -91,6 +96,8 @@ def _to_retrieval_result(result: VectorSearchResult) -> RetrievalResult:
         knowledge_base_id=payload.knowledge_base_id,
         document_id=payload.document_id,
         chunk_id=payload.chunk_id,
+        embedding_provider=payload.embedding_provider,
+        embedding_model=payload.embedding_model,
         filename=payload.filename,
         chunk_index=payload.chunk_index,
         content=payload.content,

@@ -50,12 +50,16 @@ def test_payload_builder_preserves_plan4_source_fields() -> None:
     payload = build_qdrant_payload(
         document=sample_document(),
         chunk=sample_chunk(),
+        embedding_provider="openai_compatible",
+        embedding_model="text-embedding-3-small",
     )
 
     assert payload.to_qdrant_payload() == {
         "knowledge_base_id": "00000000-0000-0000-0000-000000000001",
         "document_id": "00000000-0000-0000-0000-000000000002",
         "chunk_id": "00000000-0000-0000-0000-000000000003",
+        "embedding_provider": "openai_compatible",
+        "embedding_model": "text-embedding-3-small",
         "filename": "README.md",
         "chunk_index": 0,
         "content": "AI Agent Lab overview",
@@ -77,6 +81,8 @@ def test_payload_builder_copies_metadata_and_serialized_output() -> None:
     payload = build_qdrant_payload(
         document=sample_document(),
         chunk=sample_chunk(metadata=metadata),
+        embedding_provider="openai_compatible",
+        embedding_model="text-embedding-3-small",
     )
     metadata["source_format"] = "changed"
     serialized = payload.to_qdrant_payload()
@@ -107,7 +113,12 @@ def test_payload_builder_rejects_ownership_mismatch(
         VectorStoreInputError,
         match="Document and chunk ownership must match",
     ):
-        build_qdrant_payload(document=sample_document(), chunk=chunk)
+        build_qdrant_payload(
+            document=sample_document(),
+            chunk=chunk,
+            embedding_provider="openai_compatible",
+            embedding_model="text-embedding-3-small",
+        )
 
 
 @pytest.mark.parametrize(
@@ -128,6 +139,8 @@ def test_payload_builder_rejects_non_json_metadata(
         build_qdrant_payload(
             document=sample_document(),
             chunk=sample_chunk(metadata=metadata),
+            embedding_provider="openai_compatible",
+            embedding_model="text-embedding-3-small",
         )
 
 
@@ -135,6 +148,8 @@ def test_payload_builder_normalizes_json_arrays() -> None:
     payload = build_qdrant_payload(
         document=sample_document(),
         chunk=sample_chunk(metadata={"line_range": (1, 4)}),
+        embedding_provider="openai_compatible",
+        embedding_model="text-embedding-3-small",
     )
 
     assert payload.to_qdrant_payload()["metadata"] == {

@@ -33,11 +33,15 @@ CHUNK_ID = UUID("00000000-0000-0000-0000-000000000003")
 def sample_payload(
     *,
     knowledge_base_id: UUID = KNOWLEDGE_BASE_ID,
+    embedding_provider: str = "openai_compatible",
+    embedding_model: str = "text-embedding-3-small",
 ) -> ChunkVectorPayload:
     return ChunkVectorPayload(
         knowledge_base_id=knowledge_base_id,
         document_id=DOCUMENT_ID,
         chunk_id=CHUNK_ID,
+        embedding_provider=embedding_provider,
+        embedding_model=embedding_model,
         filename="README.md",
         chunk_index=0,
         content="AI Agent Lab overview",
@@ -92,6 +96,7 @@ class FakeAsyncQdrantClient:
         self.fail_method: str | None = None
         self.upsert_status: object = "completed"
         self.delete_status: object = "completed"
+        self.concurrent_create_config: object | None = None
         self.closed = False
 
     async def collection_exists(self, **kwargs: Any) -> bool:
@@ -100,6 +105,10 @@ class FakeAsyncQdrantClient:
 
     async def create_collection(self, **kwargs: Any) -> bool:
         self._record("create_collection", kwargs)
+        if self.concurrent_create_config is not None:
+            self.exists = True
+            self.vectors_config = self.concurrent_create_config
+            raise RuntimeError("collection was created concurrently")
         self.exists = True
         self.vectors_config = kwargs["vectors_config"]
         return True
@@ -185,6 +194,34 @@ def test_ensure_collection_accepts_matching_existing_collection() -> None:
 
     assert status.created is False
     assert not any(name == "create_collection" for name, _ in client.calls)
+
+
+def test_ensure_collection_recovers_compatible_concurrent_creation() -> None:
+    client = FakeAsyncQdrantClient()
+    client.concurrent_create_config = FakeVectorConfig(
+        size=3,
+        distance="Cosine",
+    )
+
+    status = asyncio.run(make_store(client).ensure_collection())
+
+    assert status.created is False
+    assert [name for name, _ in client.calls] == [
+        "collection_exists",
+        "create_collection",
+        "get_collection",
+    ]
+
+
+def test_ensure_collection_rejects_incompatible_concurrent_creation() -> None:
+    client = FakeAsyncQdrantClient()
+    client.concurrent_create_config = FakeVectorConfig(
+        size=4,
+        distance="Cosine",
+    )
+
+    with pytest.raises(VectorStoreDimensionMismatchError):
+        asyncio.run(make_store(client).ensure_collection())
 
 
 @pytest.mark.parametrize(
@@ -302,6 +339,8 @@ def test_search_filters_knowledge_base_and_maps_complete_payload() -> None:
     client = FakeAsyncQdrantClient(query_response=response)
     query = VectorSearchQuery(
         knowledge_base_id=KNOWLEDGE_BASE_ID,
+        embedding_provider="openai_compatible",
+        embedding_model="text-embedding-3-small",
         vector=(0.3, 0.2, 0.1),
         limit=4,
         score_threshold=0.25,
@@ -325,6 +364,28 @@ def test_search_filters_knowledge_base_and_maps_complete_payload() -> None:
                 "match": {
                     "value": str(KNOWLEDGE_BASE_ID),
                 },
+                "range": None,
+                "geo_bounding_box": None,
+                "geo_radius": None,
+                "geo_polygon": None,
+                "values_count": None,
+                "is_empty": None,
+                "is_null": None,
+            },
+            {
+                "key": "embedding_provider",
+                "match": {"value": "openai_compatible"},
+                "range": None,
+                "geo_bounding_box": None,
+                "geo_radius": None,
+                "geo_polygon": None,
+                "values_count": None,
+                "is_empty": None,
+                "is_null": None,
+            },
+            {
+                "key": "embedding_model",
+                "match": {"value": "text-embedding-3-small"},
                 "range": None,
                 "geo_bounding_box": None,
                 "geo_radius": None,
@@ -376,6 +437,8 @@ def test_search_rejects_malformed_qdrant_results(
             make_store(client).search(
                 VectorSearchQuery(
                     knowledge_base_id=KNOWLEDGE_BASE_ID,
+                    embedding_provider="openai_compatible",
+                    embedding_model="text-embedding-3-small",
                     vector=(0.1, 0.2, 0.3),
                 )
             )
@@ -408,6 +471,49 @@ def test_search_rejects_result_outside_requested_knowledge_base() -> None:
             make_store(client).search(
                 VectorSearchQuery(
                     knowledge_base_id=KNOWLEDGE_BASE_ID,
+                    embedding_provider="openai_compatible",
+                    embedding_model="text-embedding-3-small",
+                    vector=(0.1, 0.2, 0.3),
+                )
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("payload_overrides"),
+    [
+        {"embedding_provider": "other-provider"},
+        {"embedding_model": "other-model"},
+    ],
+)
+def test_search_rejects_result_outside_requested_embedding_identity(
+    payload_overrides: dict[str, str],
+) -> None:
+    client = FakeAsyncQdrantClient(
+        query_response=FakeQueryResponse(
+            points=[
+                FakeScoredPoint(
+                    id=str(CHUNK_ID),
+                    version=1,
+                    score=0.9,
+                    payload=sample_payload(
+                        **payload_overrides,
+                    ).to_qdrant_payload(),
+                )
+            ]
+        )
+    )
+
+    with pytest.raises(
+        VectorStoreResponseError,
+        match="Qdrant search response is invalid",
+    ):
+        asyncio.run(
+            make_store(client).search(
+                VectorSearchQuery(
+                    knowledge_base_id=KNOWLEDGE_BASE_ID,
+                    embedding_provider="openai_compatible",
+                    embedding_model="text-embedding-3-small",
                     vector=(0.1, 0.2, 0.3),
                 )
             )
@@ -462,6 +568,8 @@ def test_qdrant_errors_are_safe_and_do_not_chain_source_exception(
             await store.search(
                 VectorSearchQuery(
                     knowledge_base_id=KNOWLEDGE_BASE_ID,
+                    embedding_provider="openai_compatible",
+                    embedding_model="text-embedding-3-small",
                     vector=(0.1, 0.2, 0.3),
                 )
             )

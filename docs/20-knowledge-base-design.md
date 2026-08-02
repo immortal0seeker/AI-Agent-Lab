@@ -160,13 +160,16 @@ dimension and permits a Knowledge Base caller to override the default
 collection name. `ensure_collection()` creates one default COSINE dense-vector
 collection or checks the existing size/distance. Named vectors, different
 dimensions, and different distances fail closed; the adapter never rebuilds or
-deletes an incompatible existing collection.
+deletes an incompatible existing collection. If concurrent first writers both
+observe a missing collection, a create failure is followed by one strict read:
+a compatible winning collection is accepted as `created=false`, while a
+missing or incompatible winner still fails closed.
 
 Every Chunk payload contains:
 
 ```text
 knowledge_base_id, document_id, chunk_id, filename, chunk_index,
-content, heading, page_number, metadata
+embedding_provider, embedding_model, content, heading, page_number, metadata
 ```
 
 UUIDs serialize as canonical lowercase strings. `metadata` stays nested and
@@ -175,10 +178,12 @@ checks that the Document and Chunk share both Document and Knowledge Base
 ownership, copies mutable metadata, and preserves the fields consumed by M4's
 `RetrievalResult`.
 
-Qdrant search always applies an exact `knowledge_base_id` filter and returns
-payload without vectors. Document deletion applies both `knowledge_base_id` and
-`document_id`, preventing a wrong identifier from deleting another Knowledge
-Base's points. SDK and network failures become fixed safe operation errors;
+Qdrant search always applies exact `knowledge_base_id`, `embedding_provider`,
+and `embedding_model` filters and returns payload without vectors. The model is
+the actual identity returned by the Provider, not merely the configured alias.
+Document deletion applies both `knowledge_base_id` and `document_id`, preventing
+a wrong identifier from deleting another Knowledge Base's points. SDK and
+network failures become fixed safe operation errors;
 malformed collection/search responses become safe response errors. Neither
 path copies endpoint diagnostics, payload content, vectors, or exception causes
 into application errors.
@@ -203,13 +208,15 @@ deduplicating, merging, or reranking.
 
 ```text
 knowledge_base_id, document_id, chunk_id, filename, chunk_index,
-content, score, heading, page_number, metadata
+embedding_provider, embedding_model, content, score, heading, page_number,
+metadata
 ```
 
 UUIDs stay strongly typed and serialize canonically. Nested metadata is copied
 before exposure. The Retriever rejects an invalid result type, a cross-
-Knowledge-Base payload, more results than Top-K, or a result below the requested
-threshold as one fixed safe response error; it never returns partial output.
+Knowledge-Base payload, an embedding-identity mismatch, more results than Top-K,
+or a result below the requested threshold as one fixed safe response error; it
+never returns partial output.
 Provider and VectorStore errors keep their existing boundary categories.
 
 ## Naive RAG Prompt And API Boundary

@@ -2,6 +2,18 @@
 
 All notable changes to AI Agent Lab are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- Prevented silent comparison of same-dimension vectors from different
+  embedding models by persisting Provider plus actual returned model identity
+  in every Qdrant payload, filtering retrieval by both fields, rejecting
+  mismatched results, and exposing the identity in RAG sources and audits.
+- Recovered safely when concurrent first writers race to create the same
+  compatible Qdrant collection, while retaining strict dimension/distance
+  rejection for an incompatible winner.
+
 ## [0.3.0] - 2026-08-02
 
 ### Added

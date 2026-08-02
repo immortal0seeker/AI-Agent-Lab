@@ -8,10 +8,11 @@ AI Agent Lab 是一个分阶段构建的 AI Engineering Workspace，用来学习
 
 ## 当前阶段
 
-目标发布版本是 `v0.3.0`（Plan 3 Knowledge Base + Naive RAG）。当前发布候选
-工作区已经准备好 tracked 版本 metadata、CHANGELOG、脱敏截图和 Codex 最终复审。
-在用户提交本批并创建 annotated `v0.3.0` tag 前，当前最新既有 tag 仍是指向
-`872310b` 的 `v0.2.1`；原始 `v0.2.0` 仍指向 `0e3f3a6`。既有 tag 不得移动或改写。
+Plan 3 Knowledge Base + Naive RAG 已由用户发布为 annotated `v0.3.0` tag，指向
+commit `46ea94a`。独立的发布后终审发现并修复了两个 Important 向量边界缺口：
+embedding 身份隔离和兼容 collection 的并发首建；修复仍在当前工作区等待用户手动处理
+Git。`v0.3.0` 会继续指向原发布提交，
+直到用户根据 tag 是否已对外发布，选择手动替换未发布 tag 或发布后续 `v0.3.1`。
 
 Plan 1 覆盖：
 
@@ -26,8 +27,8 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已验证实现范围：`P1-M1-S1` 到 `P3-M6-S5`，以及 `P3-M6-S6` 的 tracked
-发布材料。Plan 3 最终 tag gate 仍由用户手动完成。
+已验证实现范围：`P1-M1-S1` 到 `P3-M6-S6`，以及当前 Plan 3 终审修复；尚未开始
+实现 Plan 4。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -261,11 +262,13 @@ QDRANT_TIMEOUT_SECONDS=10
 
 只允许在未跟踪的 `backend/.env` 或进程环境中覆盖。`qdrant-client` 与服务端固定在
 1.15 minor。adapter 创建一个默认 COSINE dense-vector collection；若已有 collection
-的维度、距离或 named-vector 结构不同则 fail-closed。search 始终过滤
-`knowledge_base_id`，Document 向量删除同时匹配 Knowledge Base 与 Document ID。
-payload 保存规范 UUID、filename、chunk index、content、可选 heading/page 和嵌套来源
-metadata；上传 ingestion 已使用这些操作，并把每个 Chunk UUID 持久化为 Qdrant
-point ID。
+的维度、距离或 named-vector 结构不同则 fail-closed。并发首写竞争创建同一个
+collection 时会重新读取并严格校验胜出配置，兼容才继续。search 始终同时过滤
+`knowledge_base_id`、Embedding Provider 和 Provider 实际返回的 model；Document
+向量删除仍同时匹配 Knowledge Base 与 Document ID。payload 保存规范 UUID、
+embedding Provider/model 身份、filename、chunk index、content、可选 heading/page
+和嵌套来源 metadata；上传 ingestion 已使用这些操作，并把每个 Chunk UUID 持久化为
+Qdrant point ID。
 
 tracked Compose 配置明确禁用 Qdrant 遥测。2026-08-01 已验证固定版本
 `qdrant/qdrant:v1.15.4` 容器运行、重启次数为 0，
@@ -566,12 +569,14 @@ Agent Tool 尚无专用前端，且没有 RAG streaming、Advanced RAG 或 Trace
 Embedding Provider usage 仍只存在于内存。
 正常请求回滚会补偿 vectors，但 Qdrant 写入后进程硬崩溃仍可能留下需要后续
 reconciliation 的 orphan points。
+终审修复前写入的 vectors 没有新的 embedding 身份 payload 字段，必须重新入库后才会
+被修复后的检索 filter 命中。
 
 ## Roadmap
 
 - Plan 1：项目骨架 + 基础 Chat + LLM Providers
 - Plan 2：Tool Calling + 简单 Agent Loop
-- Plan 3：Knowledge Base + Document Ingestion + Naive RAG（`v0.3.0` 发布候选，等待用户手动 tag gate）
+- Plan 3：Knowledge Base + Document Ingestion + Naive RAG（`v0.3.0`；发布后终审修复等待用户手动处理 Git）
 - Plan 4：Trace + Advanced RAG + Rerank + Evaluation
 - Plan 5：Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6：MCP + Voice + Vision + Desktop

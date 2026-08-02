@@ -693,6 +693,19 @@ final self-review。按仓库 Git 规则，本批不 stage、commit、push 或 t
 `git rev-parse HEAD` 与 `git rev-parse 'v0.3.0^{}'` 相同且工作区干净。只有该 tag
 gate 通过后，Plan 3 才正式完成并可进入 `P4-M1-S1～S3`。
 
+### Plan 3 发布后终审记录（2026-08-02）
+
+用户随后已在 `main` 的 `46ea94afe49c1db9179bbdb9a98093c86206b99f`
+创建 annotated `v0.3.0`。独立终审复现一个 Important Plan 3 缺口：同维度但不同
+实际 embedding model 的 vectors 可在同一 KB filter 下静默比较，且 payload、RAG
+response 与 `rag_queries` 来源快照缺少该身份。修复将 Provider 名和实际返回 model
+写入 point payload，search 同时过滤 KB/Provider/model，并在 Qdrant adapter 与
+Retriever 二次拒绝越界结果；Query/Chat/Tool、前端来源卡与审计快照同步保留身份。
+同一终审还复现了并发首写 collection 的 loser 会误失败；adapter 现会重新读取并严格
+校验胜出 collection，只有兼容配置才继续。这些修复不实现任何 Plan 4 runtime。终审
+修复提交前 `v0.3.0` 继续指向原发布提交；用户需按 tag 是否已发布，手动选择替换未发布
+tag 或发布 `v0.3.1`。
+
 ---
 
 ## 9. 每次执行 1～3 步的标准流程
@@ -773,7 +786,7 @@ Claude Code 审核后，Codex 负责：
 | search_knowledge_base 工具可用 | implemented | schema/安全失败/Registry/Agent ToolCall 测试与真实临时 Qdrant smoke |
 | README 已更新 | implemented | 中英文 README 已同步至 M5 S6 RAG Chat/source 行为与当前限制 |
 | docs 已更新 | implemented | Architecture、Knowledge Base、Naive RAG、CHANGELOG、设计/实施计划与执行表已同步至 M5 S6 |
-| 已创建 v0.3.0 tag | pending | `git tag --list` 输出 |
+| 已创建 v0.3.0 tag | implemented | annotated tag peeled target 为 `46ea94afe49c1db9179bbdb9a98093c86206b99f`；终审修复不会自动移动该 tag |
 
 ---
 
@@ -787,7 +800,7 @@ Claude Code 审核后，Codex 负责：
 | `rag_queries` 或等价查询记录可用 | implemented | Query/Chat/Tool 成功检索统一记录 query、KB、Top-K、来源快照与 latency |
 | `document_chunks` 至少包含 document_id、chunk_index、content、metadata、vector_id | implemented | ORM/迁移字段、入库持久化及 point ID 等于 Chunk UUID 的服务/API 测试 |
 | RAG Query/Chat API 返回 results/answer、sources、retrieval metadata 与审计 ID | implemented | Query 保持纯检索；Chat 返回 grounded answer/sources；两者返回 rag_query_id |
-| Qdrant payload 中保留 knowledge_base_id、document_id、chunk_id | implemented | payload builder、ownership 校验与搜索结果二次隔离测试 |
+| Qdrant payload 中保留 knowledge_base_id、document_id、chunk_id | implemented | payload 还保留 embedding Provider/实际 model；search 按 KB/Provider/model 过滤并二次拒绝越界结果 |
 
 ---
 

@@ -27,6 +27,8 @@ export type RagRetrievalResult = {
   knowledge_base_id: string;
   document_id: string;
   chunk_id: string;
+  embedding_provider: string;
+  embedding_model: string;
   filename: string;
   chunk_index: number;
   content: string;

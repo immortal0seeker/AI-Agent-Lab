@@ -142,6 +142,8 @@ def make_search_result(
             knowledge_base_id=knowledge_base_id,
             document_id=DOCUMENT_ID,
             chunk_id=CHUNK_ID,
+            embedding_provider="api-recording",
+            embedding_model="synthetic-embedding",
             filename="guide.md",
             chunk_index=0,
             content="The workspace uses layered services.",
@@ -254,9 +256,11 @@ def test_rag_query_api_returns_results_metadata_and_audit_id(
     assert payload == {
         "results": [
             {
-                "knowledge_base_id": str(KNOWLEDGE_BASE_ID),
-                "document_id": str(DOCUMENT_ID),
-                "chunk_id": str(CHUNK_ID),
+                    "knowledge_base_id": str(KNOWLEDGE_BASE_ID),
+                    "document_id": str(DOCUMENT_ID),
+                    "chunk_id": str(CHUNK_ID),
+                    "embedding_provider": "api-recording",
+                    "embedding_model": "synthetic-embedding",
                 "filename": "guide.md",
                 "chunk_index": 0,
                 "content": "The workspace uses layered services.",

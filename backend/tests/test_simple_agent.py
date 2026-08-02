@@ -206,6 +206,8 @@ def test_agent_calls_search_knowledge_base_and_uses_observation(
             knowledge_base_id=knowledge_base_id,
             document_id=document_id,
             chunk_id=chunk_id,
+            embedding_provider="openai_compatible",
+            embedding_model="synthetic-embedding",
             filename="guide.md",
             chunk_index=0,
             content="The workspace uses layered services.",

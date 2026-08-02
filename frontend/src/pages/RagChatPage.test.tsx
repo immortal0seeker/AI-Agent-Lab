@@ -74,6 +74,8 @@ const response: RagChatResponse = {
       knowledge_base_id: knowledgeBase.id,
       document_id: "00000000-0000-0000-0000-000000000606",
       chunk_id: "00000000-0000-0000-0000-000000000607",
+      embedding_provider: "openai_compatible",
+      embedding_model: "text-embedding-3-small",
       filename: "architecture.md",
       chunk_index: 3,
       content: "Routes remain thin and delegate to services.",

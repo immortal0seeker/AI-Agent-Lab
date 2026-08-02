@@ -21,6 +21,14 @@ PayloadFilename = Annotated[
     StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
 ]
 PayloadHeading = Annotated[str, StringConstraints(max_length=512)]
+EmbeddingProviderName = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
+]
+EmbeddingModelName = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+]
 
 
 class ChunkVectorPayload(BaseModel):
@@ -29,6 +37,8 @@ class ChunkVectorPayload(BaseModel):
     knowledge_base_id: UUID
     document_id: UUID
     chunk_id: UUID
+    embedding_provider: EmbeddingProviderName
+    embedding_model: EmbeddingModelName
     filename: PayloadFilename
     chunk_index: StrictInt = Field(ge=0)
     content: str
@@ -56,6 +66,8 @@ def build_qdrant_payload(
     *,
     document: Document,
     chunk: DocumentChunk,
+    embedding_provider: str,
+    embedding_model: str,
 ) -> ChunkVectorPayload:
     from app.rag.vectorstores.base import VectorStoreInputError
 
@@ -77,6 +89,8 @@ def build_qdrant_payload(
             knowledge_base_id=chunk.knowledge_base_id,
             document_id=chunk.document_id,
             chunk_id=chunk.id,
+            embedding_provider=embedding_provider,
+            embedding_model=embedding_model,
             filename=document.filename,
             chunk_index=chunk.chunk_index,
             content=chunk.content,

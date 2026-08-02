@@ -8,12 +8,13 @@ This repository is not a collection of disconnected demos. The goal is to build 
 
 ## Current Stage
 
-Release target: `v0.3.0` (Plan 3 Knowledge Base + Naive RAG). The tracked
-release metadata, changelog, sanitized screenshots, and Codex final review are
-prepared in the current release-candidate working tree. The latest existing Git
-tag remains `v0.2.1` at commit `872310b` until the user commits this verified
-batch and creates the annotated `v0.3.0` tag. The original `v0.2.0` release
-remains at `0e3f3a6`; existing tags must not be moved or rewritten.
+Plan 3 Knowledge Base + Naive RAG was released as the annotated `v0.3.0` tag at
+commit `46ea94a`. An independent post-release audit found and repaired two
+Important vector-boundary gaps: embedding-identity isolation and compatible
+concurrent collection creation. Those repairs await the user's manual Git
+action; `v0.3.0` intentionally remains
+at the original release commit until the user decides whether an unpublished
+tag may be replaced or a follow-up `v0.3.1` should be published.
 
 Plan 1 covers:
 
@@ -28,9 +29,8 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Verified implementation scope: `P1-M1-S1` through `P3-M6-S5`, plus the tracked
-`P3-M6-S6` release artifacts. The final Plan 3 tag gate remains a manual user
-action.
+Verified implementation scope: `P1-M1-S1` through `P3-M6-S6`, plus the current
+Plan 3 final-audit repair. Plan 4 implementation has not started.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -315,11 +315,15 @@ Override these values only in an untracked `backend/.env` or process
 environment. `qdrant-client` is pinned to the server's 1.15 minor. The adapter
 creates one default COSINE dense-vector collection or fail-closes when an
 existing collection has a different dimension, distance, or named-vector
-shape. Search always filters `knowledge_base_id`; Document vector deletion
+shape. Concurrent first writers re-read and validate the winning collection
+instead of leaving an otherwise valid upload failed. Search always filters
+`knowledge_base_id`, embedding Provider, and the
+actual model identity returned by the Provider; Document vector deletion
 matches both Knowledge Base and Document IDs. Each payload stores canonical
-Knowledge Base/Document/Chunk UUIDs, filename, chunk index, content, optional
-heading/page, and nested source metadata. The upload ingestion pipeline now
-uses these operations and persists each Chunk UUID as its Qdrant point ID.
+Knowledge Base/Document/Chunk UUIDs, embedding Provider/model identity,
+filename, chunk index, content, optional heading/page, and nested source
+metadata. The upload ingestion pipeline now uses these operations and persists
+each Chunk UUID as its Qdrant point ID.
 
 The tracked Compose configuration disables Qdrant telemetry. On 2026-08-01,
 the pinned
@@ -674,12 +678,15 @@ or Trace runtime exists.
 Returned Embedding Provider usage remains in memory. Normal request
 rollback compensates vectors, while a hard process crash after Qdrant write can
 still leave orphan points for later reconciliation.
+Vectors written before the embedding-identity audit repair do not contain the
+new identity payload fields and must be re-ingested before they can be found by
+the repaired retrieval filter.
 
 ## Roadmap
 
 - Plan 1: Project foundation + Basic Chat + LLM Providers
 - Plan 2: Tool Calling + Simple Agent Loop
-- Plan 3: Knowledge Base + Document Ingestion + Naive RAG (`v0.3.0` release candidate; manual tag gate pending)
+- Plan 3: Knowledge Base + Document Ingestion + Naive RAG (`v0.3.0`; post-release audit repair awaiting manual Git action)
 - Plan 4: Trace + Advanced RAG + Rerank + Evaluation
 - Plan 5: Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6: MCP + Voice + Vision + Desktop

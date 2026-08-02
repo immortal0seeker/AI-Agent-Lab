@@ -14,7 +14,11 @@ from pydantic import (
     model_validator,
 )
 
-from app.rag.vectorstores.payload import ChunkVectorPayload
+from app.rag.vectorstores.payload import (
+    ChunkVectorPayload,
+    EmbeddingModelName,
+    EmbeddingProviderName,
+)
 
 
 CollectionName = Annotated[
@@ -62,6 +66,8 @@ class VectorSearchQuery(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     knowledge_base_id: UUID
+    embedding_provider: EmbeddingProviderName
+    embedding_model: EmbeddingModelName
     vector: Vector = Field(min_length=1)
     limit: StrictInt = Field(default=5, ge=1, le=100)
     score_threshold: FiniteFloat | None = None

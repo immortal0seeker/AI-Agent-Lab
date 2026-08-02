@@ -55,8 +55,14 @@ class QdrantVectorStore(VectorStore):
             exists = await self._client.collection_exists(
                 collection_name=self.collection_name
             )
-            created = not exists
-            if not exists:
+        except Exception:
+            raise VectorStoreOperationError(
+                "Qdrant collection check failed."
+            ) from None
+
+        created = False
+        if not exists:
+            try:
                 await self._client.create_collection(
                     collection_name=self.collection_name,
                     vectors_config=models.VectorParams(
@@ -64,6 +70,11 @@ class QdrantVectorStore(VectorStore):
                         distance=models.Distance.COSINE,
                     ),
                 )
+                created = True
+            except Exception:
+                # 并发首写可能已由另一请求完成；后续严格配置校验决定能否继续。
+                created = False
+        try:
             info = await self._client.get_collection(
                 collection_name=self.collection_name
             )
@@ -126,7 +137,17 @@ class QdrantVectorStore(VectorStore):
                     match=models.MatchValue(
                         value=str(query.knowledge_base_id)
                     ),
-                )
+                ),
+                models.FieldCondition(
+                    key="embedding_provider",
+                    match=models.MatchValue(
+                        value=query.embedding_provider
+                    ),
+                ),
+                models.FieldCondition(
+                    key="embedding_model",
+                    match=models.MatchValue(value=query.embedding_model),
+                ),
             ]
         )
         try:
@@ -146,6 +167,8 @@ class QdrantVectorStore(VectorStore):
         return self._parse_search_response(
             response,
             knowledge_base_id=query.knowledge_base_id,
+            embedding_provider=query.embedding_provider,
+            embedding_model=query.embedding_model,
         )
 
     async def delete_document_vectors(
@@ -252,6 +275,8 @@ class QdrantVectorStore(VectorStore):
         response: object,
         *,
         knowledge_base_id: UUID,
+        embedding_provider: str,
+        embedding_model: str,
     ) -> tuple[VectorSearchResult, ...]:
         points = getattr(response, "points", None)
         if not isinstance(points, list):
@@ -269,6 +294,8 @@ class QdrantVectorStore(VectorStore):
             )
             if any(
                 result.payload.knowledge_base_id != knowledge_base_id
+                or result.payload.embedding_provider != embedding_provider
+                or result.payload.embedding_model != embedding_model
                 for result in results
             ):
                 raise ValueError("knowledge base filter mismatch")

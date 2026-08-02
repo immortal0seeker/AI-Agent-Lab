@@ -45,7 +45,12 @@ async def ingest_document_vectors(
         VectorPoint(
             id=chunk.id,
             vector=result.vectors[index],
-            payload=build_qdrant_payload(document=document, chunk=chunk),
+            payload=build_qdrant_payload(
+                document=document,
+                chunk=chunk,
+                embedding_provider=embedding_provider.name,
+                embedding_model=result.model,
+            ),
         )
         for index, chunk in enumerate(chunks)
     ]

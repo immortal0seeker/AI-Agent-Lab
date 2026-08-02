@@ -36,6 +36,8 @@ const turn: RagTurn = {
       knowledge_base_id: "00000000-0000-0000-0000-000000000805",
       document_id: "00000000-0000-0000-0000-000000000806",
       chunk_id: "00000000-0000-0000-0000-000000000807",
+      embedding_provider: "openai_compatible",
+      embedding_model: "text-embedding-3-small",
       filename: "architecture.md",
       chunk_index: 2,
       content: "Routes delegate business work to services.",

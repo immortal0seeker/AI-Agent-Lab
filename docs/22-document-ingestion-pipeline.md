@@ -48,6 +48,8 @@ gives a direct SQLite-to-Qdrant association without adding a second identity.
 Every Qdrant payload preserves:
 
 - `knowledge_base_id`, `document_id`, and `chunk_id`;
+- normalized Embedding Provider name and the actual model returned by the
+  Provider;
 - source `filename` and zero-based `chunk_index`;
 - exact Chunk `content`;
 - optional `heading` and `page_number`;
@@ -58,6 +60,10 @@ item, mismatched Document/Knowledge Base ownership, or a non-contiguous order.
 After embedding, it checks one vector per Chunk and an exact match between the
 Embedding and VectorStore dimensions. After upsert, the returned point UUIDs
 must exactly match the expected Chunk UUIDs in order.
+
+The Provider/model identity is part of the point contract. Answer-time search
+uses the query embedding's matching identity, which prevents silent cosine
+comparison between equal-dimension vectors produced by different models.
 
 ## Lifecycle States
 
@@ -120,6 +126,11 @@ rebuilds or deletes it automatically. Qdrant is bound to `127.0.0.1:6333` by
 the repository Compose configuration, while SQLite remains the primary business
 and audit database.
 
+Concurrent first uploads may race between collection existence check and
+creation. The adapter re-reads a create conflict and continues only when the
+winner has the exact expected single-vector COSINE configuration; otherwise the
+upload retains the existing safe VectorStore failure behavior.
+
 Tests use synthetic credentials, a deterministic Mock Embedding Provider,
 temporary SQLite databases and workspaces, plus isolated in-memory VectorStore
 test doubles. The runtime smoke check uses the local Qdrant container and a
@@ -145,6 +156,8 @@ automatic retry/fallback/caching, no persisted embedding usage/cost, and no
 hard-crash orphan reconciler. A standalone Retriever and non-streaming RAG
 Query/Chat runtime exist through M4 S6, but answer success must not be inferred
 from successful ingestion or retrieval alone.
+Existing points written before the embedding-identity fields were introduced
+must be re-ingested before the repaired query filter can find them.
 
 See [Knowledge Base Design](20-knowledge-base-design.md),
 [Embedding Provider](21-embedding-provider.md),

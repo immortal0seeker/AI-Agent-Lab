@@ -59,6 +59,8 @@ def make_query_result(
         knowledge_base_id=KNOWLEDGE_BASE_ID,
         document_id=DOCUMENT_ID,
         chunk_id=CHUNK_ID,
+        embedding_provider="openai_compatible",
+        embedding_model="synthetic-embedding",
         filename="guide.md",
         chunk_index=0,
         content=content,
@@ -159,6 +161,8 @@ def test_search_knowledge_base_tool_returns_safe_indexed_summary() -> None:
     assert source["knowledge_base_id"] == str(KNOWLEDGE_BASE_ID)
     assert source["document_id"] == str(DOCUMENT_ID)
     assert source["chunk_id"] == str(CHUNK_ID)
+    assert source["embedding_provider"] == "openai_compatible"
+    assert source["embedding_model"] == "synthetic-embedding"
     assert source["content"] == "A" * 599 + "…"
     assert len(source["content"]) == 600
     assert result.metadata == {

@@ -30,7 +30,7 @@ POST /api/v1/rag/query
   -> validate Knowledge Base
   -> Retriever
   -> EmbeddingProvider.embed_query()
-  -> Knowledge-Base-filtered VectorStore.search()
+  -> Knowledge-Base-and-embedding-identity-filtered VectorStore.search()
   -> persist RagQuery audit
   -> RagQueryResponse(rag_query_id + results + metadata)
 
@@ -131,6 +131,8 @@ Response:
       "knowledge_base_id": "11111111-1111-1111-1111-111111111111",
       "document_id": "22222222-2222-2222-2222-222222222222",
       "chunk_id": "33333333-3333-3333-3333-333333333333",
+      "embedding_provider": "openai_compatible",
+      "embedding_model": "example-embedding-model",
       "filename": "guide.md",
       "chunk_index": 0,
       "content": "...",
@@ -181,6 +183,10 @@ The response contains `rag_query_id`, `conversation_id`, complete `user_message`
 `assistant_message` resources, `answer`, indexed `sources`, retrieval/Prompt
 `metadata`, resolved `provider`/`model`, optional token `usage`, and
 `llm_call_id`.
+
+Every returned source also includes `embedding_provider` and the actual
+Provider-returned `embedding_model`. The same fields are persisted in the
+RagQuery source snapshot and must match the Qdrant query filter.
 
 The Conversation must already exist. The endpoint is non-streaming. It sends
 one query embedding request, one vector search, and one LLM chat request.
@@ -266,6 +272,8 @@ not live semantic model quality.
 ## Current Limitations
 
 - No live paid Embedding or LLM Provider acceptance is performed.
+- Qdrant points created before embedding identity became a required payload and
+  query filter must be re-ingested before this runtime can retrieve them.
 - No RAG streaming endpoint is present.
 - The Knowledge workspace has non-streaming current-session RAG Chat and source
   cards, but refresh cannot restore prior RAG turns/sources because no RagQuery

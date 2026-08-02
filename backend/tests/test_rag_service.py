@@ -202,6 +202,8 @@ def make_search_result(
             knowledge_base_id=KNOWLEDGE_BASE_ID,
             document_id=DOCUMENT_ID,
             chunk_id=CHUNK_ID,
+            embedding_provider="recording",
+            embedding_model="synthetic-embedding",
             filename="guide.md",
             chunk_index=0,
             content=content,
@@ -321,6 +323,8 @@ def test_rag_query_persists_audit_without_llm_or_message_writes(
     assert vector_store.search_queries == [
         VectorSearchQuery(
             knowledge_base_id=KNOWLEDGE_BASE_ID,
+            embedding_provider="recording",
+            embedding_model="synthetic-embedding",
             vector=(0.1, 0.2, 0.3),
             limit=3,
             score_threshold=0.5,
@@ -340,6 +344,10 @@ def test_rag_query_persists_audit_without_llm_or_message_writes(
     assert stored.retrieved_chunks_json[0]["source_index"] == 1
     assert stored.retrieved_chunks_json[0]["chunk_id"] == str(CHUNK_ID)
     assert stored.retrieved_chunks_json[0]["document_id"] == str(DOCUMENT_ID)
+    assert stored.retrieved_chunks_json[0]["embedding_provider"] == "recording"
+    assert stored.retrieved_chunks_json[0]["embedding_model"] == (
+        "synthetic-embedding"
+    )
     assert stored.retrieved_chunks_json[0]["content"] == (
         "The workspace uses layered services."
     )

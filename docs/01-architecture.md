@@ -53,8 +53,12 @@ the stable Chunk payload bridge required by M4. M3 S10～S12 add an independentl
   a typed current-session RAG Chat with exact source and audit-ID display. M6
   revalidates every backend/frontend boundary, publishes sanitized release
   screenshots, synchronizes runtime metadata to `0.3.0`, and records the
-  Codex-only final review. The user-created annotated `v0.3.0` tag is the only
-  remaining release gate.
+  Codex-only final review. The user then published annotated tag `v0.3.0` at
+  commit `46ea94a`. A subsequent independent Plan 3 audit repaired embedding
+  identity isolation and compatible concurrent collection creation in the
+  current working tree without adding Plan 4 runtime; the tag intentionally
+  remains at the original release commit pending the user's manual follow-up
+  release decision.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -597,12 +601,14 @@ Plan 3 VectorStore, ingestion, retrieval, and Naive RAG target through
   delete, and client-lifecycle operations behind validated immutable contracts.
 - `QdrantVectorStore` is the only Qdrant SDK boundary. It uses one default
   COSINE dense vector, rejects incompatible existing collection configuration,
-  waits for writes, and normalizes SDK failures without exposing diagnostics.
-- search always filters `knowledge_base_id`; deletion matches both
-  `knowledge_base_id` and `document_id`.
-- Chunk payloads store canonical IDs, filename/index/content, optional
-  heading/page, and nested JSON-safe metadata. They provide the source bridge
-  for M4 without implementing a Retriever early.
+  recovers a compatible concurrent first-create winner, waits for writes, and
+  normalizes SDK failures without exposing diagnostics.
+- search always filters `knowledge_base_id`, embedding Provider, and the actual
+  Provider-returned model; deletion matches both `knowledge_base_id` and
+  `document_id`.
+- Chunk payloads store canonical IDs, embedding Provider/model identity,
+  filename/index/content, optional heading/page, and nested JSON-safe metadata.
+  They provide the source bridge for M4 without implementing a Retriever early.
 - `ingest_document_vectors()` rejects count/dimension/ownership/order or point-ID
   contract mismatches before ready state and compensates uncertain upsert
   results.
@@ -692,7 +698,7 @@ The list is ordered by recent successful activity. Messages retain deterministic
 creation order. No composite workspace bootstrap endpoint, pagination, rename,
 or delete behavior is introduced in M3.
 
-## Plan 3 v0.3.0 Release Gate
+## Plan 3 v0.3.0 Release And Post-Release Audit Gate
 
 M6 closes Plan 3 without changing runtime architecture. Existing focused tests
 provide the S1～S4 acceptance evidence: the combined model/API/document-
@@ -723,9 +729,11 @@ The five Plan 4 bridge contracts remain intact: shared
 `search_knowledge_base` retrieval/audit, persisted `RagQuery` Top-K/source/
 latency/linkage fields, source-rich `DocumentChunk`, RAG response retrieval
 metadata/audit identity, and Qdrant Knowledge Base/Document/Chunk payload IDs.
-No Trace, Advanced RAG, reranking, or evaluation runtime is added. Package,
-OpenAPI, frontend, and lockfile metadata is `0.3.0`; the user commits the
-verified batch and creates the annotated `v0.3.0` tag.
+The post-release audit further makes embedding Provider/actual-model identity
+part of the payload, query filter, response, and audit snapshot. No Trace,
+Advanced RAG, reranking, or evaluation runtime is added. Package, OpenAPI,
+frontend, and lockfile metadata is `0.3.0`; annotated tag `v0.3.0` remains at
+the original release commit while its audit repair awaits manual release.
 
 ## Security Boundaries
 

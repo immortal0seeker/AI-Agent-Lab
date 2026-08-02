@@ -23,6 +23,8 @@ const retrievalResult = {
   knowledge_base_id: knowledgeBaseId,
   document_id: "00000000-0000-0000-0000-000000000404",
   chunk_id: "00000000-0000-0000-0000-000000000405",
+  embedding_provider: "openai_compatible",
+  embedding_model: "text-embedding-3-small",
   filename: "architecture.md",
   chunk_index: 2,
   content: "The workspace uses a thin API and service boundary.",

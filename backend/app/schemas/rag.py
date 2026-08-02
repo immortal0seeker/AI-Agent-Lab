@@ -23,6 +23,14 @@ RetrievalFilename = Annotated[
     StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
 ]
 RetrievalHeading = Annotated[str, StringConstraints(max_length=512)]
+EmbeddingProviderIdentifier = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
+]
+EmbeddingModelIdentifier = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+]
 RagIdentifier = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1),
@@ -35,6 +43,8 @@ class RetrievalResult(BaseModel):
     knowledge_base_id: UUID
     document_id: UUID
     chunk_id: UUID
+    embedding_provider: EmbeddingProviderIdentifier
+    embedding_model: EmbeddingModelIdentifier
     filename: RetrievalFilename
     chunk_index: StrictInt = Field(ge=0)
     content: str

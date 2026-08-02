@@ -65,6 +65,10 @@ export default function RagSourceCard({ source }: RagSourceCardProps) {
           <dt>Chunk ID</dt>
           <dd>{source.chunk_id}</dd>
         </div>
+        <div>
+          <dt>Embedding</dt>
+          <dd>{source.embedding_provider} / {source.embedding_model}</dd>
+        </div>
       </dl>
 
       <section className="rag-source-metadata" aria-label={`Source ${source.source_index} metadata`}>

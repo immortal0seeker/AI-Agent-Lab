@@ -26,6 +26,8 @@ def make_result(
         knowledge_base_id=KNOWLEDGE_BASE_ID,
         document_id=DOCUMENT_ID,
         chunk_id=chunk_id,
+        embedding_provider="openai_compatible",
+        embedding_model="synthetic-embedding",
         filename=filename,
         chunk_index=chunk_index,
         content=content,

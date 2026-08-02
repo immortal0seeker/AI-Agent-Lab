@@ -126,6 +126,8 @@ def make_search_result(
     chunk_index: int = 0,
     content: str = "Retriever overview",
     score: float = 0.91,
+    embedding_provider: str = "recording",
+    embedding_model: str = "synthetic-query-embedding",
 ) -> VectorSearchResult:
     return VectorSearchResult(
         point_id=chunk_id,
@@ -134,6 +136,8 @@ def make_search_result(
             knowledge_base_id=knowledge_base_id,
             document_id=DOCUMENT_ID,
             chunk_id=chunk_id,
+            embedding_provider=embedding_provider,
+            embedding_model=embedding_model,
             filename="guide.md",
             chunk_index=chunk_index,
             content=content,
@@ -179,6 +183,8 @@ def test_retrieve_embeds_query_and_maps_ordered_sources() -> None:
     assert store.search_queries == [
         VectorSearchQuery(
             knowledge_base_id=KNOWLEDGE_BASE_ID,
+            embedding_provider="recording",
+            embedding_model="synthetic-query-embedding",
             vector=(0.1, 0.2, 0.3),
             limit=5,
             score_threshold=None,
@@ -189,6 +195,8 @@ def test_retrieve_embeds_query_and_maps_ordered_sources() -> None:
             knowledge_base_id=KNOWLEDGE_BASE_ID,
             document_id=DOCUMENT_ID,
             chunk_id=CHUNK_ID,
+            embedding_provider="recording",
+            embedding_model="synthetic-query-embedding",
             filename="guide.md",
             chunk_index=0,
             content="Retriever overview",
@@ -201,6 +209,8 @@ def test_retrieve_embeds_query_and_maps_ordered_sources() -> None:
             knowledge_base_id=KNOWLEDGE_BASE_ID,
             document_id=DOCUMENT_ID,
             chunk_id=SECOND_CHUNK_ID,
+            embedding_provider="recording",
+            embedding_model="synthetic-query-embedding",
             filename="guide.md",
             chunk_index=1,
             content="Second source",
@@ -229,6 +239,8 @@ def test_retrieve_forwards_custom_limit_and_threshold_for_zero_hits() -> None:
     assert store.search_queries == [
         VectorSearchQuery(
             knowledge_base_id=KNOWLEDGE_BASE_ID,
+            embedding_provider="recording",
+            embedding_model="synthetic-query-embedding",
             vector=(0.1, 0.2, 0.3),
             limit=2,
             score_threshold=0.75,
@@ -367,6 +379,33 @@ def test_retrieve_rejects_result_outside_requested_knowledge_base() -> None:
                 knowledge_base_id=OTHER_KNOWLEDGE_BASE_ID
             ),
         )
+    )
+
+    with pytest.raises(
+        RetrieverResponseError,
+        match="vector search response is invalid",
+    ):
+        asyncio.run(
+            make_retriever(provider, store).retrieve(
+                query="private question",
+                knowledge_base_id=KNOWLEDGE_BASE_ID,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "result_overrides",
+    [
+        {"embedding_provider": "other-provider"},
+        {"embedding_model": "other-model"},
+    ],
+)
+def test_retrieve_rejects_result_outside_query_embedding_identity(
+    result_overrides: dict[str, str],
+) -> None:
+    provider = RecordingEmbeddingProvider()
+    store = RecordingVectorStore(
+        results=(make_search_result(**result_overrides),)
     )
 
     with pytest.raises(

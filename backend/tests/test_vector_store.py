@@ -31,6 +31,8 @@ def sample_payload() -> ChunkVectorPayload:
         knowledge_base_id=KNOWLEDGE_BASE_ID,
         document_id=DOCUMENT_ID,
         chunk_id=CHUNK_ID,
+        embedding_provider="synthetic",
+        embedding_model="synthetic-model",
         filename="README.md",
         chunk_index=0,
         content="AI Agent Lab overview",
@@ -78,6 +80,8 @@ class MockVectorStore(VectorStore):
             )
             for point in self.points.values()
             if point.payload.knowledge_base_id == query.knowledge_base_id
+            and point.payload.embedding_provider == query.embedding_provider
+            and point.payload.embedding_model == query.embedding_model
         )[: query.limit]
 
     async def delete_document_vectors(
@@ -117,6 +121,8 @@ def test_vector_store_contract_is_replaceable() -> None:
         results = await store.search(
             VectorSearchQuery(
                 knowledge_base_id=KNOWLEDGE_BASE_ID,
+                embedding_provider="synthetic",
+                embedding_model="synthetic-model",
                 vector=(0.3, 0.2, 0.1),
                 limit=5,
             )

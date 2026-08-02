@@ -71,8 +71,10 @@ register that instance and select it using `settings.embedding_provider`.
 ## Model And Dimension Invariants
 
 Model and dimension form a storage contract. Every collection that will store
-the returned vectors must use the same dimension, and existing vectors cannot
-be mixed silently with another model or dimension.
+the returned vectors must use the same dimension. Plan 3 also writes the
+normalized Provider name and actual returned model into every Qdrant point and
+requires both in the query filter, so equal-dimension vectors from different
+models are never compared silently.
 
 The configured dimension has two roles:
 
@@ -86,8 +88,9 @@ the request or return its model default. A returned mismatch raises
 does not include input text, vector values, credentials, or the remote body.
 
 The result records the model name returned by the service. This can differ from
-the configured alias and is the identity that later ingestion/audit work should
-preserve.
+the configured alias. Ingestion persists that actual identity in the vector
+payload; Retriever uses the query response identity for filtering and exposes
+it in Query/Chat/Tool sources and `rag_queries` snapshots.
 
 ## Batch Behavior
 
@@ -148,6 +151,9 @@ code. Remote response bodies are not copied into exceptions.
   or persisted embedding-call audit row.
 - The Provider adapter remains storage-independent; the ingestion pipeline
   composes it with the separate Qdrant VectorStore.
+- Points written before embedding-identity payload filtering was introduced do
+  not contain those fields and require re-ingestion before repaired retrieval
+  can return them.
 - M3 does not persist embedding-call usage/cost or provide automatic retry and
   orphan reconciliation workflows.
 - The M4 Retriever and RAG Query/Chat services remain separate callers of this
