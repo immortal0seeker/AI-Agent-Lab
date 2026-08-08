@@ -92,6 +92,64 @@ def make_query_result(
     )
 
 
+def test_agent_query_executor_disables_standalone_rag_trace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api import dependencies
+
+    captured: dict[str, object] = {}
+
+    class FakeStore:
+        async def close(self) -> None:
+            captured["closed"] = True
+
+    class FakeService:
+        def __init__(
+            self,
+            session: object,
+            *,
+            retriever: object,
+            trace_enabled: bool,
+        ) -> None:
+            captured["session"] = session
+            captured["retriever"] = retriever
+            captured["trace_enabled"] = trace_enabled
+
+        async def query(self, request: RagRetrievalRequest) -> RagQueryResult:
+            captured["request"] = request
+            return make_query_result()
+
+    store = FakeStore()
+    synthetic_session = object()
+    monkeypatch.setattr(
+        dependencies,
+        "create_embedding_provider",
+        lambda settings: object(),
+    )
+    monkeypatch.setattr(
+        dependencies,
+        "create_qdrant_vector_store",
+        lambda settings: store,
+    )
+    monkeypatch.setattr(dependencies, "RagQueryService", FakeService)
+    executor = dependencies.get_rag_tool_query_executor(
+        session=synthetic_session,
+        settings=object(),
+    )
+    request = RagRetrievalRequest(
+        knowledge_base_id=KNOWLEDGE_BASE_ID,
+        query="Tool retrieval",
+    )
+
+    result = asyncio.run(executor(request))
+
+    assert result.rag_query.id == RAG_QUERY_ID
+    assert captured["session"] is synthetic_session
+    assert captured["trace_enabled"] is False
+    assert captured["request"] == request
+    assert captured["closed"] is True
+
+
 def test_search_knowledge_base_tool_exposes_bounded_read_only_schema() -> None:
     tool = SearchKnowledgeBaseTool(
         query_executor=RecordingQueryExecutor()

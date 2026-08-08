@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from app.models.agent_run import AgentRun
     from app.models.conversation import Conversation
     from app.models.message import Message
+    from app.models.retrieval import RagRetrievalRun
 
 
 def enum_values_sql(enum_type: type[TraceRunType | TraceStatus | TraceStepType]) -> str:
@@ -173,6 +174,12 @@ class TraceRun(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="TraceStep.step_index",
+    )
+    retrieval_runs: Mapped[list[RagRetrievalRun]] = relationship(
+        back_populates="trace_run",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="RagRetrievalRun.created_at",
     )
 
 

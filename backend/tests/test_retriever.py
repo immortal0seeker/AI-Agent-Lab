@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import FrozenInstanceError
 from math import inf, nan
 from uuid import UUID
 
@@ -246,6 +247,26 @@ def test_retrieve_forwards_custom_limit_and_threshold_for_zero_hits() -> None:
             score_threshold=0.75,
         )
     ]
+
+
+def test_retrieve_batch_preserves_embedding_identity_for_zero_hits() -> None:
+    provider = RecordingEmbeddingProvider()
+    store = RecordingVectorStore()
+
+    batch = asyncio.run(
+        make_retriever(provider, store).retrieve_batch(
+            query="No matching source",
+            knowledge_base_id=KNOWLEDGE_BASE_ID,
+            top_k=2,
+            score_threshold=0.75,
+        )
+    )
+
+    assert batch.results == ()
+    assert batch.embedding_provider == "recording"
+    assert batch.embedding_model == "synthetic-query-embedding"
+    with pytest.raises(FrozenInstanceError):
+        batch.embedding_model = "changed"
 
 
 @pytest.mark.parametrize("query", [None, 7, "", " \n\t "])

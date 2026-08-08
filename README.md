@@ -13,10 +13,10 @@ commit `46ea94a`. An independent post-release audit repaired embedding-identity
 isolation and compatible concurrent collection creation; the user published
 those repairs as annotated `v0.3.1` at `6bcf423` while preserving the original
 tag. Plan 4 M1 is complete through `P4-M1-S7`, and M2 is complete through
-`P4-M2-S3`: non-streaming Chat, streaming Chat, and the final Naive RAG Chat
-LLM call now persist standardized success/failure Trace Runs/Steps. Agent/Tool
-hooks, retrieval candidates/Steps, Trace API, and Timeline UI are not yet
-implemented.
+`P4-M2-S6`: standalone RAG Query now records retrieval Runs/candidates, while
+RAG Chat records ordered retrieval, Prompt, LLM, and final-answer Steps with
+durable retrieval evidence on Provider failure. Agent/Tool hooks, Trace API,
+and Timeline UI are not yet implemented.
 
 Plan 1 covers:
 
@@ -31,9 +31,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Verified implementation scope: `P1-M1-S1` through `P4-M2-S3`, including the
-Plan 3 final-audit repair, Plan 4 M1 Trace foundation, and the first three LLM
-Trace runtime integrations.
+Verified implementation scope: `P1-M1-S1` through `P4-M2-S6`, including the
+Plan 3 final-audit repair, Plan 4 M1 Trace foundation, LLM Trace integration,
+and Naive RAG retrieval/Prompt/answer Trace persistence.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -197,6 +197,11 @@ provides a current-session non-streaming RAG Chat and exact source cards, but
 Document list/detail/chunk-query/delete APIs remain deferred. It therefore
 cannot reload persistent Document or RAG source history after refresh, preview
 Chunks outside an answer, or expose the Agent knowledge Tool through the UI.
+Plan 4 revision `20260808_0009` adds `rag_retrieval_runs` and
+`rag_retrieval_candidates`. Standalone Query and RAG Chat persist strategy,
+embedding identity, ordered candidate/source snapshots, Prompt source usage,
+and answer linkage under a shared Trace Run without changing either API
+response.
 
 ## v0.1.0 Demo
 
@@ -454,8 +459,9 @@ The backend defaults to `sqlite:///./ai_agent_lab.db`. Override it with
 `DATABASE_URL` in a local untracked environment file when needed. Alembic owns
 schema creation and currently creates `conversations`, `messages`, `llm_calls`,
 `agent_runs`, `tool_calls`, `knowledge_bases`, `documents`, `document_chunks`,
-and `rag_queries`; the application does not create tables during startup. The
-Plan 2 migrations also enforce that an AgentRun's optional user
+`rag_queries`, `trace_runs`, `trace_steps`, `rag_retrieval_runs`, and
+`rag_retrieval_candidates`; the application does not create tables during
+startup. The Plan 2 migrations also enforce that an AgentRun's optional user
 Message belongs to the same Conversation and that each ToolCall has a positive,
 per-run unique `sequence_index`.
 
@@ -647,6 +653,7 @@ Release documentation:
 - [Plan 3 v0.3.0 Codex final review](docs/reviews/2026-08-02-plan3-v0.3.0-final-review.md)
 - [Plan 4 M1 Trace foundation final review](docs/reviews/2026-08-02-plan4-m1-final-review.md)
 - [Plan 4 M2 S1-S3 LLM Trace review](docs/reviews/2026-08-08-plan4-m2-s1-s3-review.md)
+- [Plan 4 M2 S4-S6 RAG Trace review](docs/reviews/2026-08-08-plan4-m2-s4-s6-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
 
@@ -679,9 +686,12 @@ temporary-SQLite, Mock-LLM API smoke. The frontend creates a dedicated
 Conversation on the first RAG question and renders current-session answers,
 ordered sources, and correlation IDs. It does not restore RAG turns/sources
 after refresh, and the backend-only Agent Tool has no dedicated frontend.
-Query/Chat/Tool create RagQuery audit rows. Chat and the final RAG Chat LLM call
-now create Trace runtime records, but RAG streaming, retrieval candidate Trace,
-Agent/Tool Trace hooks, and Advanced RAG do not exist.
+Query/Chat/Tool create RagQuery audit rows. Chat LLM calls create Trace runtime
+records; standalone RAG Query and RAG Chat now also retain retrieval candidates,
+Prompt source selection, and final-answer linkage. The Agent knowledge Tool
+deliberately keeps its existing Agent-owned transaction and does not create a
+standalone Trace yet. RAG streaming, Trace API/Timeline, Agent/Tool Trace hooks,
+and Advanced RAG do not exist.
 Returned Embedding Provider usage remains in memory. Normal request
 rollback compensates vectors, while a hard process crash after Qdrant write can
 still leave orphan points for later reconciliation.
@@ -694,6 +704,6 @@ the repaired retrieval filter.
 - Plan 1: Project foundation + Basic Chat + LLM Providers
 - Plan 2: Tool Calling + Simple Agent Loop
 - Plan 3: Knowledge Base + Document Ingestion + Naive RAG (`v0.3.0`; audit hardening published as `v0.3.1`)
-- Plan 4: Trace + Advanced RAG + Rerank + Evaluation (M1 complete; M2 S1～S3 LLM Trace integration complete)
+- Plan 4: Trace + Advanced RAG + Rerank + Evaluation (M1 complete; M2 S1～S6 LLM/RAG Trace integration complete)
 - Plan 5: Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6: MCP + Voice + Vision + Desktop

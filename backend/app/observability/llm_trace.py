@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
@@ -141,6 +142,7 @@ class LLMTraceRecorder:
         response_model: str,
         metrics: LLMCallMetrics,
         output_text: str,
+        finish_run: bool = True,
     ) -> TraceRun:
         usage = LLMStepUsageMetadata(
             input_tokens=metrics.input_tokens,
@@ -169,7 +171,8 @@ class LLMTraceRecorder:
         record.total_output_tokens = metrics.output_tokens
         record.total_tokens = metrics.total_tokens
         record.estimated_cost = metrics.estimated_cost
-        self._traces.finish_run(record, output_text=output_text)
+        if finish_run:
+            self._traces.finish_run(record, output_text=output_text)
         return record
 
     def persist_failure(
@@ -178,6 +181,7 @@ class LLMTraceRecorder:
         *,
         error: BaseException,
         conversation_id: UUID | None,
+        before_failed_call: Callable[[LLMTraceRun], None] | None = None,
     ) -> TraceRun | None:
         snapshot = trace_call.snapshot
         try:
@@ -192,11 +196,13 @@ class LLMTraceRecorder:
                 conversation_id=conversation_id,
                 user_message_id=None,
             )
+            failed_run.record.started_at = snapshot.run_started_at
+            if before_failed_call is not None:
+                before_failed_call(failed_run)
             failed_call = self.start_call(
                 failed_run,
                 message_count=snapshot.message_count,
             )
-            failed_run.record.started_at = snapshot.run_started_at
             failed_call.step.started_at = snapshot.step_started_at
             safe_error = type(error).__name__
             self._traces.fail_step(

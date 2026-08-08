@@ -1,4 +1,5 @@
 from copy import deepcopy
+from dataclasses import dataclass
 from math import isfinite
 from uuid import UUID
 
@@ -23,6 +24,13 @@ class RetrieverResponseError(RetrieverError):
     """Retriever 收到不可信的组合边界响应。"""
 
 
+@dataclass(frozen=True, slots=True)
+class RetrievalBatch:
+    results: tuple[RetrievalResult, ...]
+    embedding_provider: str
+    embedding_model: str
+
+
 class Retriever:
     def __init__(
         self,
@@ -41,6 +49,22 @@ class Retriever:
         top_k: int = 5,
         score_threshold: float | None = None,
     ) -> tuple[RetrievalResult, ...]:
+        batch = await self.retrieve_batch(
+            query=query,
+            knowledge_base_id=knowledge_base_id,
+            top_k=top_k,
+            score_threshold=score_threshold,
+        )
+        return batch.results
+
+    async def retrieve_batch(
+        self,
+        *,
+        query: str,
+        knowledge_base_id: UUID,
+        top_k: int = 5,
+        score_threshold: float | None = None,
+    ) -> RetrievalBatch:
         _validate_retrieval_input(
             query=query,
             knowledge_base_id=knowledge_base_id,
@@ -85,8 +109,12 @@ class Retriever:
             raise RetrieverResponseError(
                 "Retriever vector search response is invalid."
             ) from None
-        return tuple(
-            _to_retrieval_result(result) for result in search_results
+        return RetrievalBatch(
+            results=tuple(
+                _to_retrieval_result(result) for result in search_results
+            ),
+            embedding_provider=self._embedding_provider.name,
+            embedding_model=embedding.model,
         )
 
 

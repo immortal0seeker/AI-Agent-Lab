@@ -17,9 +17,10 @@ Chat, or Agent Tool retrieval persists one `rag_queries` row.
 
 M4 S8 also registers a bounded read-only `search_knowledge_base` Tool for the
 existing Simple Agent. M5 S4～S6 adds a current-session frontend RAG Chat and
-source display on top of these existing endpoints; neither milestone adds
-Advanced RAG, hybrid search, metadata filtering, reranking, evaluation, Trace
-runtime, memory, OCR, or multimodal behavior.
+source display on top of these existing endpoints. Plan 4 M2 S4～S6 adds
+backend-only retrieval candidate and Prompt/answer Trace persistence without
+changing either RAG response. Advanced RAG, hybrid search, metadata filtering,
+reranking, evaluation, memory, OCR, and multimodal behavior remain absent.
 
 ## Runtime Components
 
@@ -31,6 +32,7 @@ POST /api/v1/rag/query
   -> Retriever
   -> EmbeddingProvider.embed_query()
   -> Knowledge-Base-and-embedding-identity-filtered VectorStore.search()
+  -> persist TraceRun + rag_retrieve Step + retrieval candidates
   -> persist RagQuery audit
   -> RagQueryResponse(rag_query_id + results + metadata)
 
@@ -40,10 +42,13 @@ POST /api/v1/rag/chat
   -> validate model/provider/Knowledge Base/conversation
   -> append raw user Message
   -> Retriever
+  -> persist rag_retrieve Step + retrieval candidates
   -> persist RagQuery audit
   -> RagPromptBuilder(system + history + bounded sources + question)
+  -> persist build_prompt Step source references
   -> BaseLLMProvider.chat()
   -> append assistant Message + LLMCall
+  -> persist llm_call + final_answer Steps
   -> link RagQuery to Conversation + assistant Message
   -> RagChatResponse(rag_query_id + answer + indexed sources + metadata)
 ```
@@ -193,12 +198,18 @@ one query embedding request, one vector search, and one LLM chat request.
 
 ## Transactions And Errors
 
-The request dependency owns commit/rollback. `RagService.chat()` also rolls back
-when called directly and any retrieval, Prompt, or Provider step fails. A failed
-turn leaves no new user Message, assistant Message, LLMCall, or RagQuery and
-preserves previously committed conversation history. Retrieval-only Query and
-Tool calls flush exactly one independent audit on success; a missing Knowledge
-Base or retrieval failure leaves none.
+The request dependency owns normal commit/rollback. `RagService.chat()` also
+rolls back when called directly and any retrieval, Prompt, or Provider step
+fails. A failed turn leaves no new user Message, assistant Message, LLMCall, or
+RagQuery and preserves previously committed conversation history.
+
+Successful standalone Query and RAG Chat Trace rows share that transaction.
+Retrieval failures roll back provisional rows, then best-effort persist and
+commit one failed Run plus failed `rag_retrieve` Step containing only the
+exception class. If the Provider fails after Prompt construction, the durable
+failed RAG Chat Run replays completed retrieval candidates and `build_prompt`
+metadata before the failed `llm_call` Step. A failure while building the Prompt
+itself remains on the ordinary full-rollback path and creates no durable Trace.
 
 ## Agent Tool Contract
 
@@ -226,7 +237,26 @@ Agent dependency construction remains lazy: ordinary direct-answer or file-Tool
 runs do not initialize Embedding/Qdrant. Those clients are created and closed
 only if `search_knowledge_base` executes. The Tool is backend-only and reuses
 the existing synchronous, non-streaming Plan 2 Agent loop without adding states
-or later-Plan Trace behavior.
+or later-Plan Trace behavior. Its internal `RagQueryService` explicitly disables
+standalone Trace creation so retrieval audit does not commit outside the Agent
+transaction; Agent/Tool Trace integration remains a later batch.
+
+## Plan 4 Retrieval Trace Contract
+
+Alembic revision `20260808_0009` adds one `rag_retrieval_runs` row per completed
+retrieval and ordered `rag_retrieval_candidates`. The run stores Naive Vector
+strategy, Knowledge Base/query/Top-K/threshold, counts, latency, and embedding
+Provider/model filter identity. Each candidate stores stable Chunk/Document IDs,
+rank/final rank, dense score, selection, a bounded content preview, and only the
+approved metadata keys `source_format`, `start_char`, `end_char`, and
+`heading_level` in addition to stable source fields.
+
+RAG Chat `build_prompt` metadata contains prompt version, bounded context size,
+and ordered candidate/Document/Chunk references with included-character and
+truncation facts. `final_answer` contains only RagQuery, answer Message, and
+LLMCall IDs plus counts; answer text remains at the Run/business Message layer.
+No full Prompt, source body, raw vector payload, Provider response, or arbitrary
+Chunk metadata is copied into Step JSON.
 
 Stable API errors include:
 
@@ -278,8 +308,11 @@ not live semantic model quality.
 - The Knowledge workspace has non-streaming current-session RAG Chat and source
   cards, but refresh cannot restore prior RAG turns/sources because no RagQuery
   list/detail endpoint exists. No dedicated Agent knowledge-Tool UI is present.
+- Retrieval Trace has no list/detail API or Timeline UI yet. Prompt-construction
+  failures before an LLM attempt use ordinary rollback and leave no durable
+  failed Trace.
 - No query rewrite, hybrid retrieval, metadata filtering, reranking, evaluation,
-  trace runtime, memory, OCR, or multimodal behavior is present.
+  Agent/Tool Trace, memory, OCR, or multimodal behavior is present.
 
 See [Architecture](01-architecture.md),
 [Knowledge Base Design](20-knowledge-base-design.md),

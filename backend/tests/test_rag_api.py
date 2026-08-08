@@ -25,6 +25,8 @@ from app.models import (
     LLMCall,
     Message,
     RagQuery,
+    RagRetrievalCandidate,
+    RagRetrievalRun,
     TraceRun,
     TraceStep,
 )
@@ -308,6 +310,19 @@ def test_rag_query_api_returns_results_metadata_and_audit_id(
         assert stored.answer_message_id is None
         assert stored.latency_ms is not None
         assert stored.retrieved_chunks_json[0]["chunk_id"] == str(CHUNK_ID)
+        trace_run = session.scalar(select(TraceRun))
+        retrieval_run = session.scalar(select(RagRetrievalRun))
+        candidate = session.scalar(select(RagRetrievalCandidate))
+        assert trace_run is not None
+        assert trace_run.run_type == TraceRunType.RAG_QUERY.value
+        assert trace_run.status == TraceStatus.COMPLETED.value
+        assert [step.step_type for step in trace_run.steps] == [
+            TraceStepType.RAG_RETRIEVE.value
+        ]
+        assert retrieval_run is not None
+        assert retrieval_run.trace_run_id == trace_run.id
+        assert candidate is not None
+        assert candidate.chunk_id == CHUNK_ID
 
 
 def test_rag_query_api_does_not_resolve_llm_dependencies(
@@ -402,9 +417,12 @@ def test_rag_chat_api_returns_answer_sources_and_persists_messages(
         )
         assert stored.top_k == 3
         trace_run = session.scalar(select(TraceRun))
-        trace_step = session.scalar(select(TraceStep))
+        trace_steps = session.scalars(
+            select(TraceStep).order_by(TraceStep.step_index)
+        ).all()
         assert trace_run is not None
-        assert trace_step is not None
+        assert len(trace_steps) == 4
+        retrieval_step, prompt_step, llm_step, final_step = trace_steps
         assert trace_run.run_type == TraceRunType.RAG_CHAT.value
         assert trace_run.status == TraceStatus.COMPLETED.value
         assert trace_run.conversation_id == conversation_id
@@ -415,14 +433,40 @@ def test_rag_chat_api_returns_answer_sources_and_persists_messages(
         }
         assert trace_run.model == "resolved-model"
         assert trace_run.total_tokens == 12
-        assert trace_step.trace_run_id == trace_run.id
-        assert trace_step.step_type == TraceStepType.LLM_CALL.value
-        assert trace_step.status == TraceStatus.COMPLETED.value
-        assert trace_step.input_json["message_count"] == len(
+        assert retrieval_step.trace_run_id == trace_run.id
+        assert retrieval_step.step_type == TraceStepType.RAG_RETRIEVE.value
+        assert retrieval_step.status == TraceStatus.COMPLETED.value
+        assert prompt_step.trace_run_id == trace_run.id
+        assert prompt_step.step_type == TraceStepType.BUILD_PROMPT.value
+        assert prompt_step.status == TraceStatus.COMPLETED.value
+        assert llm_step.trace_run_id == trace_run.id
+        assert llm_step.step_type == TraceStepType.LLM_CALL.value
+        assert llm_step.status == TraceStatus.COMPLETED.value
+        assert llm_step.input_json["message_count"] == len(
             llm_provider.requests[0].messages
         )
-        assert trace_step.output_json is not None
-        assert trace_step.output_json["usage"]["total_tokens"] == 12
+        assert llm_step.output_json is not None
+        assert llm_step.output_json["usage"]["total_tokens"] == 12
+        retrieval_run = session.scalar(select(RagRetrievalRun))
+        candidate = session.scalar(select(RagRetrievalCandidate))
+        assert retrieval_run is not None
+        assert retrieval_run.trace_run_id == trace_run.id
+        assert candidate is not None
+        assert candidate.chunk_id == CHUNK_ID
+        assert prompt_step.output_json is not None
+        assert prompt_step.output_json["sources"][0]["candidate_id"] == str(
+            candidate.id
+        )
+        assert final_step.trace_run_id == trace_run.id
+        assert final_step.step_type == TraceStepType.FINAL_ANSWER.value
+        assert final_step.status == TraceStatus.COMPLETED.value
+        assert final_step.output_json == {
+            "rag_query_id": str(rag_query_id),
+            "answer_message_id": payload["assistant_message"]["id"],
+            "llm_call_id": payload["llm_call_id"],
+            "source_count": 1,
+            "answer_characters": len(payload["answer"]),
+        }
         assert stored.retrieved_chunks_json[0]["chunk_id"] == str(CHUNK_ID)
 
 
@@ -484,7 +528,7 @@ def test_rag_query_api_returns_safe_missing_knowledge_base_error(
 def test_rag_query_api_maps_untrusted_retrieval_response_to_safe_502(
     rag_api_context: Any,
 ) -> None:
-    client, _, _, _, vector_store, _ = rag_api_context
+    client, session_factory, _, _, vector_store, _ = rag_api_context
     vector_store.results = (
         make_search_result(knowledge_base_id=OTHER_KNOWLEDGE_BASE_ID),
     )
@@ -506,6 +550,21 @@ def test_rag_query_api_maps_untrusted_retrieval_response_to_safe_502(
         }
     }
     assert "private cross-KB question" not in response.text
+    with session_factory() as session:
+        assert session.scalar(select(func.count()).select_from(RagQuery)) == 0
+        assert session.scalar(
+            select(func.count()).select_from(RagRetrievalRun)
+        ) == 0
+        trace_run = session.scalar(select(TraceRun))
+        trace_step = session.scalar(select(TraceStep))
+        assert trace_run is not None
+        assert trace_run.run_type == TraceRunType.RAG_QUERY.value
+        assert trace_run.status == TraceStatus.FAILED.value
+        assert trace_run.error_message == "RetrieverResponseError"
+        assert trace_step is not None
+        assert trace_step.step_type == TraceStepType.RAG_RETRIEVE.value
+        assert trace_step.status == TraceStatus.FAILED.value
+        assert trace_step.error_message == "RetrieverResponseError"
 
 
 def test_rag_chat_api_rolls_back_messages_when_provider_fails(
@@ -539,24 +598,43 @@ def test_rag_chat_api_rolls_back_messages_when_provider_fails(
         assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
         assert session.scalar(select(func.count()).select_from(RagQuery)) == 0
         trace_run = session.scalar(select(TraceRun))
-        trace_step = session.scalar(select(TraceStep))
+        trace_steps = session.scalars(
+            select(TraceStep).order_by(TraceStep.step_index)
+        ).all()
         assert trace_run is not None
-        assert trace_step is not None
+        assert len(trace_steps) == 3
+        retrieval_step, prompt_step, llm_step = trace_steps
         assert trace_run.run_type == TraceRunType.RAG_CHAT.value
         assert trace_run.status == TraceStatus.FAILED.value
         assert trace_run.conversation_id == conversation_id
         assert trace_run.user_message_id is None
         assert trace_run.error_message == "ProviderRequestError"
-        assert trace_step.status == TraceStatus.FAILED.value
-        assert trace_step.error_message == "ProviderRequestError"
-        assert trace_step.output_json is None
+        assert retrieval_step.step_type == TraceStepType.RAG_RETRIEVE.value
+        assert retrieval_step.status == TraceStatus.COMPLETED.value
+        assert prompt_step.step_type == TraceStepType.BUILD_PROMPT.value
+        assert prompt_step.status == TraceStatus.COMPLETED.value
+        assert llm_step.step_type == TraceStepType.LLM_CALL.value
+        assert llm_step.status == TraceStatus.FAILED.value
+        assert llm_step.error_message == "ProviderRequestError"
+        assert llm_step.output_json is None
+        retrieval_run = session.scalar(select(RagRetrievalRun))
+        candidate = session.scalar(select(RagRetrievalCandidate))
+        assert retrieval_run is not None
+        assert retrieval_run.trace_run_id == trace_run.id
+        assert candidate is not None
+        assert candidate.retrieval_run_id == retrieval_run.id
+        assert prompt_step.output_json is not None
+        assert prompt_step.output_json["sources"][0]["candidate_id"] == str(
+            candidate.id
+        )
         assert "private provider diagnostic" not in repr(
             (
                 trace_run.metadata_json,
                 trace_run.error_message,
-                trace_step.input_json,
-                trace_step.output_json,
-                trace_step.error_message,
+                [step.input_json for step in trace_steps],
+                [step.output_json for step in trace_steps],
+                [step.error_message for step in trace_steps],
+                candidate.metadata_json,
             )
         )
 

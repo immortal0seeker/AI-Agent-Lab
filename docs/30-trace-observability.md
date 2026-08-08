@@ -7,12 +7,11 @@ Plan 4 M1 provides a persistent, reusable Trace foundation. It defines one
 database constraints, lifecycle writes, request-local context propagation, and
 JSON-safe token/cost/latency metadata.
 
-Plan 4 M2 S1～S3 activate that foundation for three LLM paths: non-streaming
-Chat, streaming Chat, and the final LLM call in Naive RAG Chat. Each attempted
-Provider call writes one `llm_call` Step with a stable prompt version,
-Provider/model identity, message count, usage, estimated cost, and
-latency. Tool/Agent execution and retrieval-specific Steps are not connected
-yet. There is still no Trace API or frontend Timeline.
+Plan 4 M2 S1～S6 activate that foundation for Chat and Naive RAG. Chat and the
+final LLM call in RAG Chat write `llm_call`; standalone RAG Query also writes
+`rag_retrieve`, while RAG Chat writes ordered `rag_retrieve`, `build_prompt`,
+`llm_call`, and `final_answer` Steps plus durable retrieval Run/candidate rows.
+There is still no Agent/Tool Trace, Trace API, or frontend Timeline.
 
 SQLite remains the business and audit database. Qdrant remains vector storage
 only and is not involved in Trace persistence.
@@ -25,11 +24,15 @@ only and is not involved in Trace persistence.
 | [`trace.py` ORM](../backend/app/models/trace.py) | `TraceRun` / `TraceStep` persistence, constraints, relationships, and ownership validation |
 | [`trace.py` schemas](../backend/app/schemas/trace.py) | Strict create/read validation and JSON-safe public field types |
 | [`20260802_0008`](../backend/alembic/versions/20260802_0008_trace_foundation.py) | `trace_runs` / `trace_steps` schema migration |
+| [`retrieval.py` ORM](../backend/app/models/retrieval.py) | Retrieval Run/candidate audit snapshots, constraints, ordering, and Trace ownership |
+| [`retrieval.py` schemas](../backend/app/schemas/retrieval.py) | Strict retrieval/Prompt/final-answer persistence and Step metadata contracts |
+| [`20260808_0009`](../backend/alembic/versions/20260808_0009_rag_retrieval_trace.py) | `rag_retrieval_runs` / `rag_retrieval_candidates` schema migration |
 | [`trace_service.py`](../backend/app/observability/trace_service.py) | Run/step lifecycle mutations and deterministic step-index allocation |
 | [`trace_context.py`](../backend/app/observability/trace_context.py) | Request/task-local Trace ID binding and step context management |
 | [`token_cost.py`](../backend/app/observability/token_cost.py) | Provider latency timing, token/cost calculation, and Trace metadata serialization |
 | [`prompt_version.py`](../backend/app/observability/prompt_version.py) | Stable `chat-history-v1` and `naive-rag-v1` prompt-shape identifiers |
 | [`llm_trace.py`](../backend/app/observability/llm_trace.py) | Service-level LLM Run/Step coordination and safe Provider-failure audit transaction |
+| [`retrieval_recorder.py`](../backend/app/rag/retrieval_recorder.py) | Naive RAG retrieval/Prompt/answer Step orchestration and safe retrieval/failure snapshots |
 | [`llm_usage.py`](../backend/app/services/llm_usage.py) | Compatibility re-exports for existing Chat/RAG callers |
 
 The implemented dependency direction is:
@@ -47,6 +50,10 @@ LLM TokenUsage + ModelInfo
 Chat Service / RAG Service
 -> LLM Trace Recorder
 -> Trace Service
+
+RAG Query Service / RAG Service
+-> RAG Trace Recorder
+-> Retrieval audit models + Trace Service
 ```
 
 ## TraceRun Contract
@@ -167,9 +174,15 @@ back. The calling request/service owns the transaction:
   in the same request-owned transaction;
 - successful streaming Chat completes both business and Trace state before the
   stream service's existing commit;
+- successful standalone RAG Query and RAG Chat persist retrieval audits in the
+  same caller-owned transaction as `RagQuery` and other business rows;
+- a retrieval failure rolls back provisional business/Trace rows, recreates a
+  failed Run and `rag_retrieve` Step, commits that class-name-only audit, and
+  re-raises the original exception;
 - after an attempted LLM call raises `LLMProviderError`, the Recorder snapshots
   safe identifiers/timestamps, rolls back provisional business and Trace rows,
-  recreates one standalone failed Run/Step, commits that audit, and then the
+  recreates one standalone failed Run, replays completed retrieval/Prompt rows
+  for RAG Chat, appends the failed LLM Step, commits that audit, and then the
   product service re-raises the original Provider exception;
 - a failed new Chat Run is uncorrelated because its provisional Conversation
   was rolled back; failures in an existing Chat/RAG Conversation retain only
@@ -178,8 +191,9 @@ back. The calling request/service owns the transaction:
 - Trace audit persistence is best-effort: if it fails, only the Trace exception
   class is logged and the original Provider exception remains authoritative.
 
-Early streaming consumer cancellation and failures before an LLM attempt use
-the existing rollback path and deliberately leave no durable Trace.
+Early streaming consumer cancellation and RAG Prompt-construction failures
+before an LLM attempt use the existing rollback path and deliberately leave no
+durable Trace.
 
 ## Trace Context
 
@@ -278,10 +292,51 @@ The schemas are frozen, reject unknown fields, require positive message counts,
 and keep costs as fixed eight-decimal strings. Step JSON excludes full Chat
 history, RAG context/source bodies, raw Provider payloads, and exception text.
 
+## Naive RAG Trace Contract
+
+Every traced retrieval owns one `RagRetrievalRun` linked to its `TraceRun`.
+It stores `naive_vector`, the original query, Knowledge Base ID, requested
+Top-K/threshold, result/selection counts, elapsed milliseconds, and the exact
+Embedding Provider/model identity used by the vector filter. `Retriever` returns
+that identity even for zero hits through an additive `RetrievalBatch`; the
+existing tuple-returning method remains compatible.
+
+Candidates are ordered by positive one-based rank. For Naive Vector retrieval,
+`rank` and `final_rank` match, `source` is `dense`, the retrieval score is stored
+as `dense_score`, and every returned candidate is selected. Each row preserves
+Chunk/Document snapshot IDs, a Unicode-safe preview capped at 500 characters,
+filename/index/heading/page and embedding identity, plus only these nested Chunk
+metadata fields when present: `source_format`, `start_char`, `end_char`, and
+`heading_level`. Raw VectorStore payloads and arbitrary metadata are excluded.
+
+The successful Step order is deterministic:
+
+```text
+RAG Query: rag_retrieve
+RAG Chat:  rag_retrieve -> build_prompt -> llm_call -> final_answer
+```
+
+The retrieval Step records strategy, Knowledge Base ID, Top-K/threshold and the
+retrieval Run/counts. The Prompt Step records `naive-rag-v1`, context size, and
+ordered candidate/Document/Chunk references with included-character/truncation
+facts; it never stores the expanded Prompt or source bodies. The final-answer
+Step records RagQuery, answer Message, and LLMCall IDs plus source/character
+counts; answer text remains in the Trace Run output and business Message.
+
+RAG Chat reuses its existing Trace Run, and the LLM Recorder can complete the
+`llm_call` Step without prematurely completing that Run. Standalone Query and
+RAG Chat API responses remain unchanged; P4-M2-S7 will expose Trace reads.
+
 ## Persistence And Deletion
 
 Migration `20260802_0008` creates `trace_runs` before `trace_steps` and drops
 them in reverse order during downgrade.
+
+Migration `20260808_0009` creates retrieval Runs followed by candidates and
+drops them in reverse order. A Trace Run deletion cascades through retrieval
+Runs and candidates. Knowledge Base, Document, and Chunk IDs are intentional
+snapshots without source foreign keys, so deleting operational source records
+does not erase completed retrieval evidence.
 
 Optional operational correlations preserve the audit envelope:
 
@@ -312,6 +367,8 @@ bypasses both application gates must preserve the same invariant explicitly.
 - Product LLM failure records persist only the exception class name on the Run
   and Step. Raw Provider diagnostics are neither persisted nor added to log
   extras.
+- Retrieval failure records use the same class-name-only rule. Candidate
+  metadata is allowlisted and previews are capped at 500 characters.
 - JSON payloads are intended for bounded, traceable metadata. M1 does not add
   a generic raw Provider-payload logger.
 - The Service shares the business transaction and never creates a hidden audit
@@ -320,8 +377,11 @@ bypasses both application gates must preserve the same invariant explicitly.
   local-first, primarily single-user boundary uses next-index allocation plus
   the unique constraint as the final guard.
 - Run/Step cancellation behavior and multi-Step metric aggregation are not
-  implemented by the generic lifecycle service. M2 S1～S3 explicitly leave
-  early streaming cancellation unpersisted.
+  implemented by the generic lifecycle service. M2 explicitly leaves early
+  streaming cancellation and Prompt-construction failure unpersisted.
+- `search_knowledge_base` disables standalone retrieval Trace because a durable
+  inner audit commit would violate the existing Agent-owned transaction. Agent
+  and Tool Trace must be introduced together in a later batch.
 
 ## Verification
 
@@ -339,26 +399,28 @@ The executable contracts live in:
 - [`test_chat_api.py`](../backend/tests/test_chat_api.py)
 - [`test_rag_service.py`](../backend/tests/test_rag_service.py)
 - [`test_rag_api.py`](../backend/tests/test_rag_api.py)
+- [`test_retrieval_models.py`](../backend/tests/test_retrieval_models.py)
+- [`test_retrieval_schemas.py`](../backend/tests/test_retrieval_schemas.py)
+- [`test_retrieval_migration.py`](../backend/tests/test_retrieval_migration.py)
+- [`test_rag_trace.py`](../backend/tests/test_rag_trace.py)
 
 Detailed implementation evidence is recorded in the
 [S1-S3 review](reviews/2026-08-02-plan4-m1-s1-s3-review.md) and
 [S4-S6 review](reviews/2026-08-02-plan4-m1-s4-s6-review.md). The M2 S1～S3
 implementation evidence is in the
-[LLM Trace review](reviews/2026-08-08-plan4-m2-s1-s3-review.md).
+[LLM Trace review](reviews/2026-08-08-plan4-m2-s1-s3-review.md); M2 S4～S6 is in
+the [RAG Trace review](reviews/2026-08-08-plan4-m2-s4-s6-review.md).
 
 ## Deferred To Later Plan 4 Batches
 
 - Tool and Agent runtime do not create `TraceRun` / `TraceStep` records.
-- Retrieval-only RAG Query and the retrieval portion of RAG Chat do not yet
-  write candidate/strategy/prompt/source Steps. RAG Chat currently traces only
-  its final LLM call.
 - No Trace list/detail/step API exists.
 - No frontend Trace Timeline exists.
 - No automatic multi-Step Run cost aggregation or durable cancellation policy
   exists.
-- Advanced retrieval candidate records, reranking, and evaluation remain later
-  Plan 4 work.
+- Failed Prompt construction before an LLM attempt leaves no durable Trace.
+- Hybrid/keyword/parent-child/query-rewrite candidates, reranking, and
+  evaluation remain later Plan 4 work.
 
-These are explicit boundaries, not partially available features. M2 S4～S6 own
-retrieval/candidate/prompt/answer Trace data, and M2 S7～S10 own query surfaces,
-Timeline behavior, and the M2 final review.
+These are explicit boundaries, not partially available features. M2 S7～S10 own
+query surfaces, Timeline behavior, and the M2 final review.

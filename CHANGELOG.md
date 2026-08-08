@@ -18,8 +18,14 @@ All notable changes to AI Agent Lab are documented in this file.
   existing business transaction; Provider failures roll back provisional
   business rows and persist a class-name-only failed audit. Prompt versions,
   Provider/model identity, usage, estimated cost, and latency use strict JSON
-  contracts. Agent/Tool hooks, retrieval candidates, Trace API, and Timeline UI
-  remain deferred.
+  contracts.
+- Added Alembic revision `20260808_0009` with retrieval Run/candidate audit
+  tables linked to Trace Runs. Standalone RAG Query and RAG Chat now persist
+  Naive Vector strategy, embedding identity, ordered candidate snapshots,
+  Prompt source selection, and answer audit links. Provider failures preserve
+  completed retrieval/Prompt evidence before the failed LLM Step; retrieval
+  failures preserve a safe class-name-only failed Trace. Agent/Tool hooks,
+  Trace API, and Timeline UI remain deferred.
 
 ## [0.3.1] - 2026-08-02
 

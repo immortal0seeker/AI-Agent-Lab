@@ -208,6 +208,7 @@ def get_rag_tool_query_executor(
                     embedding_provider=embedding_provider,
                     vector_store=vector_store,
                 ),
+                trace_enabled=False,
             )
             return await service.query(request)
         finally:

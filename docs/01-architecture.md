@@ -58,10 +58,10 @@ the stable Chunk payload bridge required by M4. M3 S10～S12 add an independentl
   identity isolation and compatible concurrent collection creation; the user
   published those repairs as annotated `v0.3.1` at commit `6bcf423` while
   preserving the original tag. Plan 4 M1 is complete through `P4-M1-S7`. Plan
-  4 M2 is complete through `P4-M2-S3`: non-streaming Chat, streaming Chat, and
-  the final Naive RAG Chat LLM call now write standardized success/failure
-  Trace Runs/Steps through a service-level Recorder. Agent/Tool hooks,
-  retrieval candidates/Steps, Trace API, and Timeline UI remain deferred.
+  4 M2 is complete through `P4-M2-S6`: Chat LLM calls plus standalone RAG Query
+  and RAG Chat retrieval/Prompt/answer flows now write standardized Trace
+  Runs/Steps and retrieval candidate audits. Agent/Tool hooks, Trace API, and
+  Timeline UI remain deferred.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -132,8 +132,8 @@ Current backend layers:
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM abstractions/adapters plus the M3 Embedding abstraction, validated batch result, runtime Registry, and OpenAI-compatible adapter/factory |
 | `knowledge/` | Plan 3 structured knowledge metadata plus controlled Document storage; models live in `models/` and service policy lives in `services/` |
-| `rag/` | Plan 3 document-processing and Naive RAG boundary; parsers, Cleaner, naive Chunker, ingestion pipeline, VectorStore/Qdrant, source payload, Top-K Retriever, bounded Prompt Builder, and audited Query/Chat orchestration exist through M4 S8 |
-| `observability/` | Plan 4 Trace enums/lifecycle/context/metrics plus stable prompt versions and a service-level LLM Recorder used by Chat, streaming Chat, and the final Naive RAG Chat LLM call; Agent/Tool, retrieval candidates, and query/UI surfaces remain deferred |
+| `rag/` | Plan 3 document-processing and Naive RAG boundary plus the Plan 4 retrieval Trace Recorder; parsers, Cleaner, naive Chunker, ingestion pipeline, VectorStore/Qdrant, source payload, Top-K Retriever, bounded Prompt Builder, audited Query/Chat orchestration, and retrieval/Prompt/answer Trace writes exist |
+| `observability/` | Plan 4 Trace enums/lifecycle/context/metrics plus stable prompt versions and a service-level LLM Recorder used by Chat, streaming Chat, and Naive RAG Chat; Agent/Tool and query/UI surfaces remain deferred |
 | `tools/` | Tool contracts, Registry, schema validation, read-only policy, and the bounded `search_knowledge_base` adapter |
 | `db/` | SQLAlchemy session/database setup plus request-scoped async rollback callbacks and resource finalizers |
 | `models/` | ORM models |
@@ -199,6 +199,11 @@ Plan 4 revision `20260802_0008` adds:
 - `trace_runs`
 - `trace_steps`
 
+Plan 4 revision `20260808_0009` adds:
+
+- `rag_retrieval_runs`
+- `rag_retrieval_candidates`
+
 All model IDs use UUID v4 values. Datetimes are stored as timezone-naive UTC
 values because SQLite does not preserve timezone information consistently.
 Deleting a conversation cascades to its messages and LLM calls. Deleting an
@@ -250,13 +255,25 @@ so raw maintenance SQL must preserve the same invariant explicitly.
 one-based index for deterministic Timeline order. Deleting a TraceRun cascades
 to its steps. Shared string enums plus named database checks constrain run type,
 step type, and lifecycle status, while token/cost/latency values are
-non-negative and JSON defaults are isolated. This S1～S3 foundation does not
-create or update Trace rows from product runtime paths. S4～S6 add strict
+non-negative and JSON defaults are isolated. The foundation provides strict
 flush-only lifecycle writes, request-local nested ContextVar propagation, safe
 automatic Step failure handling, and JSON-safe token/cost/latency metadata.
-The complete current contract is documented in
-[Trace Observability Foundation](30-trace-observability.md). Chat/RAG/Agent
-hooks, Trace API, and Timeline UI remain M2 work.
+
+`RagRetrievalRun` belongs to one TraceRun and persists strategy, original query,
+Knowledge Base snapshot, Top-K/threshold, candidate counts, embedding filter
+identity, and retrieval latency. Its ordered `RagRetrievalCandidate` children
+preserve Chunk/Document IDs, ranks, dense score, selection, a 500-character
+preview, and allowlisted metadata. These source identities are snapshots rather
+than foreign keys, so source deletion does not destroy completed audit evidence;
+deleting the owning Trace Run cascades through both retrieval levels.
+
+Standalone RAG Query writes `rag_retrieve`; RAG Chat writes `rag_retrieve`,
+`build_prompt`, `llm_call`, and `final_answer` in order. Provider failure
+recreates the completed retrieval/Prompt evidence before its failed LLM Step;
+retrieval failure keeps a class-name-only failed Run/Step. The complete current
+contract is documented in
+[Trace Observability Foundation](30-trace-observability.md). Agent/Tool hooks,
+Trace API, and Timeline UI remain later M2 work.
 
 Foreign-key columns used by conversation and message lookups are indexed.
 SQLAlchemy metadata uses a stable naming convention for primary keys, foreign
@@ -761,8 +778,9 @@ The local infrastructure gate verified Docker Engine `29.6.2`, running
 the production Qdrant adapter for collection creation, two-Knowledge-Base
 upsert, ownership-filtered search, Document-scoped deletion, and final cleanup.
 The Plan 3 release Temporary-SQLite lifecycle passed at head `20260801_0007`.
-Plan 4 S1～S3 independently passed upgrade/current/check/downgrade/re-upgrade
-at head `20260802_0008`; both temporary directories were removed.
+Plan 4 M1 independently passed upgrade/current/check/downgrade/re-upgrade at
+head `20260802_0008`. The M2 S4～S6 lifecycle evidence at head
+`20260808_0009` is recorded in its batch review.
 
 The five Plan 4 bridge contracts remain intact: shared
 `search_knowledge_base` retrieval/audit, persisted `RagQuery` Top-K/source/
@@ -770,8 +788,9 @@ latency/linkage fields, source-rich `DocumentChunk`, RAG response retrieval
 metadata/audit identity, and Qdrant Knowledge Base/Document/Chunk payload IDs.
 The post-release audit further makes embedding Provider/actual-model identity
 part of the payload, query filter, response, and audit snapshot. Plan 4 now has
-Trace persistence types/models/schemas but no active Trace, Advanced RAG,
-reranking, or evaluation runtime. Package, OpenAPI, frontend, and lockfile
+active Chat LLM and Naive RAG retrieval/Prompt/answer Trace persistence, but no
+Trace API/Timeline, Agent/Tool Trace, Advanced RAG, reranking, or evaluation
+runtime. Package, OpenAPI, frontend, and lockfile
 metadata remains the Plan 3 `0.3.0` product baseline; annotated `v0.3.0` stays
 at the original release commit and its audit repair is published as annotated
 `v0.3.1`.

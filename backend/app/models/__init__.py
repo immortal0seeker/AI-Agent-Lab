@@ -6,6 +6,7 @@ from app.models.knowledge_base import KnowledgeBase
 from app.models.llm_call import LLMCall
 from app.models.message import Message
 from app.models.rag_query import RagQuery
+from app.models.retrieval import RagRetrievalCandidate, RagRetrievalRun
 from app.models.tool_call import ToolCall
 from app.models.trace import TraceRun, TraceStep
 
@@ -18,6 +19,8 @@ __all__ = [
     "LLMCall",
     "Message",
     "RagQuery",
+    "RagRetrievalCandidate",
+    "RagRetrievalRun",
     "ToolCall",
     "TraceRun",
     "TraceStep",

@@ -19,6 +19,7 @@ from app.observability.prompt_version import (
     NAIVE_RAG_PROMPT_VERSION,
 )
 from app.observability.token_cost import LLMCallMetrics
+from app.observability.trace_service import TraceService
 from app.observability.trace_types import (
     TraceRunType,
     TraceStatus,
@@ -246,6 +247,48 @@ def test_llm_trace_recorder_completes_run_and_step_with_safe_metadata(
     }
 
 
+def test_llm_trace_recorder_can_complete_call_without_finishing_run(
+    trace_db: tuple[Session, Engine],
+) -> None:
+    session, _ = trace_db
+    recorder = LLMTraceRecorder(session)
+    trace_run = recorder.start_run(
+        run_type=TraceRunType.RAG_CHAT,
+        input_text="Question",
+        provider="openai_compatible",
+        requested_model="example-model",
+        prompt_version=NAIVE_RAG_PROMPT_VERSION,
+        stream=False,
+        conversation_id=None,
+        user_message_id=None,
+    )
+    trace_call = recorder.start_call(trace_run, message_count=2)
+
+    completed = recorder.complete_call(
+        trace_call,
+        response_model="resolved-model",
+        metrics=LLMCallMetrics(
+            input_tokens=5,
+            output_tokens=3,
+            total_tokens=8,
+            estimated_cost=Decimal("0.00000700"),
+            latency_ms=12,
+        ),
+        output_text="Answer",
+        finish_run=False,
+    )
+
+    assert completed.status == TraceStatus.RUNNING.value
+    assert completed.model == "resolved-model"
+    assert completed.total_tokens == 8
+    assert completed.estimated_cost == Decimal("0.00000700")
+    assert completed.output_text is None
+    assert completed.ended_at is None
+    assert trace_call.step.status == TraceStatus.COMPLETED.value
+    assert trace_call.step.output_json is not None
+    assert trace_call.step.output_json["usage"]["total_tokens"] == 8
+
+
 def test_llm_trace_recorder_persists_class_only_failure_after_rollback(
     trace_db: tuple[Session, Engine],
 ) -> None:
@@ -305,6 +348,58 @@ def test_llm_trace_recorder_persists_class_only_failure_after_rollback(
         }
     )
     assert "synthetic secret diagnostic" not in serialized_trace
+
+
+def test_llm_trace_failure_runs_safe_replay_before_failed_call(
+    trace_db: tuple[Session, Engine],
+) -> None:
+    session, _ = trace_db
+    recorder = LLMTraceRecorder(session)
+    trace_run = recorder.start_run(
+        run_type=TraceRunType.RAG_CHAT,
+        input_text="Question",
+        provider="openai_compatible",
+        requested_model="example-model",
+        prompt_version=NAIVE_RAG_PROMPT_VERSION,
+        stream=False,
+        conversation_id=None,
+        user_message_id=None,
+    )
+    trace_call = recorder.start_call(trace_run, message_count=2)
+    replayed_run_ids = []
+
+    def replay_before_call(failed_run: object) -> None:
+        replayed_run_ids.append(failed_run.record.id)
+        trace_service = TraceService(session)
+        step = trace_service.add_step(
+            failed_run.record,
+            step_type=TraceStepType.RAG_RETRIEVE,
+            name="Replay retrieval",
+            input_json={"strategy": "naive_vector"},
+        )
+        trace_service.finish_step(step, output_json={"candidate_count": 1})
+
+    persisted = recorder.persist_failure(
+        trace_call,
+        error=ProviderRequestError("private provider diagnostic"),
+        conversation_id=None,
+        before_failed_call=replay_before_call,
+    )
+
+    assert persisted is not None
+    assert replayed_run_ids == [persisted.id]
+    stored = session.get(TraceRun, persisted.id)
+    assert stored is not None
+    assert [step.step_type for step in stored.steps] == [
+        TraceStepType.RAG_RETRIEVE.value,
+        TraceStepType.LLM_CALL.value,
+    ]
+    assert [step.status for step in stored.steps] == [
+        TraceStatus.COMPLETED.value,
+        TraceStatus.FAILED.value,
+    ]
+    assert stored.error_message == "ProviderRequestError"
+    assert "private provider diagnostic" not in repr(stored.__dict__)
 
 
 def test_llm_trace_recorder_never_masks_provider_error_when_rollback_fails(
