@@ -13,7 +13,13 @@ All notable changes to AI Agent Lab are documented in this file.
 - Added caller-transaction-owned Trace lifecycle writes, request-local nested
   Trace context and safe step management, plus canonical JSON-safe token,
   cost, and latency metadata with legacy LLM usage import compatibility.
-  Chat, RAG, and Agent runtime Trace wiring remains scoped to Plan 4 M2.
+- Added service-level LLM Trace recording for non-streaming Chat, streaming
+  Chat, and the final Naive RAG Chat LLM call. Successful Trace rows share the
+  existing business transaction; Provider failures roll back provisional
+  business rows and persist a class-name-only failed audit. Prompt versions,
+  Provider/model identity, usage, estimated cost, and latency use strict JSON
+  contracts. Agent/Tool hooks, retrieval candidates, Trace API, and Timeline UI
+  remain deferred.
 
 ## [0.3.1] - 2026-08-02
 

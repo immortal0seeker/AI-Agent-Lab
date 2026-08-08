@@ -8,6 +8,7 @@ from pydantic import (
     ConfigDict,
     Field,
     JsonValue,
+    StrictBool,
     StrictInt,
     StringConstraints,
     field_validator,
@@ -29,6 +30,43 @@ TraceModelIdentifier = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
 ]
+TracePromptVersion = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
+]
+TraceCostString = Annotated[
+    str,
+    StringConstraints(pattern=r"^(?:0|[1-9]\d*)\.\d{8}$"),
+]
+
+
+class LLMStepInputMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    provider: TraceProviderIdentifier
+    requested_model: TraceModelIdentifier
+    prompt_version: TracePromptVersion
+    stream: StrictBool
+    message_count: StrictInt = Field(ge=1)
+
+
+class LLMStepUsageMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    input_tokens: StrictInt | None = Field(default=None, ge=0)
+    output_tokens: StrictInt | None = Field(default=None, ge=0)
+    total_tokens: StrictInt | None = Field(default=None, ge=0)
+    estimated_cost: TraceCostString | None = None
+
+
+class LLMStepOutputMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    provider: TraceProviderIdentifier
+    model: TraceModelIdentifier
+    prompt_version: TracePromptVersion
+    usage: LLMStepUsageMetadata
+    latency_ms: StrictInt = Field(ge=0)
 
 
 class TraceRunCreate(BaseModel):

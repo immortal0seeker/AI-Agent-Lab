@@ -123,3 +123,5 @@ docs/**/*.private.md
 !.gitkeep
 
 .codegraph/
+
+PROJECT_LEARNING_CHECKLIST.md

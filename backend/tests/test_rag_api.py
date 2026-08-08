@@ -19,7 +19,20 @@ from app.api.dependencies import (
 from app.db.base import Base
 from app.db.session import create_db_engine
 from app.main import app
-from app.models import Conversation, KnowledgeBase, LLMCall, Message, RagQuery
+from app.models import (
+    Conversation,
+    KnowledgeBase,
+    LLMCall,
+    Message,
+    RagQuery,
+    TraceRun,
+    TraceStep,
+)
+from app.observability.trace_types import (
+    TraceRunType,
+    TraceStatus,
+    TraceStepType,
+)
 from app.providers.embedding import (
     EmbeddingProvider,
     EmbeddingResult,
@@ -388,6 +401,28 @@ def test_rag_chat_api_returns_answer_sources_and_persists_messages(
             payload["assistant_message"]["id"]
         )
         assert stored.top_k == 3
+        trace_run = session.scalar(select(TraceRun))
+        trace_step = session.scalar(select(TraceStep))
+        assert trace_run is not None
+        assert trace_step is not None
+        assert trace_run.run_type == TraceRunType.RAG_CHAT.value
+        assert trace_run.status == TraceStatus.COMPLETED.value
+        assert trace_run.conversation_id == conversation_id
+        assert trace_run.user_message_id == UUID(payload["user_message"]["id"])
+        assert trace_run.metadata_json == {
+            "prompt_version": "naive-rag-v1",
+            "stream": False,
+        }
+        assert trace_run.model == "resolved-model"
+        assert trace_run.total_tokens == 12
+        assert trace_step.trace_run_id == trace_run.id
+        assert trace_step.step_type == TraceStepType.LLM_CALL.value
+        assert trace_step.status == TraceStatus.COMPLETED.value
+        assert trace_step.input_json["message_count"] == len(
+            llm_provider.requests[0].messages
+        )
+        assert trace_step.output_json is not None
+        assert trace_step.output_json["usage"]["total_tokens"] == 12
         assert stored.retrieved_chunks_json[0]["chunk_id"] == str(CHUNK_ID)
 
 
@@ -503,6 +538,27 @@ def test_rag_chat_api_rolls_back_messages_when_provider_fails(
         assert session.scalar(select(func.count()).select_from(Message)) == 0
         assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
         assert session.scalar(select(func.count()).select_from(RagQuery)) == 0
+        trace_run = session.scalar(select(TraceRun))
+        trace_step = session.scalar(select(TraceStep))
+        assert trace_run is not None
+        assert trace_step is not None
+        assert trace_run.run_type == TraceRunType.RAG_CHAT.value
+        assert trace_run.status == TraceStatus.FAILED.value
+        assert trace_run.conversation_id == conversation_id
+        assert trace_run.user_message_id is None
+        assert trace_run.error_message == "ProviderRequestError"
+        assert trace_step.status == TraceStatus.FAILED.value
+        assert trace_step.error_message == "ProviderRequestError"
+        assert trace_step.output_json is None
+        assert "private provider diagnostic" not in repr(
+            (
+                trace_run.metadata_json,
+                trace_run.error_message,
+                trace_step.input_json,
+                trace_step.output_json,
+                trace_step.error_message,
+            )
+        )
 
 
 def test_rag_chat_api_returns_safe_missing_conversation_error(

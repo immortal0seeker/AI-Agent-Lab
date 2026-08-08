@@ -23,7 +23,12 @@ from app.api.dependencies import (
 from app.db.base import Base
 from app.db.session import create_db_engine
 from app.main import app
-from app.models import Conversation, LLMCall, Message
+from app.models import Conversation, LLMCall, Message, TraceRun, TraceStep
+from app.observability.trace_types import (
+    TraceRunType,
+    TraceStatus,
+    TraceStepType,
+)
 from app.providers.llm.base import (
     BaseLLMProvider,
     ChatChunk,
@@ -390,6 +395,26 @@ def test_chat_api_returns_messages_usage_and_persists_records(
         assert llm_call.total_tokens == 8
         assert llm_call.estimated_cost == Decimal("0.00000700")
         assert llm_call.latency_ms is not None
+        trace_run = session.scalar(select(TraceRun))
+        trace_step = session.scalar(select(TraceStep))
+        assert trace_run is not None
+        assert trace_step is not None
+        assert trace_run.run_type == TraceRunType.CHAT.value
+        assert trace_run.status == TraceStatus.COMPLETED.value
+        assert trace_run.conversation_id == UUID(body["conversation_id"])
+        assert trace_run.user_message_id == UUID(body["user_message"]["id"])
+        assert trace_run.provider == "openai_compatible"
+        assert trace_run.model == "resolved-model"
+        assert trace_run.total_tokens == 8
+        assert trace_run.estimated_cost == Decimal("0.00000700")
+        assert trace_step.trace_run_id == trace_run.id
+        assert trace_step.step_type == TraceStepType.LLM_CALL.value
+        assert trace_step.status == TraceStatus.COMPLETED.value
+        assert trace_step.input_json["prompt_version"] == "chat-history-v1"
+        assert trace_step.output_json is not None
+        assert trace_step.output_json["usage"]["estimated_cost"] == (
+            "0.00000700"
+        )
 
 
 def test_chat_logs_request_and_model_metadata_without_content(
@@ -552,6 +577,27 @@ def test_chat_api_returns_502_and_rolls_back_provider_failure(
         assert session.scalar(select(func.count()).select_from(Conversation)) == 0
         assert session.scalar(select(func.count()).select_from(Message)) == 0
         assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
+        trace_run = session.scalar(select(TraceRun))
+        trace_step = session.scalar(select(TraceStep))
+        assert trace_run is not None
+        assert trace_step is not None
+        assert trace_run.run_type == TraceRunType.CHAT.value
+        assert trace_run.status == TraceStatus.FAILED.value
+        assert trace_run.conversation_id is None
+        assert trace_run.user_message_id is None
+        assert trace_run.error_message == "ProviderRequestError"
+        assert trace_step.status == TraceStatus.FAILED.value
+        assert trace_step.output_json is None
+        assert trace_step.error_message == "ProviderRequestError"
+        assert "mock upstream failed" not in repr(
+            (
+                trace_run.metadata_json,
+                trace_run.error_message,
+                trace_step.input_json,
+                trace_step.output_json,
+                trace_step.error_message,
+            )
+        )
 
 
 def test_chat_api_maps_timeout_and_rolls_back(api_context: Any) -> None:
@@ -580,6 +626,23 @@ def test_chat_api_maps_timeout_and_rolls_back(api_context: Any) -> None:
         assert session.scalar(select(func.count()).select_from(Conversation)) == 0
         assert session.scalar(select(func.count()).select_from(Message)) == 0
         assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
+        trace_run = session.scalar(select(TraceRun))
+        trace_step = session.scalar(select(TraceStep))
+        assert trace_run is not None
+        assert trace_step is not None
+        assert trace_run.status == TraceStatus.FAILED.value
+        assert trace_run.error_message == "ProviderTimeoutError"
+        assert trace_step.status == TraceStatus.FAILED.value
+        assert trace_step.error_message == "ProviderTimeoutError"
+        assert "private timeout diagnostic" not in repr(
+            (
+                trace_run.metadata_json,
+                trace_run.error_message,
+                trace_step.input_json,
+                trace_step.output_json,
+                trace_step.error_message,
+            )
+        )
 
 
 def test_chat_api_rejects_blank_content(api_context: Any) -> None:
@@ -731,6 +794,20 @@ def test_stream_chat_api_emits_deltas_done_and_persists(api_context: Any) -> Non
         assert llm_call.total_tokens == 8
         assert llm_call.estimated_cost == Decimal("0.00000600")
         assert llm_call.latency_ms is not None
+        trace_run = session.scalar(select(TraceRun))
+        trace_step = session.scalar(select(TraceStep))
+        assert trace_run is not None
+        assert trace_step is not None
+        assert trace_run.status == TraceStatus.COMPLETED.value
+        assert trace_run.metadata_json == {
+            "prompt_version": "chat-history-v1",
+            "stream": True,
+        }
+        assert trace_run.model == "resolved-stream-model"
+        assert trace_step.status == TraceStatus.COMPLETED.value
+        assert trace_step.input_json["stream"] is True
+        assert trace_step.output_json is not None
+        assert trace_step.output_json["usage"]["total_tokens"] == 8
 
 
 def test_stream_chat_api_emits_error_and_rolls_back(api_context: Any) -> None:
@@ -766,6 +843,23 @@ def test_stream_chat_api_emits_error_and_rolls_back(api_context: Any) -> None:
         assert session.scalar(select(func.count()).select_from(Conversation)) == 0
         assert session.scalar(select(func.count()).select_from(Message)) == 0
         assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
+        trace_run = session.scalar(select(TraceRun))
+        trace_step = session.scalar(select(TraceStep))
+        assert trace_run is not None
+        assert trace_step is not None
+        assert trace_run.status == TraceStatus.FAILED.value
+        assert trace_run.error_message == "ProviderRequestError"
+        assert trace_step.status == TraceStatus.FAILED.value
+        assert trace_step.error_message == "ProviderRequestError"
+        assert "mock stream failed" not in repr(
+            (
+                trace_run.metadata_json,
+                trace_run.error_message,
+                trace_step.input_json,
+                trace_step.output_json,
+                trace_step.error_message,
+            )
+        )
 
 
 def test_stream_chat_api_maps_rate_limit_and_rolls_back(
@@ -801,6 +895,23 @@ def test_stream_chat_api_maps_rate_limit_and_rolls_back(
         assert session.scalar(select(func.count()).select_from(Conversation)) == 0
         assert session.scalar(select(func.count()).select_from(Message)) == 0
         assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
+        trace_run = session.scalar(select(TraceRun))
+        trace_step = session.scalar(select(TraceStep))
+        assert trace_run is not None
+        assert trace_step is not None
+        assert trace_run.status == TraceStatus.FAILED.value
+        assert trace_run.error_message == "ProviderRateLimitError"
+        assert trace_step.status == TraceStatus.FAILED.value
+        assert trace_step.error_message == "ProviderRateLimitError"
+        assert "private rate-limit diagnostic" not in repr(
+            (
+                trace_run.metadata_json,
+                trace_run.error_message,
+                trace_step.input_json,
+                trace_step.output_json,
+                trace_step.error_message,
+            )
+        )
 
 
 def test_stream_database_error_emits_safe_error_and_rolls_back(

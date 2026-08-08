@@ -57,10 +57,11 @@ the stable Chunk payload bridge required by M4. M3 S10～S12 add an independentl
   commit `46ea94a`. A subsequent independent Plan 3 audit repaired embedding
   identity isolation and compatible concurrent collection creation; the user
   published those repairs as annotated `v0.3.1` at commit `6bcf423` while
-  preserving the original tag. Plan 4 M1 is complete through `P4-M1-S7`: the
-  Trace persistence, lifecycle, request-context, and usage-metadata foundation
-  exists, while Chat/RAG/Agent runtime hooks, Trace API, and Timeline UI remain
-  deferred to M2.
+  preserving the original tag. Plan 4 M1 is complete through `P4-M1-S7`. Plan
+  4 M2 is complete through `P4-M2-S3`: non-streaming Chat, streaming Chat, and
+  the final Naive RAG Chat LLM call now write standardized success/failure
+  Trace Runs/Steps through a service-level Recorder. Agent/Tool hooks,
+  retrieval candidates/Steps, Trace API, and Timeline UI remain deferred.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -92,7 +93,9 @@ AI-Agent-Lab/
 │       │   ├── trace_types.py
 │       │   ├── trace_service.py
 │       │   ├── trace_context.py
-│       │   └── token_cost.py
+│       │   ├── token_cost.py
+│       │   ├── prompt_version.py
+│       │   └── llm_trace.py
 │       └── tools/
 │           ├── base.py
 │           ├── registry.py
@@ -130,7 +133,7 @@ Current backend layers:
 | `providers/` | LLM abstractions/adapters plus the M3 Embedding abstraction, validated batch result, runtime Registry, and OpenAI-compatible adapter/factory |
 | `knowledge/` | Plan 3 structured knowledge metadata plus controlled Document storage; models live in `models/` and service policy lives in `services/` |
 | `rag/` | Plan 3 document-processing and Naive RAG boundary; parsers, Cleaner, naive Chunker, ingestion pipeline, VectorStore/Qdrant, source payload, Top-K Retriever, bounded Prompt Builder, and audited Query/Chat orchestration exist through M4 S8 |
-| `observability/` | Plan 4 M1 Trace enums, lifecycle writer, request-local ContextVar, and token/cost/latency metadata helpers; runtime hooks and query/UI surfaces remain deferred to M2 |
+| `observability/` | Plan 4 Trace enums/lifecycle/context/metrics plus stable prompt versions and a service-level LLM Recorder used by Chat, streaming Chat, and the final Naive RAG Chat LLM call; Agent/Tool, retrieval candidates, and query/UI surfaces remain deferred |
 | `tools/` | Tool contracts, Registry, schema validation, read-only policy, and the bounded `search_knowledge_base` adapter |
 | `db/` | SQLAlchemy session/database setup plus request-scoped async rollback callbacks and resource finalizers |
 | `models/` | ORM models |

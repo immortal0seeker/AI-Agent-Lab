@@ -11,7 +11,20 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.db.session import create_db_engine
-from app.models import Conversation, KnowledgeBase, LLMCall, Message, RagQuery
+from app.models import (
+    Conversation,
+    KnowledgeBase,
+    LLMCall,
+    Message,
+    RagQuery,
+    TraceRun,
+    TraceStep,
+)
+from app.observability.trace_types import (
+    TraceRunType,
+    TraceStatus,
+    TraceStepType,
+)
 from app.providers.embedding import (
     EmbeddingProvider,
     EmbeddingProviderError,
@@ -542,6 +555,33 @@ def test_rag_chat_persists_grounded_turn_and_llm_call(
     assert conversation.updated_at > previous_updated_at
     assert result.conversation.id == conversation_id
     assert result.user_message.content == "What is the architecture?"
+    trace_runs = session.scalars(select(TraceRun)).all()
+    trace_steps = session.scalars(select(TraceStep)).all()
+    assert len(trace_runs) == 1
+    assert len(trace_steps) == 1
+    trace_run = trace_runs[0]
+    trace_step = trace_steps[0]
+    assert trace_run.run_type == TraceRunType.RAG_CHAT.value
+    assert trace_run.status == TraceStatus.COMPLETED.value
+    assert trace_run.conversation_id == conversation_id
+    assert trace_run.user_message_id == result.user_message.id
+    assert trace_run.metadata_json == {
+        "prompt_version": "naive-rag-v1",
+        "stream": False,
+    }
+    assert trace_run.provider == "openai_compatible"
+    assert trace_run.model == "resolved-model"
+    assert trace_run.total_tokens == 13
+    assert trace_run.estimated_cost == Decimal("0.00001050")
+    assert trace_step.trace_run_id == trace_run.id
+    assert trace_step.step_type == TraceStepType.LLM_CALL.value
+    assert trace_step.status == TraceStatus.COMPLETED.value
+    assert trace_step.input_json["message_count"] == len(
+        llm_provider.requests[0].messages
+    )
+    assert trace_step.input_json["prompt_version"] == "naive-rag-v1"
+    assert trace_step.output_json is not None
+    assert trace_step.output_json["usage"]["total_tokens"] == 13
 
     session.close()
     engine.dispose()
@@ -736,6 +776,8 @@ def test_rag_chat_rolls_back_new_user_message_when_retrieval_fails(
     ]
     assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
     assert session.scalar(select(func.count()).select_from(RagQuery)) == 0
+    assert session.scalar(select(func.count()).select_from(TraceRun)) == 0
+    assert session.scalar(select(func.count()).select_from(TraceStep)) == 0
 
     session.close()
     engine.dispose()
@@ -786,6 +828,34 @@ def test_rag_chat_rolls_back_new_user_message_for_invalid_llm_completion(
     ]
     assert session.scalar(select(func.count()).select_from(LLMCall)) == 0
     assert session.scalar(select(func.count()).select_from(RagQuery)) == 0
+    trace_runs = session.scalars(select(TraceRun)).all()
+    trace_steps = session.scalars(select(TraceStep)).all()
+    assert len(trace_runs) == 1
+    assert len(trace_steps) == 1
+    trace_run = trace_runs[0]
+    trace_step = trace_steps[0]
+    expected_error = (
+        "ProviderRequestError"
+        if isinstance(llm_provider, FailingLLMProvider)
+        else "ProviderResponseError"
+    )
+    assert trace_run.run_type == TraceRunType.RAG_CHAT.value
+    assert trace_run.status == TraceStatus.FAILED.value
+    assert trace_run.conversation_id == conversation.id
+    assert trace_run.user_message_id is None
+    assert trace_run.error_message == expected_error
+    assert trace_step.status == TraceStatus.FAILED.value
+    assert trace_step.error_message == expected_error
+    assert trace_step.output_json is None
+    assert "synthetic provider failure" not in repr(
+        (
+            trace_run.metadata_json,
+            trace_run.error_message,
+            trace_step.input_json,
+            trace_step.output_json,
+            trace_step.error_message,
+        )
+    )
 
     session.close()
     engine.dispose()

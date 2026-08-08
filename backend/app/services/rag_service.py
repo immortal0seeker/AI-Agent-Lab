@@ -6,10 +6,14 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models import Conversation, KnowledgeBase, LLMCall, Message, RagQuery
+from app.observability.llm_trace import LLMTraceCall, LLMTraceRecorder
+from app.observability.prompt_version import NAIVE_RAG_PROMPT_VERSION
+from app.observability.trace_types import TraceRunType
 from app.providers.llm.base import (
     BaseLLMProvider,
     ChatMessage,
     ChatRequest,
+    LLMProviderError,
     LLMResponse,
     ProviderResponseError,
     TokenUsage,
@@ -118,8 +122,10 @@ class RagService(RagQueryService):
         self._registry = registry
         self._providers = providers
         self._conversations = ConversationService(session)
+        self._llm_traces = LLMTraceRecorder(session)
 
     async def chat(self, request: RagChatRequest) -> RagChatResult:
+        trace_call: LLMTraceCall | None = None
         try:
             model_info = self._registry.get_model(
                 request.provider,
@@ -145,6 +151,16 @@ class RagService(RagQueryService):
                     content=request.query,
                 )
             )
+            trace_run = self._llm_traces.start_run(
+                run_type=TraceRunType.RAG_CHAT,
+                input_text=request.query,
+                provider=request.provider,
+                requested_model=request.model,
+                prompt_version=NAIVE_RAG_PROMPT_VERSION,
+                stream=False,
+                conversation_id=conversation.id,
+                user_message_id=user_message.id,
+            )
             persisted_history = self._conversations.list_messages(
                 conversation.id
             )
@@ -163,6 +179,10 @@ class RagService(RagQueryService):
                 model=request.model,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
+            )
+            trace_call = self._llm_traces.start_call(
+                trace_run,
+                message_count=len(provider_request.messages),
             )
             timer = ProviderLatencyTimer()
             with timer.measure():
@@ -211,6 +231,12 @@ class RagService(RagQueryService):
                 provider=request.provider,
                 model=request.model,
             )
+            self._llm_traces.complete_call(
+                trace_call,
+                response_model=response.model,
+                metrics=metrics,
+                output_text=response.content,
+            )
             return RagChatResult(
                 conversation=conversation,
                 user_message=user_message,
@@ -231,8 +257,15 @@ class RagService(RagQueryService):
                 model=response.model,
                 usage=response.usage,
             )
-        except Exception:
-            self._session.rollback()
+        except Exception as exc:
+            if isinstance(exc, LLMProviderError) and trace_call is not None:
+                self._llm_traces.persist_failure(
+                    trace_call,
+                    error=exc,
+                    conversation_id=request.conversation_id,
+                )
+            else:
+                self._session.rollback()
             raise
 
 

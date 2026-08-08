@@ -11,9 +11,10 @@ AI Agent Lab 是一个分阶段构建的 AI Engineering Workspace，用来学习
 Plan 3 Knowledge Base + Naive RAG 已由用户发布为 annotated `v0.3.0` tag，指向
 commit `46ea94a`。独立发布后终审修复了 embedding 身份隔离和兼容 collection
 并发首建；用户已将修复发布为指向 `6bcf423` 的 annotated `v0.3.1`，并保留原始
-tag。Plan 4 M1 已完成到 `P4-M1-S7`：TraceRun/TraceStep 持久化、严格生命周期写入、
-请求局部 Trace Context，以及 JSON-safe token/cost/latency metadata 已可用；
-Chat/RAG/Agent runtime 接线、Trace API 和 Timeline UI 尚未实现。
+tag。Plan 4 M1 已完成到 `P4-M1-S7`，M2 已完成到 `P4-M2-S3`：非流式 Chat、
+流式 Chat，以及 Naive RAG Chat 的最终 LLM 调用现已持久化标准化的成功/失败
+Trace Run/Step；Agent/Tool 接线、retrieval candidate/Step、Trace API 和 Timeline
+UI 尚未实现。
 
 Plan 1 覆盖：
 
@@ -28,8 +29,8 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已验证实现范围：`P1-M1-S1` 到 `P4-M1-S7`，包括 Plan 3 终审修复和完整的
-Plan 4 M1 Trace 地基。
+已验证实现范围：`P1-M1-S1` 到 `P4-M2-S3`，包括 Plan 3 终审修复、完整的
+Plan 4 M1 Trace 地基，以及前三个 LLM Trace runtime 接入步骤。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -544,6 +545,7 @@ npm run build
 - [Plan 2 最终复审记录](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 - [Plan 3 v0.3.0 Codex 最终复审](docs/reviews/2026-08-02-plan3-v0.3.0-final-review.md)
 - [Plan 4 M1 Trace 地基最终复审](docs/reviews/2026-08-02-plan4-m1-final-review.md)
+- [Plan 4 M2 S1-S3 LLM Trace 复审](docs/reviews/2026-08-08-plan4-m2-s1-s3-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
 
@@ -568,7 +570,9 @@ embedding 成本记录。上传到 Embedding 再到 Qdrant 的 ingestion 已有 
 边界覆盖，以及完成清理的临时 Qdrant、临时 SQLite、Mock LLM API smoke。前端在
 首个 RAG 问题时创建专用 Conversation，并展示当前 session 的回答、有序来源与关联
 ID；刷新后不会恢复 RAG 回合/来源。Query/Chat/Tool 已创建 RagQuery 审计，但后端
-Agent Tool 尚无专用前端，且没有 RAG streaming、Advanced RAG 或 Trace runtime。
+Agent Tool 尚无专用前端。Chat 与 RAG Chat 的最终 LLM 调用现已有 Trace runtime，
+但仍没有 RAG streaming、retrieval candidate Trace、Agent/Tool Trace 接线或
+Advanced RAG。
 Embedding Provider usage 仍只存在于内存。
 正常请求回滚会补偿 vectors，但 Qdrant 写入后进程硬崩溃仍可能留下需要后续
 reconciliation 的 orphan points。
@@ -580,6 +584,6 @@ reconciliation 的 orphan points。
 - Plan 1：项目骨架 + 基础 Chat + LLM Providers
 - Plan 2：Tool Calling + 简单 Agent Loop
 - Plan 3：Knowledge Base + Document Ingestion + Naive RAG（`v0.3.0`；终审加固发布为 `v0.3.1`）
-- Plan 4：Trace + Advanced RAG + Rerank + Evaluation（M1 Trace 地基已完成；runtime 接线延后到 M2）
+- Plan 4：Trace + Advanced RAG + Rerank + Evaluation（M1 已完成；M2 S1～S3 LLM Trace 接入已完成）
 - Plan 5：Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6：MCP + Voice + Vision + Desktop

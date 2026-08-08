@@ -1,0 +1,2 @@
+CHAT_HISTORY_PROMPT_VERSION = "chat-history-v1"
+NAIVE_RAG_PROMPT_VERSION = "naive-rag-v1"

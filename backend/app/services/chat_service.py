@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.models import Conversation, LLMCall, Message
+from app.observability.llm_trace import LLMTraceCall, LLMTraceRecorder
+from app.observability.prompt_version import CHAT_HISTORY_PROMPT_VERSION
+from app.observability.trace_types import TraceRunType
 from app.providers.llm.base import (
     BaseLLMProvider,
     ChatMessage,
@@ -110,6 +113,7 @@ class ChatService:
         self._registry = registry
         self._providers = providers
         self._conversations = ConversationService(session)
+        self._llm_traces = LLMTraceRecorder(session)
 
     async def complete(self, request: ChatCompletionRequest) -> ChatCompletionResult:
         model_info = self._registry.get_model(request.provider, request.model)
@@ -150,6 +154,20 @@ class ChatService:
             temperature=request.temperature,
             max_tokens=request.max_tokens,
         )
+        trace_run = self._llm_traces.start_run(
+            run_type=TraceRunType.CHAT,
+            input_text=request.content,
+            provider=request.provider,
+            requested_model=request.model,
+            prompt_version=CHAT_HISTORY_PROMPT_VERSION,
+            stream=False,
+            conversation_id=conversation.id,
+            user_message_id=user_message.id,
+        )
+        trace_call = self._llm_traces.start_call(
+            trace_run,
+            message_count=len(provider_request.messages),
+        )
 
         timer = ProviderLatencyTimer()
         try:
@@ -167,7 +185,11 @@ class ChatService:
                 latency_ms=timer.latency_ms,
                 exc=exc,
             )
-            self._session.rollback()
+            self._llm_traces.persist_failure(
+                trace_call,
+                error=exc,
+                conversation_id=request.conversation_id,
+            )
             raise
 
         metrics = build_llm_call_metrics(
@@ -205,6 +227,12 @@ class ChatService:
             model=request.model,
             title_source=request.content if is_new_conversation else None,
         )
+        self._llm_traces.complete_call(
+            trace_call,
+            response_model=response.model,
+            metrics=metrics,
+            output_text=response.content,
+        )
         _log_llm_completed(request, metrics)
 
         return ChatCompletionResult(
@@ -224,6 +252,7 @@ class ChatService:
         committed = False
         call_started = False
         timer: ProviderLatencyTimer | None = None
+        trace_call: LLMTraceCall | None = None
         try:
             model_info = self._registry.get_model(request.provider, request.model)
             if model_info is None:
@@ -262,6 +291,20 @@ class ChatService:
                 model=request.model,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
+            )
+            trace_run = self._llm_traces.start_run(
+                run_type=TraceRunType.CHAT,
+                input_text=request.content,
+                provider=request.provider,
+                requested_model=request.model,
+                prompt_version=CHAT_HISTORY_PROMPT_VERSION,
+                stream=True,
+                conversation_id=conversation.id,
+                user_message_id=user_message.id,
+            )
+            trace_call = self._llm_traces.start_call(
+                trace_run,
+                message_count=len(provider_request.messages),
             )
 
             content_parts: list[str] = []
@@ -331,6 +374,12 @@ class ChatService:
                 model=request.model,
                 title_source=request.content if is_new_conversation else None,
             )
+            self._llm_traces.complete_call(
+                trace_call,
+                response_model=response_model,
+                metrics=metrics,
+                output_text=assistant_content,
+            )
             self._session.commit()
             committed = True
             _log_llm_completed(request, metrics)
@@ -364,6 +413,12 @@ class ChatService:
                     outcome="failed",
                     latency_ms=timer.latency_ms,
                     exc=exc,
+                )
+            if isinstance(exc, LLMProviderError) and trace_call is not None:
+                self._llm_traces.persist_failure(
+                    trace_call,
+                    error=exc,
+                    conversation_id=request.conversation_id,
                 )
             raise
         finally:

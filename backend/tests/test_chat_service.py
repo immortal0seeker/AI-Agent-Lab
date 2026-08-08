@@ -12,7 +12,12 @@ from sqlalchemy.orm import Session
 
 from app.db.base import Base
 from app.db.session import create_db_engine
-from app.models import Conversation, LLMCall, Message
+from app.models import Conversation, LLMCall, Message, TraceRun, TraceStep
+from app.observability.trace_types import (
+    TraceRunType,
+    TraceStatus,
+    TraceStepType,
+)
 from app.providers.llm.base import (
     BaseLLMProvider,
     ChatChunk,
@@ -210,6 +215,38 @@ def test_chat_service_creates_conversation_messages_and_llm_call(
     assert result.conversation.title == "Hello"
     assert result.conversation.default_provider == "openai_compatible"
     assert result.conversation.default_model == "example-model"
+    trace_runs = session.scalars(select(TraceRun)).all()
+    trace_steps = session.scalars(select(TraceStep)).all()
+    assert len(trace_runs) == 1
+    assert len(trace_steps) == 1
+    trace_run = trace_runs[0]
+    trace_step = trace_steps[0]
+    assert trace_run.run_type == TraceRunType.CHAT.value
+    assert trace_run.status == TraceStatus.COMPLETED.value
+    assert trace_run.conversation_id == result.conversation.id
+    assert trace_run.user_message_id == result.user_message.id
+    assert trace_run.provider == "openai_compatible"
+    assert trace_run.model == "resolved-model"
+    assert trace_run.total_input_tokens == 4
+    assert trace_run.total_output_tokens == 2
+    assert trace_run.total_tokens == 6
+    assert trace_run.estimated_cost == Decimal("0.00000500")
+    assert trace_run.metadata_json == {
+        "prompt_version": "chat-history-v1",
+        "stream": False,
+    }
+    assert trace_step.trace_run_id == trace_run.id
+    assert trace_step.step_type == TraceStepType.LLM_CALL.value
+    assert trace_step.status == TraceStatus.COMPLETED.value
+    assert trace_step.input_json == {
+        "provider": "openai_compatible",
+        "requested_model": "example-model",
+        "prompt_version": "chat-history-v1",
+        "stream": False,
+        "message_count": 1,
+    }
+    assert trace_step.output_json is not None
+    assert trace_step.output_json["usage"]["estimated_cost"] == "0.00000500"
     session.close()
     engine.dispose()
 
@@ -387,6 +424,26 @@ def test_chat_service_rolls_back_new_records_when_provider_fails(
     assert session.scalars(select(Message)).all() == []
     assert session.scalars(select(LLMCall)).all() == []
     assert session.scalars(select(Conversation)).all() == []
+    trace_runs = session.scalars(select(TraceRun)).all()
+    trace_steps = session.scalars(select(TraceStep)).all()
+    assert len(trace_runs) == 1
+    assert len(trace_steps) == 1
+    assert trace_runs[0].status == TraceStatus.FAILED.value
+    assert trace_runs[0].run_type == TraceRunType.CHAT.value
+    assert trace_runs[0].conversation_id is None
+    assert trace_runs[0].user_message_id is None
+    assert trace_runs[0].error_message == "ProviderRequestError"
+    assert trace_steps[0].status == TraceStatus.FAILED.value
+    assert trace_steps[0].error_message == "ProviderRequestError"
+    assert "mock provider failed" not in repr(
+        (
+            trace_runs[0].metadata_json,
+            trace_runs[0].error_message,
+            trace_steps[0].input_json,
+            trace_steps[0].output_json,
+            trace_steps[0].error_message,
+        )
+    )
 
     session.close()
     engine.dispose()
@@ -420,6 +477,14 @@ def test_chat_service_rolls_back_when_provider_returns_only_tool_calls(
     assert session.scalars(select(Message)).all() == []
     assert session.scalars(select(LLMCall)).all() == []
     assert session.scalars(select(Conversation)).all() == []
+    trace_run = session.scalar(select(TraceRun))
+    trace_step = session.scalar(select(TraceStep))
+    assert trace_run is not None
+    assert trace_step is not None
+    assert trace_run.status == TraceStatus.FAILED.value
+    assert trace_run.error_message == "ProviderResponseError"
+    assert trace_step.status == TraceStatus.FAILED.value
+    assert trace_step.error_message == "ProviderResponseError"
 
     session.close()
     engine.dispose()
@@ -465,6 +530,18 @@ def test_chat_service_rolls_back_existing_conversation_metadata_on_failure(
     assert persisted.default_provider == "provider-before"
     assert persisted.default_model == "model-before"
     assert persisted.updated_at == previous_updated_at
+    assert session.scalars(select(Message)).all() == []
+    assert session.scalars(select(LLMCall)).all() == []
+    trace_run = session.scalar(select(TraceRun))
+    trace_step = session.scalar(select(TraceStep))
+    assert trace_run is not None
+    assert trace_step is not None
+    assert trace_run.status == TraceStatus.FAILED.value
+    assert trace_run.conversation_id == conversation_id
+    assert trace_run.user_message_id is None
+    assert trace_run.error_message == "ProviderRequestError"
+    assert trace_step.status == TraceStatus.FAILED.value
+    assert trace_step.error_message == "ProviderRequestError"
 
     session.close()
     engine.dispose()
@@ -521,6 +598,25 @@ def test_stream_chat_yields_deltas_and_commits_completed_result(
     with Session(engine) as verification_session:
         assert len(verification_session.scalars(select(Message)).all()) == 2
         assert len(verification_session.scalars(select(LLMCall)).all()) == 1
+        trace_runs = verification_session.scalars(select(TraceRun)).all()
+        trace_steps = verification_session.scalars(select(TraceStep)).all()
+        assert len(trace_runs) == 1
+        assert len(trace_steps) == 1
+        trace_run = trace_runs[0]
+        trace_step = trace_steps[0]
+        assert trace_run.status == TraceStatus.COMPLETED.value
+        assert trace_run.run_type == TraceRunType.CHAT.value
+        assert trace_run.metadata_json == {
+            "prompt_version": "chat-history-v1",
+            "stream": True,
+        }
+        assert trace_run.model == "resolved-stream-model"
+        assert trace_run.total_tokens == 9
+        assert trace_step.status == TraceStatus.COMPLETED.value
+        assert trace_step.input_json["stream"] is True
+        assert trace_step.output_json is not None
+        assert trace_step.output_json["model"] == "resolved-stream-model"
+        assert trace_step.output_json["usage"]["total_tokens"] == 9
 
     session.close()
     engine.dispose()
@@ -551,6 +647,24 @@ def test_stream_chat_rolls_back_when_provider_fails(tmp_path: Path) -> None:
         assert verification_session.scalars(select(Conversation)).all() == []
         assert verification_session.scalars(select(Message)).all() == []
         assert verification_session.scalars(select(LLMCall)).all() == []
+        trace_run = verification_session.scalar(select(TraceRun))
+        trace_step = verification_session.scalar(select(TraceStep))
+        assert trace_run is not None
+        assert trace_step is not None
+        assert trace_run.status == TraceStatus.FAILED.value
+        assert trace_run.error_message == "ProviderRequestError"
+        assert trace_step.status == TraceStatus.FAILED.value
+        assert trace_step.error_message == "ProviderRequestError"
+        assert trace_step.output_json is None
+        assert "mock stream failed" not in repr(
+            (
+                trace_run.metadata_json,
+                trace_run.error_message,
+                trace_step.input_json,
+                trace_step.output_json,
+                trace_step.error_message,
+            )
+        )
 
     session.close()
     engine.dispose()
@@ -576,6 +690,19 @@ def test_stream_chat_rejects_empty_provider_stream(tmp_path: Path) -> None:
 
     with pytest.raises(ProviderResponseError, match="empty content"):
         asyncio.run(collect_events())
+
+    with Session(engine) as verification_session:
+        assert verification_session.scalars(select(Conversation)).all() == []
+        assert verification_session.scalars(select(Message)).all() == []
+        assert verification_session.scalars(select(LLMCall)).all() == []
+        trace_run = verification_session.scalar(select(TraceRun))
+        trace_step = verification_session.scalar(select(TraceStep))
+        assert trace_run is not None
+        assert trace_step is not None
+        assert trace_run.status == TraceStatus.FAILED.value
+        assert trace_run.error_message == "ProviderResponseError"
+        assert trace_step.status == TraceStatus.FAILED.value
+        assert trace_step.error_message == "ProviderResponseError"
 
     session.close()
     engine.dispose()
@@ -613,6 +740,8 @@ def test_stream_chat_rolls_back_when_consumer_stops_early(
         assert verification_session.scalars(select(Conversation)).all() == []
         assert verification_session.scalars(select(Message)).all() == []
         assert verification_session.scalars(select(LLMCall)).all() == []
+        assert verification_session.scalars(select(TraceRun)).all() == []
+        assert verification_session.scalars(select(TraceStep)).all() == []
     assert any(
         record.getMessage() == "llm_call_cancelled"
         and record.provider == "openai_compatible"
