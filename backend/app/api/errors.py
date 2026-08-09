@@ -51,6 +51,7 @@ from app.services.errors import (
     KnowledgeBaseNotFoundError,
     ServiceError,
 )
+from app.services.trace_query_service import TraceRunNotFoundError
 
 
 logger = logging.getLogger("app.error")
@@ -86,6 +87,8 @@ def error_spec_for_exception(exc: Exception) -> ErrorSpec:
         )
     if isinstance(exc, AgentRunNotFoundError):
         return ErrorSpec(404, "agent_run_not_found", "Agent run not found")
+    if isinstance(exc, TraceRunNotFoundError):
+        return ErrorSpec(404, "trace_run_not_found", "Trace run not found")
     if isinstance(exc, ConversationNotFoundError):
         return ErrorSpec(404, "conversation_not_found", "Conversation not found")
     if isinstance(exc, KnowledgeBaseNotFoundError):
@@ -287,6 +290,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, unified_error_handler)
     app.add_exception_handler(HTTPException, unified_error_handler)
     app.add_exception_handler(ServiceError, unified_error_handler)
+    app.add_exception_handler(TraceRunNotFoundError, unified_error_handler)
     app.add_exception_handler(DocumentError, unified_error_handler)
     app.add_exception_handler(EmbeddingProviderError, unified_error_handler)
     app.add_exception_handler(VectorStoreError, unified_error_handler)

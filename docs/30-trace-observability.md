@@ -34,6 +34,10 @@ only and is not involved in Trace persistence.
 | [`llm_trace.py`](../backend/app/observability/llm_trace.py) | Service-level LLM Run/Step coordination and safe Provider-failure audit transaction |
 | [`retrieval_recorder.py`](../backend/app/rag/retrieval_recorder.py) | Naive RAG retrieval/Prompt/answer Step orchestration and safe retrieval/failure snapshots |
 | [`llm_usage.py`](../backend/app/services/llm_usage.py) | Compatibility re-exports for existing Chat/RAG callers |
+| [`trace_query_service.py`](../backend/app/services/trace_query_service.py) | Bounded deterministic SQLite list/detail reads without Provider or Qdrant initialization |
+| [`traces.py`](../backend/app/api/v1/traces.py) | Thin Trace list/detail routes and public response mapping |
+| [`trace_query.py`](../backend/app/schemas/trace_query.py) | Strict summary, nested retrieval, and candidate read contracts |
+| [`TraceTimelinePage.tsx`](../frontend/src/pages/TraceTimelinePage.tsx) | URL-restored read-only Timeline with independent list/detail state machines |
 
 The implemented dependency direction is:
 
@@ -90,8 +94,9 @@ Each `TraceStep` belongs to exactly one `TraceRun`.
 | Diagnostics | `error_message`, `latency_ms` | Nullable error and non-negative elapsed milliseconds |
 | Lifecycle | `started_at`, `ended_at`, `created_at` | Timezone-naive UTC values |
 
-The relationship orders Steps by `step_index`, so a future Timeline has a
-deterministic sequence. `TraceService.add_step()` queries the current maximum
+The relationship orders Steps by `step_index`, and the Trace API repeats the
+explicit `step_index, id` ordering for a deterministic Timeline sequence.
+`TraceService.add_step()` queries the current maximum
 index and assigns the next value; the unique database constraint is the final
 race guard.
 
@@ -325,7 +330,46 @@ counts; answer text remains in the Trace Run output and business Message.
 
 RAG Chat reuses its existing Trace Run, and the LLM Recorder can complete the
 `llm_call` Step without prematurely completing that Run. Standalone Query and
-RAG Chat API responses remain unchanged; P4-M2-S7 will expose Trace reads.
+RAG Chat API responses remain unchanged.
+
+## Trace Read API And Timeline
+
+`GET /api/v1/traces?limit=50` returns at most 1～100 newest-first Run summaries,
+ordered by `created_at DESC, id DESC`. `input_preview` is capped at 160 Unicode
+characters. `GET /api/v1/traces/{trace_run_id}` returns the full persisted Run,
+Steps ordered by `step_index, id`, retrieval Runs ordered by `created_at, id`,
+and candidates ordered by `rank, id`. An unknown UUID returns the safe
+`trace_run_not_found` envelope; malformed UUIDs and limits use the shared 422
+validation envelope.
+
+The query service performs at most four bounded SQLite queries for a detail and
+does not resolve runtime Provider configuration, open a Qdrant client, or call
+external services. The API exposes the already-persisted 500-character source
+preview and allowlisted metadata. It never reconstructs the expanded Prompt,
+full RAG context, original vector payload, or deleted operational sources.
+
+The fourth frontend workspace uses `?workspace=trace&run=<uuid>`. A valid deep
+link loads even when that Run is outside the recent 50. List and detail requests
+have independent loading/error/retry states and generation guards, so a late
+response cannot overwrite a newer selection or update an unmounted page.
+Switching among Agent, Trace, Chat, and Knowledge removes an incompatible
+shared `run` query while preserving unrelated query parameters and the hash.
+The Timeline renders full audit IDs, ordered Steps, collapsible JSON metadata,
+failed Run/Step messages, zero-candidate retrievals, and every non-null score
+under its exact persisted field name.
+
+Desktop acceptance at 1440×900:
+
+![Trace Timeline desktop acceptance](assets/plan4/trace-timeline-desktop.png)
+
+Mobile acceptance at 390×844:
+
+![Trace Timeline mobile acceptance](assets/plan4/trace-timeline-mobile.png)
+
+Both screenshots use synthetic Trace data. The accepted browser flow covered
+automatic first-Run selection, deep-linked failed Runs, ordered Steps and
+candidates, expanded metadata, zero console errors/warnings, successful API
+requests, and no horizontal overflow.
 
 ## Persistence And Deletion
 
@@ -403,24 +447,28 @@ The executable contracts live in:
 - [`test_retrieval_schemas.py`](../backend/tests/test_retrieval_schemas.py)
 - [`test_retrieval_migration.py`](../backend/tests/test_retrieval_migration.py)
 - [`test_rag_trace.py`](../backend/tests/test_rag_trace.py)
+- [`test_trace_query_schemas.py`](../backend/tests/test_trace_query_schemas.py)
+- [`test_trace_query_service.py`](../backend/tests/test_trace_query_service.py)
+- [`test_trace_api.py`](../backend/tests/test_trace_api.py)
+- [`TraceTimelinePage.dom.test.tsx`](../frontend/src/pages/TraceTimelinePage.dom.test.tsx)
 
 Detailed implementation evidence is recorded in the
 [S1-S3 review](reviews/2026-08-02-plan4-m1-s1-s3-review.md) and
 [S4-S6 review](reviews/2026-08-02-plan4-m1-s4-s6-review.md). The M2 S1～S3
 implementation evidence is in the
 [LLM Trace review](reviews/2026-08-08-plan4-m2-s1-s3-review.md); M2 S4～S6 is in
-the [RAG Trace review](reviews/2026-08-08-plan4-m2-s4-s6-review.md).
+the [RAG Trace review](reviews/2026-08-08-plan4-m2-s4-s6-review.md), and M2
+S7～S9 is in the
+[Trace API and Timeline review](reviews/2026-08-09-plan4-m2-s7-s9-review.md).
 
 ## Deferred To Later Plan 4 Batches
 
 - Tool and Agent runtime do not create `TraceRun` / `TraceStep` records.
-- No Trace list/detail/step API exists.
-- No frontend Trace Timeline exists.
 - No automatic multi-Step Run cost aggregation or durable cancellation policy
   exists.
 - Failed Prompt construction before an LLM attempt leaves no durable Trace.
 - Hybrid/keyword/parent-child/query-rewrite candidates, reranking, and
   evaluation remain later Plan 4 work.
 
-These are explicit boundaries, not partially available features. M2 S7～S10 own
-query surfaces, Timeline behavior, and the M2 final review.
+These are explicit boundaries, not partially available features. M2 S10 owns
+the dedicated Trace usage document and M2 final review.

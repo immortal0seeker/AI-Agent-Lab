@@ -47,4 +47,15 @@ describe("App workspace selection", () => {
     expect(html).toContain("Knowledge Base workspace");
     expect(html).toContain("Loading Knowledge Bases...");
   });
+
+  it("restores Trace workspace from the URL and renders its navigation", () => {
+    stubWindow("?workspace=trace");
+
+    const html = renderToStaticMarkup(<App />);
+
+    expect(html).toContain("<h1>Trace</h1>");
+    expect(html).toContain("Trace Timeline workspace");
+    expect(html).toContain("Loading recent Trace Runs...");
+    expect(html).toContain('aria-label="Trace workspace"');
+  });
 });

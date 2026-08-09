@@ -58,10 +58,12 @@ the stable Chunk payload bridge required by M4. M3 S10～S12 add an independentl
   identity isolation and compatible concurrent collection creation; the user
   published those repairs as annotated `v0.3.1` at commit `6bcf423` while
   preserving the original tag. Plan 4 M1 is complete through `P4-M1-S7`. Plan
-  4 M2 is complete through `P4-M2-S6`: Chat LLM calls plus standalone RAG Query
+  4 M2 is complete through `P4-M2-S9`: Chat LLM calls plus standalone RAG Query
   and RAG Chat retrieval/Prompt/answer flows now write standardized Trace
-  Runs/Steps and retrieval candidate audits. Agent/Tool hooks, Trace API, and
-  Timeline UI remain deferred.
+  Runs/Steps and retrieval candidate audits. Bounded SQLite-only Trace
+  list/detail APIs and a responsive fourth workspace expose that evidence with
+  deterministic ordering and deep-link restoration. Agent/Tool hooks remain
+  deferred.
 
 The first architectural goal is a thin, understandable web application foundation:
 
@@ -128,12 +130,12 @@ Current backend layers:
 |---|---|
 | `api/` | HTTP routes and response shaping |
 | `schemas/` | Pydantic request and response contracts |
-| `services/` | Chat, conversation, Agent query, Knowledge Base CRUD, Document upload/ingestion, Naive RAG query/chat, and application logic |
+| `services/` | Chat, conversation, Agent query, Knowledge Base CRUD, Document upload/ingestion, Naive RAG query/chat, bounded Trace reads, and application logic |
 | `agents/` | Backend-only Simple Agent orchestration and Agent domain errors |
 | `providers/` | LLM abstractions/adapters plus the M3 Embedding abstraction, validated batch result, runtime Registry, and OpenAI-compatible adapter/factory |
 | `knowledge/` | Plan 3 structured knowledge metadata plus controlled Document storage; models live in `models/` and service policy lives in `services/` |
 | `rag/` | Plan 3 document-processing and Naive RAG boundary plus the Plan 4 retrieval Trace Recorder; parsers, Cleaner, naive Chunker, ingestion pipeline, VectorStore/Qdrant, source payload, Top-K Retriever, bounded Prompt Builder, audited Query/Chat orchestration, and retrieval/Prompt/answer Trace writes exist |
-| `observability/` | Plan 4 Trace enums/lifecycle/context/metrics plus stable prompt versions and a service-level LLM Recorder used by Chat, streaming Chat, and Naive RAG Chat; Agent/Tool and query/UI surfaces remain deferred |
+| `observability/` | Plan 4 Trace enums/lifecycle/context/metrics plus stable prompt versions and a service-level LLM Recorder used by Chat, streaming Chat, and Naive RAG Chat; Agent/Tool writers remain deferred |
 | `tools/` | Tool contracts, Registry, schema validation, read-only policy, and the bounded `search_knowledge_base` adapter |
 | `db/` | SQLAlchemy session/database setup plus request-scoped async rollback callbacks and resource finalizers |
 | `models/` | ORM models |

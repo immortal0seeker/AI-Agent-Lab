@@ -10,6 +10,7 @@ from app.api.v1.health import router as health_router
 from app.api.v1.knowledge_bases import router as knowledge_bases_router
 from app.api.v1.models import router as models_router
 from app.api.v1.rag import router as rag_router
+from app.api.v1.traces import router as traces_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.request_context import RequestContextMiddleware
@@ -40,3 +41,4 @@ app.include_router(documents_router, prefix=settings.api_v1_prefix)
 app.include_router(chat_router, prefix=settings.api_v1_prefix)
 app.include_router(rag_router, prefix=settings.api_v1_prefix)
 app.include_router(agents_router, prefix=settings.api_v1_prefix)
+app.include_router(traces_router, prefix=settings.api_v1_prefix)

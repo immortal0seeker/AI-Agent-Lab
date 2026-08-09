@@ -24,8 +24,15 @@ All notable changes to AI Agent Lab are documented in this file.
   Naive Vector strategy, embedding identity, ordered candidate snapshots,
   Prompt source selection, and answer audit links. Provider failures preserve
   completed retrieval/Prompt evidence before the failed LLM Step; retrieval
-  failures preserve a safe class-name-only failed Trace. Agent/Tool hooks,
-  Trace API, and Timeline UI remain deferred.
+  failures preserve a safe class-name-only failed Trace. Agent/Tool hooks
+  remain deferred.
+- Added bounded read-only Trace list/detail APIs with deterministic Run, Step,
+  retrieval Run, and candidate ordering. Trace reads use SQLite only, expose
+  safe structured errors and persisted candidate previews, and do not
+  initialize Providers or Qdrant.
+- Added a fourth responsive Trace workspace with URL-restored Run selection,
+  independent list/detail loading and retry states, stale-response protection,
+  ordered Step metadata, retrieval evidence, and candidate score/ID display.
 
 ## [0.3.1] - 2026-08-02
 

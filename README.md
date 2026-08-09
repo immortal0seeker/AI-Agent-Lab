@@ -13,10 +13,10 @@ commit `46ea94a`. An independent post-release audit repaired embedding-identity
 isolation and compatible concurrent collection creation; the user published
 those repairs as annotated `v0.3.1` at `6bcf423` while preserving the original
 tag. Plan 4 M1 is complete through `P4-M1-S7`, and M2 is complete through
-`P4-M2-S6`: standalone RAG Query now records retrieval Runs/candidates, while
-RAG Chat records ordered retrieval, Prompt, LLM, and final-answer Steps with
-durable retrieval evidence on Provider failure. Agent/Tool hooks, Trace API,
-and Timeline UI are not yet implemented.
+`P4-M2-S9`: standalone RAG Query and RAG Chat record durable Trace and
+retrieval evidence, while read-only list/detail APIs and a fourth Trace
+workspace expose ordered Steps and bounded candidate previews. Agent/Tool
+Trace hooks remain deferred.
 
 Plan 1 covers:
 
@@ -31,9 +31,9 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Verified implementation scope: `P1-M1-S1` through `P4-M2-S6`, including the
+Verified implementation scope: `P1-M1-S1` through `P4-M2-S9`, including the
 Plan 3 final-audit repair, Plan 4 M1 Trace foundation, LLM Trace integration,
-and Naive RAG retrieval/Prompt/answer Trace persistence.
+Naive RAG retrieval/Prompt/answer Trace persistence, and the Trace API/Timeline.
 
 Current development stage: all Plan 2 milestones, the original `v0.2.0`
 release, and the `v0.2.1` audit patch are complete. All five Plan 3 bridge
@@ -202,6 +202,16 @@ Plan 4 revision `20260808_0009` adds `rag_retrieval_runs` and
 embedding identity, ordered candidate/source snapshots, Prompt source usage,
 and answer linkage under a shared Trace Run without changing either API
 response.
+
+Plan 4 `P4-M2-S7` through `P4-M2-S9` add bounded read-only Trace queries:
+`GET /api/v1/traces?limit=50` returns newest-first Run summaries, and
+`GET /api/v1/traces/{trace_run_id}` returns one Run with deterministically
+ordered Steps, retrieval Runs, and candidates. The API reads SQLite only and
+does not initialize LLM/Embedding Providers or Qdrant. The Trace workspace at
+`?workspace=trace&run=<uuid>` restores a deep-linked Run, keeps list/detail
+loading and error states independent, and displays persisted metadata and
+500-character candidate previews without reconstructing prompts, vector
+payloads, or full source text.
 
 ## v0.1.0 Demo
 
@@ -654,6 +664,7 @@ Release documentation:
 - [Plan 4 M1 Trace foundation final review](docs/reviews/2026-08-02-plan4-m1-final-review.md)
 - [Plan 4 M2 S1-S3 LLM Trace review](docs/reviews/2026-08-08-plan4-m2-s1-s3-review.md)
 - [Plan 4 M2 S4-S6 RAG Trace review](docs/reviews/2026-08-08-plan4-m2-s4-s6-review.md)
+- [Plan 4 M2 S7-S9 Trace API and Timeline review](docs/reviews/2026-08-09-plan4-m2-s7-s9-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
 
@@ -690,8 +701,9 @@ Query/Chat/Tool create RagQuery audit rows. Chat LLM calls create Trace runtime
 records; standalone RAG Query and RAG Chat now also retain retrieval candidates,
 Prompt source selection, and final-answer linkage. The Agent knowledge Tool
 deliberately keeps its existing Agent-owned transaction and does not create a
-standalone Trace yet. RAG streaming, Trace API/Timeline, Agent/Tool Trace hooks,
-and Advanced RAG do not exist.
+standalone Trace yet. RAG streaming, Agent/Tool Trace hooks, and Advanced RAG
+do not exist. The Trace Timeline is a read-only replay of persisted evidence;
+it does not create, resume, cancel, or retry runtime execution.
 Returned Embedding Provider usage remains in memory. Normal request
 rollback compensates vectors, while a hard process crash after Qdrant write can
 still leave orphan points for later reconciliation.
@@ -704,6 +716,6 @@ the repaired retrieval filter.
 - Plan 1: Project foundation + Basic Chat + LLM Providers
 - Plan 2: Tool Calling + Simple Agent Loop
 - Plan 3: Knowledge Base + Document Ingestion + Naive RAG (`v0.3.0`; audit hardening published as `v0.3.1`)
-- Plan 4: Trace + Advanced RAG + Rerank + Evaluation (M1 complete; M2 S1～S6 LLM/RAG Trace integration complete)
+- Plan 4: Trace + Advanced RAG + Rerank + Evaluation (M1 complete; M2 S1～S9 Trace integration and Timeline complete)
 - Plan 5: Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6: MCP + Voice + Vision + Desktop

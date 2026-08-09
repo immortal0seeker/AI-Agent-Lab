@@ -11,10 +11,9 @@ AI Agent Lab 是一个分阶段构建的 AI Engineering Workspace，用来学习
 Plan 3 Knowledge Base + Naive RAG 已由用户发布为 annotated `v0.3.0` tag，指向
 commit `46ea94a`。独立发布后终审修复了 embedding 身份隔离和兼容 collection
 并发首建；用户已将修复发布为指向 `6bcf423` 的 annotated `v0.3.1`，并保留原始
-tag。Plan 4 M1 已完成到 `P4-M1-S7`，M2 已完成到 `P4-M2-S6`：独立 RAG Query
-现会记录 retrieval Run/candidate；RAG Chat 会记录有序 retrieval、Prompt、LLM 和
-final-answer Step，并在 Provider 失败时保留检索证据。Agent/Tool 接线、Trace API
-和 Timeline UI 尚未实现。
+tag。Plan 4 M1 已完成到 `P4-M1-S7`，M2 已完成到 `P4-M2-S9`：独立 RAG Query
+与 RAG Chat 会保存 Trace 和 retrieval 证据；只读列表/详情 API 与第四个 Trace
+workspace 会展示有序 Step 和有界 candidate preview。Agent/Tool Trace 接线仍延期。
 
 Plan 1 覆盖：
 
@@ -29,9 +28,9 @@ Plan 1 覆盖：
 - 会话历史
 - 基础 token、cost、latency、logging 和 error handling
 
-已验证实现范围：`P1-M1-S1` 到 `P4-M2-S6`，包括 Plan 3 终审修复、完整的
+已验证实现范围：`P1-M1-S1` 到 `P4-M2-S9`，包括 Plan 3 终审修复、完整的
 Plan 4 M1 Trace 地基、LLM Trace 接入，以及 Naive RAG retrieval/Prompt/answer
-Trace 持久化。
+Trace 持久化和 Trace API/Timeline。
 
 当前开发阶段：Plan 2 的全部里程碑、原始 `v0.2.0` 发布和 `v0.2.1` 审计补丁
 都已完成，进入 Plan 3 的五项桥接契约已经重新验证。Plan 3 M1 已完成到
@@ -156,6 +155,14 @@ Plan 4 revision `20260808_0009` 新增 `rag_retrieval_runs` 与
 `rag_retrieval_candidates`。独立 Query 和 RAG Chat 会在同一个 Trace Run 下保存
 策略、embedding 身份、有序 candidate/source 快照、Prompt 来源使用情况和回答关联，
 且不改变现有 API 响应。
+
+Plan 4 `P4-M2-S7` 到 `P4-M2-S9` 新增有界只读 Trace 查询：
+`GET /api/v1/traces?limit=50` 按最新优先返回 Run 摘要，
+`GET /api/v1/traces/{trace_run_id}` 返回一个 Run 及确定排序的 Step、retrieval Run
+和 candidate。API 只读取 SQLite，不初始化 LLM/Embedding Provider 或 Qdrant。
+Trace workspace 支持 `?workspace=trace&run=<uuid>` 深链恢复，列表和详情分别处理
+loading/error，并只展示已持久化 metadata 与最多 500 字符的 candidate preview；
+不会重建 Prompt、vector payload 或完整来源正文。
 补丁 revision `20260801_0006` 增加同一知识库内的 Document hash 唯一约束，禁止
 删除仍含 Document 的知识库，并在删除回答 Message 时只清空引用、保留 `RagQuery`。
 
@@ -553,6 +560,7 @@ npm run build
 - [Plan 4 M1 Trace 地基最终复审](docs/reviews/2026-08-02-plan4-m1-final-review.md)
 - [Plan 4 M2 S1-S3 LLM Trace 复审](docs/reviews/2026-08-08-plan4-m2-s1-s3-review.md)
 - [Plan 4 M2 S4-S6 RAG Trace 复审](docs/reviews/2026-08-08-plan4-m2-s4-s6-review.md)
+- [Plan 4 M2 S7-S9 Trace API 与 Timeline 复审](docs/reviews/2026-08-09-plan4-m2-s7-s9-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
 
@@ -580,7 +588,8 @@ ID；刷新后不会恢复 RAG 回合/来源。Query/Chat/Tool 已创建 RagQuer
 Agent Tool 尚无专用前端。Chat LLM 调用已有 Trace runtime；独立 RAG Query 与
 RAG Chat 也会保留 retrieval candidate、Prompt 来源选择和最终回答关联。Agent
 knowledge Tool 为保持既有 Agent transaction，本批不会独立创建 Trace。当前仍无
-RAG streaming、Trace API/Timeline、Agent/Tool Trace 接线或 Advanced RAG。
+RAG streaming、Agent/Tool Trace 接线或 Advanced RAG。Trace Timeline 只读回放
+已持久化证据，不会创建、恢复、取消或重试 runtime execution。
 Embedding Provider usage 仍只存在于内存。
 正常请求回滚会补偿 vectors，但 Qdrant 写入后进程硬崩溃仍可能留下需要后续
 reconciliation 的 orphan points。
@@ -592,6 +601,6 @@ reconciliation 的 orphan points。
 - Plan 1：项目骨架 + 基础 Chat + LLM Providers
 - Plan 2：Tool Calling + 简单 Agent Loop
 - Plan 3：Knowledge Base + Document Ingestion + Naive RAG（`v0.3.0`；终审加固发布为 `v0.3.1`）
-- Plan 4：Trace + Advanced RAG + Rerank + Evaluation（M1 已完成；M2 S1～S6 LLM/RAG Trace 接入已完成）
+- Plan 4：Trace + Advanced RAG + Rerank + Evaluation（M1 已完成；M2 S1～S9 Trace 接入与 Timeline 已完成）
 - Plan 5：Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6：MCP + Voice + Vision + Desktop

@@ -3,6 +3,7 @@ import { useState } from "react";
 import ChatPage from "./pages/ChatPage";
 import AgentPage from "./pages/AgentPage";
 import KnowledgeBasePage from "./pages/KnowledgeBasePage";
+import TraceTimelinePage from "./pages/TraceTimelinePage";
 import {
   buildWorkspaceUrl,
   readWorkspace,
@@ -27,6 +28,9 @@ export default function App() {
   }
   if (workspace === "knowledge") {
     return <KnowledgeBasePage onSelectWorkspace={selectWorkspace} />;
+  }
+  if (workspace === "trace") {
+    return <TraceTimelinePage onSelectWorkspace={selectWorkspace} />;
   }
   return <ChatPage onSelectWorkspace={selectWorkspace} />;
 }

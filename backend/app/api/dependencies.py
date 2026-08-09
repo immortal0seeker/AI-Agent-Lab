@@ -34,6 +34,7 @@ from app.services.conversation_service import ConversationService
 from app.services.document_service import DocumentService
 from app.services.knowledge_base_service import KnowledgeBaseService
 from app.services.rag_service import RagQueryResult, RagQueryService, RagService
+from app.services.trace_query_service import TraceQueryService
 from app.tools import ToolRegistry
 from app.tools.builtin import register_builtin_tools
 from app.tools.builtin.search_knowledge_base import (
@@ -248,3 +249,9 @@ def get_agent_service(
     session: Session = Depends(get_db_session, scope="function"),
 ) -> AgentService:
     return AgentService(session)
+
+
+def get_trace_query_service(
+    session: Session = Depends(get_db_session, scope="function"),
+) -> TraceQueryService:
+    return TraceQueryService(session)

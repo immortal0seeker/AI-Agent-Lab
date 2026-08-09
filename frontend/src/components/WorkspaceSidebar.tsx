@@ -1,6 +1,7 @@
 import {
   Activity,
   Bot,
+  ChartNoAxesCombined,
   Database,
   History,
   MessageSquarePlus,
@@ -43,10 +44,15 @@ type KnowledgeSidebarProps = SharedSidebarProps & {
   activeWorkspace: "knowledge";
 };
 
+type TraceSidebarProps = SharedSidebarProps & {
+  activeWorkspace: "trace";
+};
+
 type WorkspaceSidebarProps =
   | ChatSidebarProps
   | AgentSidebarProps
-  | KnowledgeSidebarProps;
+  | KnowledgeSidebarProps
+  | TraceSidebarProps;
 
 export default function WorkspaceSidebar(props: WorkspaceSidebarProps) {
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
@@ -115,6 +121,15 @@ export default function WorkspaceSidebar(props: WorkspaceSidebarProps) {
         >
           <Database size={15} aria-hidden="true" />
           Knowledge
+        </button>
+        <button
+          type="button"
+          aria-label="Trace workspace"
+          aria-current={activeWorkspace === "trace" ? "page" : undefined}
+          onClick={() => selectWorkspace("trace")}
+        >
+          <ChartNoAxesCombined size={15} aria-hidden="true" />
+          Trace
         </button>
       </nav>
 
@@ -190,16 +205,24 @@ export default function WorkspaceSidebar(props: WorkspaceSidebarProps) {
           aria-label={
             props.activeWorkspace === "agent"
               ? "Current Agent task"
-              : "Knowledge workspace summary"
+              : props.activeWorkspace === "knowledge"
+                ? "Knowledge workspace summary"
+                : "Trace workspace summary"
           }
         >
           <span>
-            {props.activeWorkspace === "agent" ? "Current task" : "Knowledge"}
+            {props.activeWorkspace === "agent"
+              ? "Current task"
+              : props.activeWorkspace === "knowledge"
+                ? "Knowledge"
+                : "Trace"}
           </span>
           <p>
             {props.activeWorkspace === "agent"
               ? "Run and inspect one traceable Agent task at a time."
-              : "Create a Knowledge Base and ingest one document at a time."}
+              : props.activeWorkspace === "knowledge"
+                ? "Create a Knowledge Base and ingest one document at a time."
+                : "Inspect persisted Runs, Steps, and retrieval evidence."}
           </p>
         </section>
       )}
