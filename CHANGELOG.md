@@ -32,7 +32,10 @@ All notable changes to AI Agent Lab are documented in this file.
   initialize Providers or Qdrant.
 - Added a fourth responsive Trace workspace with URL-restored Run selection,
   independent list/detail loading and retry states, stale-response protection,
-  ordered Step metadata, retrieval evidence, and candidate score/ID display.
+  Run token/cost/latency metrics, ordered Step metadata, retrieval evidence,
+  and candidate score/ID display.
+- Added the Trace Timeline operator/developer guide and completed the Plan 4
+  M2 closeout with fresh verification and Codex-only review evidence.
 
 ## [0.3.1] - 2026-08-02
 

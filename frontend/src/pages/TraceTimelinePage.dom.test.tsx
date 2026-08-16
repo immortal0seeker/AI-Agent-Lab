@@ -146,6 +146,35 @@ describe("TraceTimelinePage mounted async flows", () => {
     act(() => root.unmount());
   });
 
+  it("renders Run token, cost, and latency metrics", async () => {
+    const runDetail = {
+      ...detail(firstId, "Metric question", "Metric answer"),
+      total_input_tokens: 12,
+      total_output_tokens: 8,
+      total_tokens: 20,
+      estimated_cost: "0.00002000",
+      latency_ms: 24,
+    };
+    vi.mocked(fetchTraceRuns).mockResolvedValue([
+      summary(firstId, "Metric question"),
+    ]);
+    vi.mocked(fetchTraceRunDetail).mockResolvedValue(runDetail);
+
+    const { container, root } = mountPage();
+    await flushEffects();
+
+    const metrics = container.querySelector(
+      '[aria-label="Trace Run metrics"]',
+    );
+    expect(metrics).not.toBeNull();
+    expect(metrics?.textContent).toContain("Input Tokens12");
+    expect(metrics?.textContent).toContain("Output Tokens8");
+    expect(metrics?.textContent).toContain("Total Tokens20");
+    expect(metrics?.textContent).toContain("Estimated Cost0.00002000");
+    expect(metrics?.textContent).toContain("Run Latency24 ms");
+    act(() => root.unmount());
+  });
+
   it("loads a valid deep link even when absent from the recent list", async () => {
     window.history.replaceState(
       null,

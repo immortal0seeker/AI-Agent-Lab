@@ -58,7 +58,7 @@ the stable Chunk payload bridge required by M4. M3 S10～S12 add an independentl
   identity isolation and compatible concurrent collection creation; the user
   published those repairs as annotated `v0.3.1` at commit `6bcf423` while
   preserving the original tag. Plan 4 M1 is complete through `P4-M1-S7`. Plan
-  4 M2 is complete through `P4-M2-S9`: Chat LLM calls plus standalone RAG Query
+  4 M2 is complete through `P4-M2-S10`: Chat LLM calls plus standalone RAG Query
   and RAG Chat retrieval/Prompt/answer flows now write standardized Trace
   Runs/Steps and retrieval candidate audits. Bounded SQLite-only Trace
   list/detail APIs and a responsive fourth workspace expose that evidence with
@@ -274,8 +274,10 @@ Standalone RAG Query writes `rag_retrieve`; RAG Chat writes `rag_retrieve`,
 recreates the completed retrieval/Prompt evidence before its failed LLM Step;
 retrieval failure keeps a class-name-only failed Run/Step. The complete current
 contract is documented in
-[Trace Observability Foundation](30-trace-observability.md). Agent/Tool hooks,
-Trace API, and Timeline UI remain later M2 work.
+[Trace Observability Foundation](30-trace-observability.md). The bounded Trace
+API and responsive Timeline UI are implemented and documented in the
+[Trace Timeline guide](31-trace-timeline.md). Agent/Tool hooks and later
+Advanced RAG/Evaluation work remain deferred.
 
 Foreign-key columns used by conversation and message lookups are indexed.
 SQLAlchemy metadata uses a stable naming convention for primary keys, foreign
@@ -790,9 +792,10 @@ latency/linkage fields, source-rich `DocumentChunk`, RAG response retrieval
 metadata/audit identity, and Qdrant Knowledge Base/Document/Chunk payload IDs.
 The post-release audit further makes embedding Provider/actual-model identity
 part of the payload, query filter, response, and audit snapshot. Plan 4 now has
-active Chat LLM and Naive RAG retrieval/Prompt/answer Trace persistence, but no
-Trace API/Timeline, Agent/Tool Trace, Advanced RAG, reranking, or evaluation
-runtime. Package, OpenAPI, frontend, and lockfile
+active Chat LLM and Naive RAG retrieval/Prompt/answer Trace persistence plus a
+bounded SQLite-only Trace API and responsive Timeline. Agent/Tool Trace,
+Advanced RAG, reranking, and evaluation runtime remain deferred. Package,
+OpenAPI, frontend, and lockfile
 metadata remains the Plan 3 `0.3.0` product baseline; annotated `v0.3.0` stays
 at the original release commit and its audit repair is published as annotated
 `v0.3.1`.

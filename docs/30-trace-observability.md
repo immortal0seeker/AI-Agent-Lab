@@ -470,5 +470,7 @@ S7～S9 is in the
 - Hybrid/keyword/parent-child/query-rewrite candidates, reranking, and
   evaluation remain later Plan 4 work.
 
-These are explicit boundaries, not partially available features. M2 S10 owns
-the dedicated Trace usage document and M2 final review.
+These are explicit boundaries, not partially available features. The
+dedicated [Trace Timeline usage guide](31-trace-timeline.md) and
+[M2 final review](reviews/2026-08-16-plan4-m2-final-review.md) complete the M2
+documentation and acceptance gate.

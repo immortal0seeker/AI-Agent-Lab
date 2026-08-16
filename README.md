@@ -13,10 +13,11 @@ commit `46ea94a`. An independent post-release audit repaired embedding-identity
 isolation and compatible concurrent collection creation; the user published
 those repairs as annotated `v0.3.1` at `6bcf423` while preserving the original
 tag. Plan 4 M1 is complete through `P4-M1-S7`, and M2 is complete through
-`P4-M2-S9`: standalone RAG Query and RAG Chat record durable Trace and
+`P4-M2-S10`: standalone RAG Query and RAG Chat record durable Trace and
 retrieval evidence, while read-only list/detail APIs and a fourth Trace
-workspace expose ordered Steps and bounded candidate previews. Agent/Tool
-Trace hooks remain deferred.
+workspace expose ordered Steps and bounded candidate previews. The operator
+guide and Codex-only M2 final review are published; Agent/Tool Trace hooks
+remain deferred.
 
 Plan 1 covers:
 
@@ -31,7 +32,7 @@ Plan 1 covers:
 - Conversation history
 - Basic token, cost, latency, logging, and error handling
 
-Verified implementation scope: `P1-M1-S1` through `P4-M2-S9`, including the
+Verified implementation scope: `P1-M1-S1` through `P4-M2-S10`, including the
 Plan 3 final-audit repair, Plan 4 M1 Trace foundation, LLM Trace integration,
 Naive RAG retrieval/Prompt/answer Trace persistence, and the Trace API/Timeline.
 
@@ -203,15 +204,15 @@ embedding identity, ordered candidate/source snapshots, Prompt source usage,
 and answer linkage under a shared Trace Run without changing either API
 response.
 
-Plan 4 `P4-M2-S7` through `P4-M2-S9` add bounded read-only Trace queries:
+Plan 4 `P4-M2-S7` through `P4-M2-S10` add bounded read-only Trace queries:
 `GET /api/v1/traces?limit=50` returns newest-first Run summaries, and
 `GET /api/v1/traces/{trace_run_id}` returns one Run with deterministically
 ordered Steps, retrieval Runs, and candidates. The API reads SQLite only and
 does not initialize LLM/Embedding Providers or Qdrant. The Trace workspace at
 `?workspace=trace&run=<uuid>` restores a deep-linked Run, keeps list/detail
-loading and error states independent, and displays persisted metadata and
-500-character candidate previews without reconstructing prompts, vector
-payloads, or full source text.
+loading and error states independent, and displays Run token/cost/latency,
+persisted metadata, and 500-character candidate previews without
+reconstructing prompts, vector payloads, or full source text.
 
 ## v0.1.0 Demo
 
@@ -658,6 +659,7 @@ Release documentation:
 - [Document Ingestion Pipeline](docs/22-document-ingestion-pipeline.md)
 - [Naive RAG Query and Chat](docs/23-naive-rag.md)
 - [Trace Observability Foundation](docs/30-trace-observability.md)
+- [Trace Timeline usage guide](docs/31-trace-timeline.md)
 - [Plan 1 final review record](docs/reviews/2026-07-13-plan1-v0.1.0-final-review.md)
 - [Plan 2 final review record](docs/reviews/2026-07-19-plan2-v0.2.0-final-review.md)
 - [Plan 3 v0.3.0 Codex final review](docs/reviews/2026-08-02-plan3-v0.3.0-final-review.md)
@@ -665,6 +667,7 @@ Release documentation:
 - [Plan 4 M2 S1-S3 LLM Trace review](docs/reviews/2026-08-08-plan4-m2-s1-s3-review.md)
 - [Plan 4 M2 S4-S6 RAG Trace review](docs/reviews/2026-08-08-plan4-m2-s4-s6-review.md)
 - [Plan 4 M2 S7-S9 Trace API and Timeline review](docs/reviews/2026-08-09-plan4-m2-s7-s9-review.md)
+- [Plan 4 M2 final review](docs/reviews/2026-08-16-plan4-m2-final-review.md)
 - `docs-plan/00-ALL PLAN/01-PLAN-1 (V1.0).md`
 - `docs-plan/01-PLAN1/01-PLAN1-执行步骤表 (V1.0).md`
 
@@ -716,6 +719,6 @@ the repaired retrieval filter.
 - Plan 1: Project foundation + Basic Chat + LLM Providers
 - Plan 2: Tool Calling + Simple Agent Loop
 - Plan 3: Knowledge Base + Document Ingestion + Naive RAG (`v0.3.0`; audit hardening published as `v0.3.1`)
-- Plan 4: Trace + Advanced RAG + Rerank + Evaluation (M1 complete; M2 S1～S9 Trace integration and Timeline complete)
+- Plan 4: Trace + Advanced RAG + Rerank + Evaluation (M1 complete; M2 S1～S10 Trace integration, Timeline, usage guide, and review complete)
 - Plan 5: Memory + Context Engine + Agent Runtime + Human Approval
 - Plan 6: MCP + Voice + Vision + Desktop

@@ -126,6 +126,34 @@ function TraceDetailPanel({
         <div><dt>User Message ID</dt><dd><code>{detail.user_message_id ?? "—"}</code></dd></div>
       </dl>
 
+      <dl
+        className="trace-id-grid trace-detail__ids"
+        aria-label="Trace Run metrics"
+      >
+        <div>
+          <dt>Input Tokens</dt>
+          <dd>{detail.total_input_tokens ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>Output Tokens</dt>
+          <dd>{detail.total_output_tokens ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>Total Tokens</dt>
+          <dd>{detail.total_tokens ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>Estimated Cost</dt>
+          <dd>{detail.estimated_cost ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>Run Latency</dt>
+          <dd>
+            {detail.latency_ms === null ? "—" : `${detail.latency_ms} ms`}
+          </dd>
+        </div>
+      </dl>
+
       {detail.error_message === null ? null : (
         <p className="trace-error" role="alert">{detail.error_message}</p>
       )}
